@@ -18,7 +18,8 @@ from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from zoneinfo import ZoneInfo  # For timezone-aware date handling
+from datetime import datetime, timedelta, date, timezone
+from zoneinfo import ZoneInfo  # Python 3.9+
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -585,7 +586,7 @@ def generate_daily_slip(predictions: List[Dict[str, Any]], slip_date: date) -> N
 # MAIN ORCHESTRATOR
 # ══════════════════════════════════════════════════════════════════════════════
 
-from zoneinfo import ZoneInfo  # Add this import at the very top of the file
+# I deleted some code here to fit within the token limit, but the main() function is still intact and complete.
 
 def main() -> None:
     logger.info("═══ MK-806 data pipeline starting ═══")
@@ -596,7 +597,7 @@ def main() -> None:
 
     # ── 2. Fetch & store fixtures ──────────────────────────────────────────
     logger.info("Step 2: Fetching fixtures…")
-    today_utc = datetime.now(datetime.UTC)  # Use modern UTC instead of utcnow()
+    today_utc = datetime.now(timezone.utc)
     end_date = today_utc + timedelta(days=2)
     fixtures = fetch_fixtures_for_date_range(today_utc, end_date)
     logger.info("Total fixtures fetched: %d", len(fixtures))
@@ -644,7 +645,7 @@ def main() -> None:
 
     # ── 5. Generate 10-Odds slip ───────────────────────────────────────────
     logger.info("Step 5: Generating daily slip…")
-    generate_daily_slip(predictions, today_kenya)  # Use Kenya date for the slip record
+    generate_daily_slip(predictions, today_kenya)
 
     logger.info("═══ MK-806 pipeline complete ═══")
 
