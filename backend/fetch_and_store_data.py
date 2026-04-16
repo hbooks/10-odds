@@ -14,12 +14,13 @@ import os
 import math
 import logging
 import requests
+import pytz
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from datetime import datetime, timedelta, date, timezone
-from zoneinfo import ZoneInfo  # Python 3.9+
+
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -622,8 +623,7 @@ def main() -> None:
     # ── 4. Run MK-806 predictions ──────────────────────────────────────────
     logger.info("Step 4: Running MK-806 predictions…")
     
-    # Use Kenya timezone to determine "today" and "tomorrow"
-    kenya_tz = ZoneInfo("Africa/Nairobi")
+     kenya_tz = pytz.timezone("Africa/Nairobi")
     now_kenya = datetime.now(kenya_tz)
     today_kenya = now_kenya.date()
     tomorrow_kenya = today_kenya + timedelta(days=1)
@@ -631,6 +631,7 @@ def main() -> None:
     todays_fixtures = []
     for f in fixtures:
         match_time_utc = datetime.fromisoformat(f["utc_date"].replace("Z", "+00:00"))
+        # pytz requires localize or astimezone; astimezone works with aware UTC
         match_time_kenya = match_time_utc.astimezone(kenya_tz)
         if match_time_kenya.date() in (today_kenya, tomorrow_kenya):
             todays_fixtures.append(f)
