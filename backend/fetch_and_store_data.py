@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from zoneinfo import ZoneInfo  # For timezone-aware date handling
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -584,6 +585,8 @@ def generate_daily_slip(predictions: List[Dict[str, Any]], slip_date: date) -> N
 # MAIN ORCHESTRATOR
 # ══════════════════════════════════════════════════════════════════════════════
 
+from zoneinfo import ZoneInfo  # Add this import at the very top of the file
+
 def main() -> None:
     logger.info("═══ MK-806 data pipeline starting ═══")
 
@@ -593,9 +596,9 @@ def main() -> None:
 
     # ── 2. Fetch & store fixtures ──────────────────────────────────────────
     logger.info("Step 2: Fetching fixtures…")
-    today    = datetime.utcnow()
-    end_date = today + timedelta(days=2)
-    fixtures = fetch_fixtures_for_date_range(today, end_date)
+    today_utc = datetime.now(datetime.UTC)  # Use modern UTC instead of utcnow()
+    end_date = today_utc + timedelta(days=2)
+    fixtures = fetch_fixtures_for_date_range(today_utc, end_date)
     logger.info("Total fixtures fetched: %d", len(fixtures))
 
     for fix in fixtures:
@@ -617,12 +620,21 @@ def main() -> None:
 
     # ── 4. Run MK-806 predictions ──────────────────────────────────────────
     logger.info("Step 4: Running MK-806 predictions…")
-    # Only predict for today's fixtures (the slip is for today)
-    todays_fixtures = [
-        f for f in fixtures
-        if datetime.fromisoformat(f["utc_date"].replace("Z", "+00:00")).date() == today.date()
-    ]
-    logger.info("Running predictions for %d fixtures today", len(todays_fixtures))
+    
+    # Use Kenya timezone to determine "today" and "tomorrow"
+    kenya_tz = ZoneInfo("Africa/Nairobi")
+    now_kenya = datetime.now(kenya_tz)
+    today_kenya = now_kenya.date()
+    tomorrow_kenya = today_kenya + timedelta(days=1)
+
+    todays_fixtures = []
+    for f in fixtures:
+        match_time_utc = datetime.fromisoformat(f["utc_date"].replace("Z", "+00:00"))
+        match_time_kenya = match_time_utc.astimezone(kenya_tz)
+        if match_time_kenya.date() in (today_kenya, tomorrow_kenya):
+            todays_fixtures.append(f)
+
+    logger.info("Running predictions for %d fixtures (Kenya time: %s)", len(todays_fixtures), today_kenya)
 
     predictions: List[Dict[str, Any]] = []
     for fix in todays_fixtures:
@@ -632,10 +644,9 @@ def main() -> None:
 
     # ── 5. Generate 10-Odds slip ───────────────────────────────────────────
     logger.info("Step 5: Generating daily slip…")
-    generate_daily_slip(predictions, today.date())
+    generate_daily_slip(predictions, today_kenya)  # Use Kenya date for the slip record
 
     logger.info("═══ MK-806 pipeline complete ═══")
-
 
 if __name__ == "__main__":
     main()
