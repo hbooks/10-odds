@@ -1,21 +1,18 @@
 """
-update_results.py — MK-806 Result Updater
-==========================================
-This script checks all PENDING predictions, fetches the actual match
-results from Football-Data.org, and updates the prediction status to
-WIN, LOSS, HALF_WIN, HALF_LOSS, or VOID as appropriate.
-
-Uses a separate API key (FOOTBALL_DATA_API_KEY_H) to avoid conflict
-with the main pipeline's API key.
-
-Run manually or via a daily scheduled job (e.g., GitHub Actions).
+update_results.py — MK-806 Result Updater (v2)
+================================================
+- Checks PENDING predictions.
+- Fetches final scores from Football-Data.org.
+- Updates prediction status to WIN/LOSS/HALF_WIN/HALF_LOSS/VOID.
+- Includes delay to respect API rate limits.
 """
 
 import os
 import logging
+import time
 import requests
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -31,29 +28,35 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 SUPABASE_URL: str = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY: str = os.environ["SUPABASE_SERVICE_KEY"]
-FOOTBALL_DATA_API_KEY_H: str = os.environ["FOOTBALL_DATA_API_KEY"] # add _H to avoid conflict with main pipeline's key
+FOOTBALL_DATA_API_KEY_H: str = os.environ["FOOTBALL_DATA_API_KEY_H"]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
-FD_HEADERS = {"X-Auth-Token": FOOTBALL_DATA_API_KEY} # add _H to avoid conflict with main pipeline's key
+FD_HEADERS = {"X-Auth-Token": FOOTBALL_DATA_API_KEY_H}
 
-# ── Helper Functions ──────────────────────────────────────────────────────────
+# Rate limiting: free tier allows 10 requests per minute → 1 request every 6 seconds
+REQUEST_DELAY = 6.5  # seconds
+
 
 def determine_result(prediction: Dict[str, Any], match: Dict[str, Any]) -> str:
     """
-    Determine if the prediction was a WIN, LOSS, HALF_WIN, HALF_LOSS, or VOID.
+    Determine the prediction outcome based on the actual match result.
+    Returns: WIN, LOSS, HALF_WIN, HALF_LOSS, VOID, or PENDING (if match not finished).
     """
-    # If match isn't finished or scores are missing, leave as PENDING
-    if match.get("status") != "FINISHED" or match.get("home_score") is None or match.get("away_score") is None:
+    if match.get("status") != "FINISHED":
         return "PENDING"
 
-    home_score = match["home_score"]
-    away_score = match["away_score"]
+    home_score = match.get("home_score")
+    away_score = match.get("away_score")
+    if home_score is None or away_score is None:
+        return "PENDING"
+
     bet_type = prediction["bet_type"]
     actual_winner = match.get("winner")
+    total_goals = home_score + away_score
 
-    # 1X2 outcomes
+    # ── 1X2 ───────────────────────────────────────────────────────────────
     if bet_type == "HOME_WIN":
         return "WIN" if actual_winner == "HOME_TEAM" else "LOSS"
     elif bet_type == "AWAY_WIN":
@@ -61,52 +64,48 @@ def determine_result(prediction: Dict[str, Any], match: Dict[str, Any]) -> str:
     elif bet_type == "DRAW":
         return "WIN" if actual_winner == "DRAW" else "LOSS"
 
-    # Totals (Over/Under lines)
-    # Format: OVER_2.5 or UNDER_1.5
+    # ── Over/Under ────────────────────────────────────────────────────────
     if bet_type.startswith("OVER_"):
         try:
             line = float(bet_type.replace("OVER_", ""))
-            total = home_score + away_score
-            if total > line:
+            if total_goals > line:
                 return "WIN"
-            elif total == line:
-                return "VOID"   # Push on exact line
+            elif total_goals == line:
+                return "VOID"
             else:
                 return "LOSS"
         except ValueError:
-            logger.warning(f"Could not parse totals line from {bet_type}")
+            logger.warning(f"Could not parse line from {bet_type}")
             return "PENDING"
 
     if bet_type.startswith("UNDER_"):
         try:
             line = float(bet_type.replace("UNDER_", ""))
-            total = home_score + away_score
-            if total < line:
+            if total_goals < line:
                 return "WIN"
-            elif total == line:
+            elif total_goals == line:
                 return "VOID"
             else:
                 return "LOSS"
         except ValueError:
-            logger.warning(f"Could not parse totals line from {bet_type}")
+            logger.warning(f"Could not parse line from {bet_type}")
             return "PENDING"
 
-    # BTTS
+    # ── BTTS ──────────────────────────────────────────────────────────────
     if bet_type == "BTTS_YES":
         return "WIN" if (home_score > 0 and away_score > 0) else "LOSS"
     if bet_type == "BTTS_NO":
         return "WIN" if (home_score == 0 or away_score == 0) else "LOSS"
 
-    # Exact total goals (e.g., "TOTAL_GOALS_3")
+    # ── Exact Total Goals ─────────────────────────────────────────────────
     if bet_type.startswith("TOTAL_GOALS_"):
         try:
             target = int(bet_type.replace("TOTAL_GOALS_", ""))
-            total = home_score + away_score
-            return "WIN" if total == target else "LOSS"
+            return "WIN" if total_goals == target else "LOSS"
         except ValueError:
             return "PENDING"
 
-    # Correct score (e.g., "CORRECT_SCORE_2_1")
+    # ── Correct Score ─────────────────────────────────────────────────────
     if bet_type.startswith("CORRECT_SCORE_"):
         parts = bet_type.split("_")
         if len(parts) == 4:
@@ -121,13 +120,16 @@ def determine_result(prediction: Dict[str, Any], match: Dict[str, Any]) -> str:
     return "PENDING"
 
 
-def update_pending_predictions() -> None:
-    """
-    Fetch PENDING predictions, get match results, and update statuses.
-    """
-    logger.info("Fetching PENDING predictions...")
+def fetch_match_from_api(match_id: int) -> Dict[str, Any]:
+    """Fetch match data from Football-Data.org."""
+    url = f"{FOOTBALL_DATA_BASE}/matches/{match_id}"
+    resp = requests.get(url, headers=FD_HEADERS, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
 
-    # 1. Get all PENDING predictions
+
+def update_pending_predictions() -> None:
+    logger.info("Fetching PENDING predictions...")
     pred_response = supabase.table("predictions").select("*").eq("status", "PENDING").execute()
     predictions = pred_response.data
 
@@ -137,34 +139,28 @@ def update_pending_predictions() -> None:
 
     logger.info(f"Found {len(predictions)} PENDING predictions.")
 
-    for pred in predictions:
+    for idx, pred in enumerate(predictions):
         match_id = pred["match_id"]
         pred_id = pred["id"]
 
-        # 2. Get match details from our own database first (to avoid API calls if already FINISHED)
+        # Get match from our DB first
         match_response = supabase.table("matches").select("*").eq("id", match_id).execute()
         match = match_response.data[0] if match_response.data else None
 
         if not match:
-            logger.warning(f"Match {match_id} not found in database.")
+            logger.warning(f"Match {match_id} not found in DB, skipping.")
             continue
 
-        # If match is already FINISHED in our DB, use that data
+        # If match is already FINISHED in DB, use that
         if match.get("status") == "FINISHED" and match.get("home_score") is not None:
             new_status = determine_result(pred, match)
         else:
-            # 3. Fetch fresh data from Football-Data.org
+            # Fetch fresh data from API
             logger.info(f"Fetching fresh data for match {match_id}...")
-            api_url = f"{FOOTBALL_DATA_BASE}/matches/{match_id}"
             try:
-                api_response = requests.get(api_url, headers=FD_HEADERS, timeout=10)
-                if api_response.status_code != 200:
-                    logger.error(f"API error for match {match_id}: {api_response.status_code}")
-                    continue
-                api_match = api_response.json()
-                new_status = determine_result(pred, api_match)
+                api_match = fetch_match_from_api(match_id)
 
-                # Optionally update the match in our DB with the result
+                # Update the match in our DB
                 if api_match.get("status") == "FINISHED":
                     supabase.table("matches").update({
                         "status": api_match["status"],
@@ -173,21 +169,40 @@ def update_pending_predictions() -> None:
                         "winner": api_match["score"]["winner"]
                     }).eq("id", match_id).execute()
                     logger.info(f"Updated match {match_id} with final result.")
+                    match = api_match  # use this data for result determination
+                else:
+                    # Match not finished yet
+                    logger.info(f"Match {match_id} is not yet FINISHED (status={api_match.get('status')})")
+                    new_status = "PENDING"
+            except requests.HTTPError as e:
+                if e.response.status_code == 429:
+                    logger.warning("Rate limit hit. Waiting 60 seconds...")
+                    time.sleep(60)
+                    continue
+                else:
+                    logger.error(f"API error for match {match_id}: {e.response.status_code}")
+                    new_status = "PENDING"
             except Exception as e:
-                logger.error(f"Failed to fetch/update match {match_id}: {e}")
-                continue
+                logger.error(f"Error processing match {match_id}: {e}")
+                new_status = "PENDING"
 
-        # 4. Update the prediction if the status changed
+        # Determine result if we have finished match data
+        if match and match.get("status") == "FINISHED":
+            new_status = determine_result(pred, match)
+
         if new_status != "PENDING":
             logger.info(f"Updating prediction {pred_id} from PENDING to {new_status}")
             supabase.table("predictions").update({"status": new_status}).eq("id", pred_id).execute()
         else:
-            logger.info(f"Prediction {pred_id} still PENDING (match not finished or scores missing).")
+            logger.info(f"Prediction {pred_id} still PENDING (match not finished).")
+
+        # Delay to avoid rate limiting (skip delay after last item)
+        if idx < len(predictions) - 1:
+            time.sleep(REQUEST_DELAY)
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
-    logger.info("═══ MK-806 Result Updater starting ═══")
+    logger.info("═══ MK-806 Result Updater v2 starting ═══")
     update_pending_predictions()
     logger.info("═══ MK-806 Result Updater complete ═══")
 
