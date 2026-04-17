@@ -39,7 +39,7 @@ interface Prediction {
 }
 
 const STATUS_STYLES: Record<PredictionResult, { label: string; className: string }> = {
-  PENDING:   { label: "Pending",   className: "bg-yellow-500/20 text-yellow-200 border border-yellow-400/30" },
+  PENDING:   { label: "Pending",   className: "bg-yellow-500/20 text-black border border-yellow-400/30" },
   WIN:       { label: "Won ✓",     className: "bg-green-500/20 text-green-400" },
   LOSS:      { label: "Lost ✗",    className: "bg-red-500/20 text-red-400" },
   HALF_WIN:  { label: "½ Win",     className: "bg-green-400/20 text-green-300" },
@@ -75,10 +75,9 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   });
 
   const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
-  const displayStatus = isLive ? "LIVE" : prediction.status;
 
   const backgroundStyle = {
-    backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%), url('https://images.unsplash.com/photo-1529906925868-158d82cdb4f4?q=80&w=2070&auto=format&fit=crop')`,
+    backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%), url('https://images.pexels.com/photos/47730/the-ball-stadion-football-the-pitch-47730.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
     backgroundSize: "cover",
     backgroundPosition: "center",
   };
@@ -211,7 +210,7 @@ const StatusPage = () => {
           )
         `)
         .in("status", ["PENDING"])
-        .order("matches(utc_date)", { ascending: true });  // <-- Sorted by match date
+        .order("matches(utc_date)", { ascending: true });
 
       if (error) throw error;
       setPredictions(data as unknown as Prediction[]);
