@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 SUPABASE_URL: str = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY: str = os.environ["SUPABASE_SERVICE_KEY"]
-FOOTBALL_DATA_API_KEY_H: str = os.environ["FOOTBALL_DATA_API_KEY_H"]
+FOOTBALL_DATA_API_KEY_H: str = os.environ["FOOTBALL_DATA_API_KEY"] # add _H to avoid conflict with main pipeline's key
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
