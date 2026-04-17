@@ -19,6 +19,7 @@ interface Team {
 
 interface Match {
   utc_date: string;
+  status: string;
   home_team: Team;
   away_team: Team;
   competition: { name: string };
@@ -38,11 +39,11 @@ interface Prediction {
 }
 
 const STATUS_STYLES: Record<PredictionResult, { label: string; className: string }> = {
-  PENDING:   { label: "Pending",   className: "bg-muted/60 text-muted-foreground" },
+  PENDING:   { label: "Pending",   className: "bg-yellow-500/20 text-yellow-200 border border-yellow-400/30" },
   WIN:       { label: "Won ✓",     className: "bg-green-500/20 text-green-400" },
   LOSS:      { label: "Lost ✗",    className: "bg-red-500/20 text-red-400" },
-  HALF_WIN:  { label: "½ Win",     className: "bg-yellow-500/20 text-yellow-400" },
-  HALF_LOSS: { label: "½ Loss",    className: "bg-orange-500/20 text-orange-400" },
+  HALF_WIN:  { label: "½ Win",     className: "bg-green-400/20 text-green-300" },
+  HALF_LOSS: { label: "½ Loss",    className: "bg-orange-500/20 text-orange-300" },
   VOID:      { label: "Void",      className: "bg-muted/40 text-muted-foreground" },
 };
 
@@ -73,7 +74,9 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
     minute: "2-digit",
   });
 
-  // Background image: a subtle stadium/grass texture (replace with your own if desired)
+  const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
+  const displayStatus = isLive ? "LIVE" : prediction.status;
+
   const backgroundStyle = {
     backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%), url('https://images.unsplash.com/photo-1529906925868-158d82cdb4f4?q=80&w=2070&auto=format&fit=crop')`,
     backgroundSize: "cover",
@@ -97,7 +100,6 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           style={backgroundStyle}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close button */}
           <button
             onClick={onClose}
             className="absolute top-4 right-4 z-10 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
@@ -105,9 +107,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
             <X className="h-5 w-5" />
           </button>
 
-          {/* Content */}
           <div className="p-6 text-white">
-            {/* Teams & Crests */}
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex flex-col items-center gap-2">
                 {match.home_team.crest_url && (
@@ -128,7 +128,6 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               </div>
             </div>
 
-            {/* Match Info */}
             <div className="flex flex-wrap items-center justify-center gap-3 mb-6 text-sm text-white/80">
               <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full">
                 <Trophy className="h-3.5 w-3.5" />
@@ -138,13 +137,24 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 <Calendar className="h-3.5 w-3.5" />
                 {kickoff}
               </span>
+              {isLive && (
+                <span className="flex items-center gap-1 bg-red-500/30 px-3 py-1 rounded-full animate-pulse">
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  LIVE
+                </span>
+              )}
             </div>
 
-            {/* Prediction & Confidence */}
             <div className="bg-black/40 backdrop-blur-sm rounded-xl p-4 border border-white/10">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white/70 text-sm uppercase tracking-wide">MK‑806 Prediction</span>
-                <StatusBadge status={prediction.status} />
+                {isLive ? (
+                  <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/30 text-red-200">
+                    LIVE
+                  </span>
+                ) : (
+                  <StatusBadge status={prediction.status} />
+                )}
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-bold text-gold">{prediction.selection}</span>
@@ -194,13 +204,14 @@ const StatusPage = () => {
           created_at,
           matches (
             utc_date,
+            status,
             home_team:teams!matches_home_team_id_fkey ( name, tla, crest_url ),
             away_team:teams!matches_away_team_id_fkey ( name, tla, crest_url ),
             competition:competitions ( name )
           )
         `)
         .in("status", ["PENDING"])
-        .order("created_at", { ascending: false });
+        .order("matches(utc_date)", { ascending: true });  // <-- Sorted by match date
 
       if (error) throw error;
       setPredictions(data as unknown as Prediction[]);
@@ -263,6 +274,7 @@ const StatusPage = () => {
                   {predictions.map((p) => {
                     const match = p.matches;
                     const fixtureName = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
+                    const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
                     return (
                       <tr
                         key={p.id}
@@ -276,7 +288,15 @@ const StatusPage = () => {
                         <td className="px-4 py-3 text-muted-foreground">{p.selection}</td>
                         <td className="px-4 py-3 font-semibold text-gold">{p.predicted_odds.toFixed(2)}</td>
                         <td className="px-4 py-3">{Math.round(p.confidence_score * 100)}%</td>
-                        <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                        <td className="px-4 py-3">
+                          {isLive ? (
+                            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/20 text-red-400">
+                              LIVE
+                            </span>
+                          ) : (
+                            <StatusBadge status={p.status} />
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -286,7 +306,6 @@ const StatusPage = () => {
           </div>
         )}
 
-        {/* Modal */}
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}
