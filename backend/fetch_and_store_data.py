@@ -940,7 +940,7 @@ def generate_daily_slip(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    logger.info("═══ MK-806 God of Time v3 starting ═══")
+    logger.info("═══ MK-806 god Of Time v3 starting ═══")
 
     # 1 — competitions
     upsert_competitions()
@@ -996,7 +996,7 @@ def main() -> None:
     logger.info("Step 7: Daily slip…")
     generate_daily_slip(preds, today_ke)
 
-    logger.info("═══ MK-806 God of Time v3 complete ═══")
+    logger.info("═══ MK-806 god Of Time v3 complete ═══")
 
 
 if __name__ == "__main__":
