@@ -12,6 +12,8 @@ import AnalyticsPage from "./pages/AnalyticsPage.tsx";
 import ScoreboardPage from "./pages/ScoreboardPage.tsx";
 import AboutPage from "./pages/AboutPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Terms from "./pages/Terms.tsx";
+import Privacy from "./pages/Privacy.tsx";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,8 @@ const App = () => (
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/scoreboard" element={<ScoreboardPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

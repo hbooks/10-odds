@@ -31,9 +31,9 @@ const Footer = () => {
             <h4 className="font-heading font-semibold mb-3">Legal</h4>
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <Link to="/about" className="hover:text-foreground transition-colors">About Us</Link>
-              <Link to="/about" className="hover:text-foreground transition-colors">Terms of Service</Link>
-              <Link to="/about" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-              <Link to="/about" className="hover:text-foreground transition-colors">Support</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+              <Link to="/support" className="hover:text-foreground transition-colors">Support</Link>
             </div>
           </div>
         </div>
