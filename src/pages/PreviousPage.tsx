@@ -172,9 +172,9 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               {/* Result highlight */}
               <div className={`mt-3 p-3 rounded-lg ${isWin ? 'bg-green-500/20 border border-green-400/30' : isLoss ? 'bg-red-500/20 border border-red-400/30' : 'bg-white/5'}`}>
                 <p className="text-sm font-medium">
-                  {isWin && "✅ Prediction correct!"}
-                  {isLoss && "❌ Prediction incorrect."}
-                  {!isWin && !isLoss && "⏳ Result pending."}
+                  {isWin && "Prediction was correct!"}
+                  {isLoss && "Prediction was incorrect."}
+                  {!isWin && !isLoss && "Result pending."}
                 </p>
               </div>
             </div>
