@@ -9,6 +9,7 @@ import TenOddsPage from "./pages/TenOddsPage.tsx";
 import StatusPage from "./pages/StatusPage.tsx";
 import PreviousPage from "./pages/PreviousPage.tsx";
 import AnalyticsPage from "./pages/AnalyticsPage.tsx";
+import ScoreboardPage from "./pages/ScoreboardPage.tsx";
 import AboutPage from "./pages/AboutPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/status" element={<StatusPage />} />
           <Route path="/previous" element={<PreviousPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/scoreboard" element={<ScoreboardPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

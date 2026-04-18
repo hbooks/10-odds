@@ -13,8 +13,10 @@ import {
   Pie,
   Cell,
   Legend,
+  AreaChart,
+  Area,
 } from "recharts";
-import { TrendingUp, Target, Percent, Flame, RefreshCw, AlertCircle } from "lucide-react";
+import { TrendingUp, Target, Percent, Flame, RefreshCw, AlertCircle, Trophy, DollarSign, Activity } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -34,6 +36,13 @@ interface Prediction {
   };
 }
 
+const COLORS = {
+  win: "#22c55e",
+  loss: "#ef4444",
+  primary: "hsl(45, 95%, 55%)",
+  secondary: "hsl(220, 40%, 70%)",
+};
+
 const AnalyticsPage = () => {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +52,6 @@ const AnalyticsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch all completed predictions (WIN/LOSS/HALF variants)
       const { data, error } = await supabase
         .from("predictions")
         .select(`
@@ -72,36 +80,22 @@ const AnalyticsPage = () => {
     fetchAnalyticsData();
   }, []);
 
-  // Compute stats from predictions
+  // Compute stats
   const computeStats = () => {
     if (predictions.length === 0) {
-      return {
-        total: 0,
-        won: 0,
-        lost: 0,
-        winRate: 0,
-        roi: 0,
-        streak: 0,
-      };
+      return { total: 0, won: 0, lost: 0, winRate: 0, roi: 0, streak: 0, avgOdds: 0 };
     }
 
-    let won = 0;
-    let lost = 0;
-    let totalStake = 0;
-    let totalReturn = 0;
-
+    let won = 0, lost = 0, totalStake = 0, totalReturn = 0, totalOdds = 0;
     predictions.forEach((p) => {
-      // Count wins/losses (treat HALF_WIN as 0.5 win, HALF_LOSS as 0.5 loss)
       if (p.status === "WIN") won++;
       else if (p.status === "LOSS") lost++;
       else if (p.status === "HALF_WIN") won += 0.5;
       else if (p.status === "HALF_LOSS") lost += 0.5;
-      // VOID ignored
 
-      // ROI calculation: assume stake = 1 per bet
+      totalOdds += p.predicted_odds;
       totalStake += 1;
       if (p.status === "WIN") totalReturn += p.predicted_odds;
-      else if (p.status === "LOSS") totalReturn += 0;
       else if (p.status === "HALF_WIN") totalReturn += 1 + (p.predicted_odds - 1) / 2;
       else if (p.status === "HALF_LOSS") totalReturn += 0.5;
     });
@@ -109,14 +103,11 @@ const AnalyticsPage = () => {
     const total = won + lost;
     const winRate = total > 0 ? (won / total) * 100 : 0;
     const roi = totalStake > 0 ? ((totalReturn - totalStake) / totalStake) * 100 : 0;
-
-    // Simple streak calculation (most recent consecutive wins)
     let streak = 0;
     for (const p of predictions) {
       if (p.status === "WIN" || p.status === "HALF_WIN") streak++;
       else break;
     }
-
     return {
       total: predictions.length,
       won,
@@ -124,13 +115,14 @@ const AnalyticsPage = () => {
       winRate,
       roi,
       streak,
+      avgOdds: totalOdds / predictions.length,
     };
   };
 
-  // Prepare weekly performance data (last 4 weeks)
+  // Weekly trend data (last 4 weeks)
   const getWeeklyData = () => {
     const now = new Date();
-    const weeks: { week: string; won: number; lost: number }[] = [];
+    const weeks: { week: string; won: number; lost: number; profit: number }[] = [];
     for (let i = 3; i >= 0; i--) {
       const start = new Date(now);
       start.setDate(now.getDate() - i * 7);
@@ -138,37 +130,38 @@ const AnalyticsPage = () => {
       end.setDate(start.getDate() + 6);
       const weekLabel = `${start.getDate()}/${start.getMonth() + 1}`;
 
-      let won = 0;
-      let lost = 0;
+      let won = 0, lost = 0, profit = 0;
       predictions.forEach((p) => {
         const predDate = new Date(p.created_at);
         if (predDate >= start && predDate <= end) {
-          if (p.status === "WIN") won++;
-          else if (p.status === "LOSS") lost++;
-          else if (p.status === "HALF_WIN") won += 0.5;
-          else if (p.status === "HALF_LOSS") lost += 0.5;
+          if (p.status === "WIN") { won++; profit += p.predicted_odds - 1; }
+          else if (p.status === "LOSS") { lost++; profit -= 1; }
+          else if (p.status === "HALF_WIN") { won += 0.5; profit += (p.predicted_odds - 1) / 2; }
+          else if (p.status === "HALF_LOSS") { lost += 0.5; profit -= 0.5; }
         }
       });
-      weeks.push({ week: weekLabel, won, lost });
+      weeks.push({ week: weekLabel, won, lost, profit: Math.round(profit * 100) / 100 });
     }
     return weeks;
   };
 
-  // Prepare league breakdown
+  // League breakdown
   const getLeagueData = () => {
-    const leagueMap: Record<string, { won: number; lost: number }> = {};
+    const leagueMap: Record<string, { won: number; lost: number; total: number }> = {};
     predictions.forEach((p) => {
       const league = p.matches?.competition?.name || "Unknown";
-      if (!leagueMap[league]) leagueMap[league] = { won: 0, lost: 0 };
+      if (!leagueMap[league]) leagueMap[league] = { won: 0, lost: 0, total: 0 };
+      leagueMap[league].total++;
       if (p.status === "WIN") leagueMap[league].won++;
       else if (p.status === "LOSS") leagueMap[league].lost++;
       else if (p.status === "HALF_WIN") leagueMap[league].won += 0.5;
       else if (p.status === "HALF_LOSS") leagueMap[league].lost += 0.5;
     });
-    return Object.entries(leagueMap).map(([league, { won, lost }]) => ({
+    return Object.entries(leagueMap).map(([league, data]) => ({
       league,
-      won,
-      lost,
+      won: data.won,
+      lost: data.lost,
+      winRate: data.total > 0 ? (data.won / (data.won + data.lost)) * 100 : 0,
     }));
   };
 
@@ -176,16 +169,15 @@ const AnalyticsPage = () => {
   const weeklyData = getWeeklyData();
   const leagueData = getLeagueData();
   const pieData = [
-    { name: "Won", value: stats.won },
-    { name: "Lost", value: stats.lost },
+    { name: "Won", value: stats.won, color: COLORS.win },
+    { name: "Lost", value: stats.lost, color: COLORS.loss },
   ];
 
-  // Stats cards configuration
   const statCards = [
-    { icon: Target, label: "Total Predictions", value: stats.total },
-    { icon: Percent, label: "Win Rate", value: `${stats.winRate.toFixed(1)}%` },
-    { icon: TrendingUp, label: "ROI", value: `${stats.roi >= 0 ? "+" : ""}${stats.roi.toFixed(1)}%` },
-    { icon: Flame, label: "Current Streak", value: `${stats.streak}W` },
+    { icon: Target, label: "Total Predictions", value: stats.total, color: "text-blue-400" },
+    { icon: Percent, label: "Win Rate", value: `${stats.winRate.toFixed(1)}%`, color: stats.winRate >= 50 ? "text-green-400" : "text-yellow-400" },
+    { icon: DollarSign, label: "ROI", value: `${stats.roi >= 0 ? "+" : ""}${stats.roi.toFixed(1)}%`, color: stats.roi >= 0 ? "text-green-400" : "text-red-400" },
+    { icon: Flame, label: "Current Streak", value: `${stats.streak}W`, color: "text-orange-400" },
   ];
 
   if (loading) {
@@ -215,88 +207,168 @@ const AnalyticsPage = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-1">
-          <h1 className="text-3xl font-heading font-bold">MK-806 Analytics</h1>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h1 className="text-3xl font-heading font-bold">MK-806 Analytics</h1>
+            <p className="text-muted-foreground">Performance dashboard of the prediction engine.</p>
+          </div>
           <button
             onClick={fetchAnalyticsData}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
+            className="p-2 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
             title="Refresh"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
         </div>
-        <p className="text-muted-foreground mb-6">Performance dashboard of the prediction engine.</p>
 
         {/* Stats cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {statCards.map((s) => (
-            <div key={s.label} className="rounded-xl border border-border bg-card p-4">
-              <s.icon className="h-5 w-5 text-gold mb-2" />
-              <p className="text-2xl font-heading font-bold">{s.value}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
+            <div key={s.label} className="rounded-xl border border-border bg-card p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-2">
+                <s.icon className={`h-5 w-5 ${s.color}`} />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{s.label}</span>
+              </div>
+              <p className="text-3xl font-heading font-bold">{s.value}</p>
             </div>
           ))}
         </div>
 
         {predictions.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <p>No completed predictions yet. Check back after matches finish!</p>
+          <div className="text-center py-16 text-muted-foreground bg-card/30 rounded-xl border border-border">
+            <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No completed predictions yet.</p>
+            <p className="text-sm">Check back after matches finish!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Weekly performance */}
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="font-heading font-semibold mb-4">Weekly Performance</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={weeklyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 88%)" />
-                  <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="won" fill="#22c55e" radius={[4, 4, 0, 0]} />   {/* Green */}
-                  <Bar dataKey="lost" fill="#ef4444" radius={[4, 4, 0, 0]} />  {/* Red */}
-                </BarChart>
-              </ResponsiveContainer>
+          <>
+            {/* Row 1: Weekly performance + Pie chart */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Weekly trend (Area chart for profit) */}
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="font-heading font-semibold mb-1 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-gold" />
+                  Weekly Performance
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4">Profit/Loss per week (units)</p>
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={weeklyData}>
+                    <defs>
+                      <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 20%)" />
+                    <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(220, 20%, 10%)", border: "1px solid hsl(220, 15%, 25%)", borderRadius: "8px" }}
+                    />
+                    <Area type="monotone" dataKey="profit" stroke={COLORS.primary} fill="url(#profitGradient)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+                  <span>Wins: {weeklyData.reduce((a, b) => a + b.won, 0)}</span>
+                  <span>Losses: {weeklyData.reduce((a, b) => a + b.lost, 0)}</span>
+                </div>
+              </div>
+
+              {/* Win/Loss ratio pie */}
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="font-heading font-semibold mb-1 flex items-center gap-2">
+                  <Target className="h-4 w-4 text-gold" />
+                  Win / Loss Ratio
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4">Distribution of outcomes</p>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(220, 20%, 10%)", border: "1px solid hsl(220, 15%, 25%)", borderRadius: "8px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            {/* Win/Loss pie */}
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="font-heading font-semibold mb-4">Win / Loss Ratio</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    <Cell fill="#22c55e" />  {/* Green */}
-                    <Cell fill="#ef4444" />  {/* Red */}
-                  </Pie>
-                  <Legend />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {/* Row 2: League breakdown + additional stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* League performance */}
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="font-heading font-semibold mb-1 flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-gold" />
+                  Performance by League
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4">Win rate per competition</p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={leagueData} layout="vertical" margin={{ left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 20%)" />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
+                    <YAxis type="category" dataKey="league" tick={{ fontSize: 11 }} width={100} />
+                    <Tooltip
+                      formatter={(value: number) => [`${value.toFixed(1)}%`, "Win Rate"]}
+                      contentStyle={{ backgroundColor: "hsl(220, 20%, 10%)", border: "1px solid hsl(220, 15%, 25%)", borderRadius: "8px" }}
+                    />
+                    <Bar dataKey="winRate" radius={[0, 4, 4, 0]}>
+                      {leagueData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.winRate >= 50 ? COLORS.win : COLORS.loss} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
 
-            {/* League breakdown */}
-            <div className="rounded-xl border border-border bg-card p-5 lg:col-span-2">
-              <h3 className="font-heading font-semibold mb-4">Performance by League</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={leagueData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 88%)" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="league" tick={{ fontSize: 11 }} width={120} />
-                  <Tooltip />
-                  <Bar dataKey="won" fill="#22c55e" radius={[0, 4, 4, 0]} />   {/* Green */}
-                  <Bar dataKey="lost" fill="#ef4444" radius={[0, 4, 4, 0]} />  {/* Red */}
-                </BarChart>
-              </ResponsiveContainer>
+              {/* Summary card */}
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="font-heading font-semibold mb-4 flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-gold" />
+                  Performance Summary
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-muted/20 rounded-lg">
+                    <span className="text-sm text-muted-foreground">Average Odds</span>
+                    <span className="text-lg font-semibold">{stats.avgOdds.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-muted/20 rounded-lg">
+                    <span className="text-sm text-muted-foreground">Total Profit/Loss</span>
+                    <span className={`text-lg font-semibold ${stats.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {stats.roi >= 0 ? '+' : ''}{(stats.roi * stats.total / 100).toFixed(2)} units
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-muted/20 rounded-lg">
+                    <span className="text-sm text-muted-foreground">Best League</span>
+                    <span className="text-lg font-semibold">
+                      {leagueData.length > 0 
+                        ? leagueData.reduce((a, b) => a.winRate > b.winRate ? a : b).league 
+                        : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-gold/10 to-transparent border border-gold/20">
+                    <p className="text-sm font-medium text-gold">MK-806 Insight</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {stats.winRate >= 55 ? "Strong performance! MK-806 is beating the market." :
+                       stats.winRate >= 45 ? "Solid results. Continue refining the model." :
+                       "Performance needs improvement. Consider adjusting the God‑of‑Time parameters."}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </Layout>

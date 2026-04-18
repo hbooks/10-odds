@@ -9,6 +9,7 @@ const navLinks = [
   { to: "/ten-odds", label: "10 Odds" },
   { to: "/status", label: "Status" },
   { to: "/previous", label: "Previous" },
+  { to: "/scoreboard", label: "Scoreboard" },
   { to: "/analytics", label: "Analytics" },
 ];
 
