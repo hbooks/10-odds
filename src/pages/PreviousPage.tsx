@@ -73,11 +73,11 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   const isLoss = prediction.status === "LOSS" || prediction.status === "HALF_LOSS";
 
   // Different background image for previous page (tactical / celebration feel)
-  const backgroundStyle = {
-    backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 100%), url('https://images.pexels.com/photos/114296/pexels-photo-114296.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-  };
+const backgroundStyle = {
+  backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 100%), url('https://images.unsplash.com/photo-1575361204480-aadea25e6e68?q=80&w=2071&auto=format&fit=crop')`,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+};
 
   return (
     <AnimatePresence>
