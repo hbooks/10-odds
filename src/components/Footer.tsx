@@ -16,7 +16,7 @@ const Footer = () => {
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              AI-powered football predictions by MK-806. Smart picks, better odds.
+              Football predictions by MK-806. Smart picks, better odds.
             </p>
           </div>
           <div>
@@ -25,6 +25,7 @@ const Footer = () => {
               <Link to="/games" className="hover:text-foreground transition-colors">Games</Link>
               <Link to="/ten-odds" className="hover:text-foreground transition-colors">10 Odds Slip</Link>
               <Link to="/analytics" className="hover:text-foreground transition-colors">Analytics</Link>
+              <Link to="/pattern-analyser" className="hover:text-foreground transition-colors">Pattern Analyser</Link>
             </div>
           </div>
           <div>
