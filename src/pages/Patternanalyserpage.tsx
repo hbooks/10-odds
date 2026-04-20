@@ -309,8 +309,8 @@ const PatternAnalyserPage = () => {
             transition={{ delay: 0.15 }}
             className="rounded-xl gradient-navy p-5 mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4"
           >
-            <SummaryStat label="Total Patterns" value={rows.length} />
-            <SummaryStat label="Total Predictions" value={totalPreds} />
+            <SummaryStat label="Total Patterns" value={rows.length} color="#fcfdf0ff" />
+            <SummaryStat label="Total Predictions" value={totalPreds} color="#bed3e0ff" />
             <SummaryStat label="Avg Win Rate" value={`${avgWinRate}%`} color="#34d399" />
             <SummaryStat label="WIN Patterns"  value={counts.WIN}  color="#34d399" />
             <SummaryStat label="LOSS Patterns" value={counts.LOSS} color="#fb7185" />
