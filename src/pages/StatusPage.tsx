@@ -15,6 +15,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import DonationBanner from "@/components/DonationBanner";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
 const supabase = createClient(
@@ -23,8 +24,6 @@ const supabase = createClient(
 );
 
 // ─── Edge function URL ────────────────────────────────────────────────────────
-// Set VITE_SUPABASE_FUNCTIONS_URL in your .env  e.g.:
-//   VITE_SUPABASE_FUNCTIONS_URL=https://xxxx.supabase.co/functions/v1
 const FUNCTIONS_BASE =
   (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string) ??
   `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
@@ -116,10 +115,6 @@ const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; 
 };
 
 // ─── Advisor message bar ──────────────────────────────────────────────────────
-/**
- * Calls the get-pattern-advice edge function and renders the response
- * as a styled message bar with the _806 bot profile.
- */
 function AdvisorBar({
   confidenceScore,
   selection,
@@ -144,8 +139,7 @@ function AdvisorBar({
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: PatternAdvice = await res.json();
         if (!cancelled) setAdvice(data);
-      } catch (e) {
-        // Silent fail — the advisor is an enhancement, not critical
+      } catch {
         if (!cancelled) setAdvice(null);
       } finally {
         if (!cancelled) setLoading(false);
@@ -156,7 +150,6 @@ function AdvisorBar({
     return () => { cancelled = true; };
   }, [confidenceScore, selection]);
 
-  // Loading skeleton
   if (loading) {
     return (
       <div className="mt-4 rounded-xl bg-black/30 border border-white/10 p-3.5 animate-pulse">
@@ -186,30 +179,20 @@ function AdvisorBar({
       transition={{ duration: 0.35 }}
       className="mt-4 rounded-xl bg-black/40 border border-white/10 overflow-hidden"
     >
-      {/* Pattern type tag strip */}
       <div className={`px-4 py-1.5 flex items-center gap-2 text-xs font-medium ${ui.color} bg-black/20`}>
         <Icon className="h-3 w-3" />
         <span className="font-mono">{advice.pattern_label}</span>
         <span className="ml-auto opacity-60">{stats}</span>
       </div>
-
-      {/* Message row */}
       <div className="px-4 py-3 flex items-start gap-3">
-        {/* Bot avatar */}
-        <div className="relative shrink-0">
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold select-none">
-            <span>806</span>
-          </div>
+        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold select-none shrink-0">
+          <span>806</span>
         </div>
-
-        {/* Message content */}
         <div className="flex-1 min-w-0">
-          {/* Username + verified */}
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-xs font-semibold text-white/90">_806</span>
             <BadgeCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
           </div>
-          {/* Message text */}
           <p className="text-xs text-white/75 leading-relaxed">{advice.message}</p>
         </div>
       </div>
@@ -260,7 +243,6 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           style={backgroundStyle}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close button */}
           <button
             onClick={onClose}
             className="absolute top-4 right-4 z-10 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
@@ -269,16 +251,10 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           </button>
 
           <div className="p-6 text-white">
-
-            {/* ── Team header ──────────────────────────────────────────── */}
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.home_team.crest_url && (
-                  <img
-                    src={match.home_team.crest_url}
-                    alt=""
-                    className="h-16 w-16 object-contain drop-shadow-lg"
-                  />
+                  <img src={match.home_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
                 )}
                 <span className="font-heading text-base font-bold text-center leading-tight">
                   {match.home_team.name}
@@ -287,11 +263,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               <span className="text-3xl font-bold text-gold shrink-0">VS</span>
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.away_team.crest_url && (
-                  <img
-                    src={match.away_team.crest_url}
-                    alt=""
-                    className="h-16 w-16 object-contain drop-shadow-lg"
-                  />
+                  <img src={match.away_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
                 )}
                 <span className="font-heading text-base font-bold text-center leading-tight">
                   {match.away_team.name}
@@ -299,40 +271,30 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               </div>
             </div>
 
-            {/* ── Meta chips ───────────────────────────────────────────── */}
-            <div className="flex flex-wrap items-center justify-center gap-2 mb-5 text-sm text-white/80">
-              <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full text-xs">
-                <Trophy className="h-3.5 w-3.5" />
-                {match.competition.name}
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
+              <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full text-xs text-white/80">
+                <Trophy className="h-3.5 w-3.5" />{match.competition.name}
               </span>
-              <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full text-xs">
-                <Calendar className="h-3.5 w-3.5" />
-                {kickoff}
+              <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full text-xs text-white/80">
+                <Calendar className="h-3.5 w-3.5" />{kickoff}
               </span>
               {isLive && (
                 <span className="flex items-center gap-1 bg-red-500/30 px-3 py-1 rounded-full text-xs animate-pulse">
-                  <span className="h-2 w-2 rounded-full bg-red-400" />
-                  LIVE
+                  <span className="h-2 w-2 rounded-full bg-red-400" />LIVE
                 </span>
               )}
             </div>
 
-            {/* ── Prediction card ───────────────────────────────────────── */}
             <div className="bg-black/40 backdrop-blur-sm rounded-xl p-4 border border-white/10">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-white/60 text-xs uppercase tracking-wide">
-                  MK‑806 Prediction
-                </span>
+                <span className="text-white/60 text-xs uppercase tracking-wide">MK‑806 Prediction</span>
                 {isLive ? (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/30 text-red-200">
-                    LIVE
-                  </span>
+                  <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/30 text-red-200">LIVE</span>
                 ) : (
                   <StatusBadge status={prediction.status} />
                 )}
               </div>
 
-              {/* Selection + odds */}
               <div className="flex items-baseline justify-between gap-2 mb-3">
                 <span className="text-xl font-bold text-gold leading-snug flex-1 min-w-0 break-words">
                   {prediction.selection}
@@ -342,13 +304,10 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 </span>
               </div>
 
-              {/* Confidence bar */}
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-gold shrink-0" />
                 <span className="text-xs text-white/70">Confidence:</span>
-                <span className="text-xs font-bold">
-                  {Math.round(prediction.confidence_score * 100)}%
-                </span>
+                <span className="text-xs font-bold">{Math.round(prediction.confidence_score * 100)}%</span>
                 <div className="ml-1.5 h-1.5 flex-1 bg-white/20 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
@@ -357,23 +316,19 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                     className="h-full rounded-full"
                     style={{
                       background:
-                        prediction.confidence_score >= 0.7
-                          ? "#34d399"
-                          : prediction.confidence_score >= 0.5
-                          ? "#fbbf24"
-                          : "#fb7185",
+                        prediction.confidence_score >= 0.7 ? "#34d399"
+                        : prediction.confidence_score >= 0.5 ? "#fbbf24"
+                        : "#fb7185",
                     }}
                   />
                 </div>
               </div>
 
-              {/* ── Advisor message bar ─────────────────────────────── */}
               <AdvisorBar
                 confidenceScore={prediction.confidence_score}
                 selection={prediction.selection}
               />
             </div>
-
           </div>
         </motion.div>
       </motion.div>
@@ -430,7 +385,6 @@ const StatusPage = () => {
     <Layout>
       <div className="container mx-auto px-4 py-8">
 
-        {/* ── Header ────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-3xl font-heading font-bold">Active Predictions</h1>
           <button
@@ -445,14 +399,12 @@ const StatusPage = () => {
           Live status of MK-806's current picks. Tap a row to see full analysis.
         </p>
 
-        {/* ── Loading ───────────────────────────────────────────────────── */}
         {loading && (
           <div className="flex justify-center py-20">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {/* ── Error ─────────────────────────────────────────────────────── */}
         {!loading && error && (
           <div className="flex flex-col items-center gap-4 py-16 text-center">
             <AlertCircle className="h-10 w-10 text-muted-foreground" />
@@ -463,14 +415,12 @@ const StatusPage = () => {
           </div>
         )}
 
-        {/* ── Empty ─────────────────────────────────────────────────────── */}
         {!loading && !error && predictions.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <p>No active predictions at the moment.</p>
           </div>
         )}
 
-        {/* ── Table ─────────────────────────────────────────────────────── */}
         {!loading && !error && predictions.length > 0 && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="overflow-x-auto">
@@ -487,9 +437,8 @@ const StatusPage = () => {
                 <tbody>
                   {predictions.map((p) => {
                     const match = p.matches;
-                    const fixture =
-                      `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
-                    const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
+                    const fixture = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
+                    const isLive  = match.status === "IN_PLAY" || match.status === "PAUSED";
                     return (
                       <tr
                         key={p.id}
@@ -537,7 +486,9 @@ const StatusPage = () => {
           </div>
         )}
 
-        {/* ── Modal ─────────────────────────────────────────────────────── */}
+        {/* ── Donation banner ──────────────────────────────────────────── */}
+        <DonationBanner />
+
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}

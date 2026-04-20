@@ -12,7 +12,7 @@ const Footer = () => {
                 <Zap className="h-4 w-4 text-accent-foreground" />
               </div>
               <span className="text-lg font-heading font-bold">
-                10 <span className="text-gold">Odds</span>
+                10 <span className="text-gold">dds</span>
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -39,7 +39,7 @@ const Footer = () => {
           </div>
         </div>
         <div className="mt-8 pt-4 border-t border-border text-center text-xs text-muted-foreground">
-          © 2026 10 Odds. All rights reserved. Gambling involves risk. Please bet responsibly.
+          © 2026 10dds. All rights reserved. Gambling involves risk. Please bet responsibly.
         </div>
       </div>
     </footer>

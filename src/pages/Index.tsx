@@ -5,7 +5,7 @@ import Layout from "@/components/Layout";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const features = [
-  { icon: Brain, title: "MK-806 AI Engine", desc: "Advanced prediction algorithm analyzing thousands of data points per match." },
+  { icon: Brain, title: "MK-806 Smart Engine", desc: "Advanced prediction algorithm analyzing thousands of data points per match." },
   { icon: TrendingUp, title: "10-Odds Daily Slips", desc: "Curated accumulator slips targeting 10+ combined odds every day." },
   { icon: BarChart3, title: "Proven Track Record", desc: "68% win rate across 120+ predictions with full transparency." },
 ];
@@ -36,8 +36,8 @@ const Homepage = () => {
               <span className="text-gold">Predictions</span>
             </h1>
             <p className="text-lg md:text-xl text-primary-foreground/70 max-w-2xl mx-auto mb-8">
-              AI-curated accumulator slips with 10+ odds daily. Data-driven insights from
-              the MK-806 prediction engine.
+              Curated accumulator slips with 10+ odds daily. Data-driven insights from
+              the MK-806 Smart Engine.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
@@ -45,7 +45,7 @@ const Homepage = () => {
                 className="inline-flex items-center justify-center gap-2 rounded-lg gradient-gold px-6 py-3 font-heading font-semibold text-accent-foreground shadow-gold hover:opacity-90 transition-opacity"
               >
                 <Zap className="h-5 w-5" />
-                Today's 10-Odds Slip
+                Today's top 10-Odds Slip
               </Link>
               <Link
                 to="/games"

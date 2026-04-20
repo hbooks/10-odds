@@ -46,32 +46,37 @@ const tabs: { key: DateTab; label: string }[] = [
   { key: "dayafter", label: "Day After" },
 ];
 
-// Helper: Format kick-off time (Kenya time)
+// Helper: Format kick-off time in user's local timezone
 function formatKickOff(utcDate: string): string {
   const date = new Date(utcDate);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Nairobi" });
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-// Helper: Get date for a given tab
-function getDateForTab(tab: DateTab): string {
+// Helper: Get local date string (YYYY-MM-DD) for a given tab
+function getLocalDateForTab(tab: DateTab): string {
   const now = new Date();
-  const kenyaOffset = 3 * 60; // EAT is UTC+3
-  const localDate = new Date(now.getTime() + kenyaOffset * 60 * 1000);
+  const localDate = new Date(now);
   
   if (tab === "tomorrow") {
     localDate.setDate(localDate.getDate() + 1);
   } else if (tab === "dayafter") {
     localDate.setDate(localDate.getDate() + 2);
   }
-  return localDate.toISOString().split("T")[0];
+  
+  const year = localDate.getFullYear();
+  const month = String(localDate.getMonth() + 1).padStart(2, "0");
+  const day = String(localDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-// Fetch matches for a specific date (based on Kenya time)
-async function fetchMatchesForDate(dateStr: string): Promise<Match[]> {
-  // We need to query matches where the UTC date falls within the Kenya day.
-  // Since matches are stored in UTC, we'll fetch a wider range and filter client‑side.
-  const startOfDayUTC = new Date(dateStr + "T00:00:00+03:00").toISOString();
-  const endOfDayUTC = new Date(dateStr + "T23:59:59+03:00").toISOString();
+// Fetch matches for a specific date (based on user's local timezone)
+async function fetchMatchesForDate(localDateStr: string): Promise<Match[]> {
+  // Convert local date to UTC start and end boundaries
+  const startOfDayLocal = new Date(localDateStr + "T00:00:00");
+  const endOfDayLocal = new Date(localDateStr + "T23:59:59.999");
+  
+  const startOfDayUTC = startOfDayLocal.toISOString();
+  const endOfDayUTC = endOfDayLocal.toISOString();
 
   const { data: matches, error } = await supabase
     .from("matches")
@@ -203,7 +208,7 @@ const GamesPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const dateStr = getDateForTab(activeTab);
+      const dateStr = getLocalDateForTab(activeTab);
       const data = await fetchMatchesForDate(dateStr);
       setMatches(data);
       setLastRefreshed(new Date());

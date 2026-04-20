@@ -25,7 +25,7 @@ const Navbar = () => {
             <Zap className="h-5 w-5 text-accent-foreground" />
           </div>
           <span className="text-xl font-heading font-bold text-foreground">
-            10 <span className="text-gold">Odds</span>
+            10 <span className="text-gold">dds</span>
           </span>
         </Link>
 
