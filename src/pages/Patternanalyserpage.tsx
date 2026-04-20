@@ -293,7 +293,7 @@ const PatternAnalyserPage = () => {
           transition={{ delay: 0.1 }}
           className="text-muted-foreground text-sm mb-6 pl-[52px]"
         >
-          MK-806 pattern performance — derived from all resolved predictions
+          Prediction's pattern performance — derived from all resolved predictions
           {lastUpdated && (
             <span className="ml-2 text-xs text-muted-foreground/60">
               · updated {lastUpdated}
@@ -314,7 +314,7 @@ const PatternAnalyserPage = () => {
             <SummaryStat label="Avg Win Rate" value={`${avgWinRate}%`} color="#34d399" />
             <SummaryStat label="WIN Patterns"  value={counts.WIN}  color="#34d399" />
             <SummaryStat label="LOSS Patterns" value={counts.LOSS} color="#fb7185" />
-            <SummaryStat label="Neutral / Unknown" value={counts.NEUTRAL + counts.INSUFFICIENT_DATA} />
+            <SummaryStat label="Neutral / Unknown" value={counts.NEUTRAL + counts.INSUFFICIENT_DATA}  color="#e2a429ff" />
           </motion.div>
         )}
 

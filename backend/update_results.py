@@ -1,31 +1,3 @@
-"""
-update_results.py — MK-806 Result Updater (v5 — fixed)
-=======================================================
-
-What this script does
-─────────────────────
-1. Fetches all PENDING predictions from the DB (with match + team join).
-2. Groups them by match date (UTC).
-3. For each date, calls Football-Data.org /matches?status=FINISHED for a
-   widened window (date → date+1) to catch late-UTC kick-offs.
-4. Matches API results to our stored matches using TEAM NAMES + date proximity
-   (never relies on ID equality across APIs).
-5. Updates matches.home_score / away_score / winner / status.
-6. Evaluates every bet type against the actual result and writes
-   predictions.status = WIN | LOSS | HALF_WIN | HALF_LOSS | VOID.
-
-Bug fixes vs original v5
-─────────────────────────
-• determine_result() previously received the raw API match dict but tested
-  keys that only exist after normalisation (home_score, winner etc.).
-  Fixed: we normalise the API response into a flat dict BEFORE calling it.
-• API dict key spellings corrected: score.fullTime.home/away, score.winner.
-• Added null-guard: skip if fullTime scores are None (match not fully reported).
-• Added rate-limit retry logic (HTTP 429).
-• Slip status update: after all predictions for a slip date are resolved,
-  update ten_odds_slips.status to WIN/LOSS based on whether ALL picks won.
-"""
-
 import os
 import logging
 import time
