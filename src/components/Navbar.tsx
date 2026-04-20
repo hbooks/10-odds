@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Zap } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navLinks = [
@@ -21,9 +21,11 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 glass">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-gold">
-            <Zap className="h-5 w-5 text-accent-foreground" />
-          </div>
+          <img 
+            src="/assets/logo.png" 
+            alt="10 Odds Logo" 
+            className="h-9 w-9 object-contain"
+          />
           <span className="text-xl font-heading font-bold text-foreground">
             10 <span className="text-gold">dds</span>
           </span>
