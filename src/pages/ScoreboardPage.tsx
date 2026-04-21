@@ -95,12 +95,12 @@ const ScoreboardPage = () => {
         </div>
 
         {/* Information Banner */}
-        <div className="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3">
-          <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-300/90">
+        <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+          <Info className="h-5 w-5 text-white-400 shrink-0 mt-0.5" />
+          <div className="text-sm text-white-300/90">
             <p className="font-medium mb-1">Live match data may be slightly delayed.</p>
-            <p className="text-xs text-blue-300/70">
-              Scores and statuses are updated periodically. Finished matches may take a few minutes 
+            <p className="text-xs text-white-300/70">
+              Scores and statuses are updated periodically. Finished matches may take a few minutes
               to reflect final results. Thank you for your patience.
             </p>
           </div>
