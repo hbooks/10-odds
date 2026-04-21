@@ -24,7 +24,7 @@ const Navbar = () => {
   <img 
     src="/assets/logo.png" 
     alt="10 Odds Logo" 
-    className="h-24 w-24 object-contain"
+    className="h-15 w-15 object-contain"
   />
   <span className="text-xl font-heading font-bold text-foreground">
     10 <span className="text-gold">Odds</span>
