@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
-import { RefreshCw, AlertCircle, Circle, Clock, Trophy } from "lucide-react";
+import { RefreshCw, AlertCircle, Circle, Clock, Trophy, Info } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -80,7 +80,7 @@ const ScoreboardPage = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-3xl font-heading font-bold">Live Scoreboard</h1>
             <p className="text-muted-foreground">Real‑time match updates from top leagues.</p>
@@ -92,6 +92,18 @@ const ScoreboardPage = () => {
           >
             <RefreshCw className="h-4 w-4" />
           </button>
+        </div>
+
+        {/* Information Banner */}
+        <div className="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3">
+          <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="text-sm text-blue-300/90">
+            <p className="font-medium mb-1">Live match data may be slightly delayed.</p>
+            <p className="text-xs text-blue-300/70">
+              Scores and statuses are updated periodically. Finished matches may take a few minutes 
+              to reflect final results. Thank you for your patience.
+            </p>
+          </div>
         </div>
 
         {loading ? (
