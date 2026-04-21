@@ -6,16 +6,16 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <img 
-                src="/assets/logo.png" 
-                alt="10 Odds Logo" 
-                className="h-8 w-8 object-contain"
-              />
-              <span className="text-lg font-heading font-bold">
-                10 <span className="text-gold">dds</span>
-              </span>
-            </div>
+          <div className="flex items-center gap-2 mb-3">
+  <img 
+    src="/assets/logo.png" 
+    alt="10 Odds Logo" 
+    className="h-14 w-14 object-contain"
+  />
+  <span className="text-lg font-heading font-bold">
+    10 <span className="text-gold">Odds</span>
+  </span>
+</div>
             <p className="text-sm text-muted-foreground">
               Football predictions by MK-806. Smart picks, better odds.
             </p>

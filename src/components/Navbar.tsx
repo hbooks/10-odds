@@ -20,16 +20,16 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 glass">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        <Link to="/" className="flex items-center gap-2">
-          <img 
-            src="/assets/logo.png" 
-            alt="10 Odds Logo" 
-            className="h-9 w-9 object-contain"
-          />
-          <span className="text-xl font-heading font-bold text-foreground">
-            10 <span className="text-gold">dds</span>
-          </span>
-        </Link>
+      <Link to="/" className="flex items-center gap-2">
+  <img 
+    src="/assets/logo.png" 
+    alt="10 Odds Logo" 
+    className="h-14 w-14 object-contain"
+  />
+  <span className="text-xl font-heading font-bold text-foreground">
+    10 <span className="text-gold">Odds</span>
+  </span>
+</Link>
 
         {/* Desktop */}
         <div className="hidden md:flex items-center gap-1">
