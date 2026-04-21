@@ -5,11 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const navLinks = [
   { to: "/", label: "Home" },
-  { to: "/games", label: "Games" },
-  { to: "/ten-odds", label: "10 Odds" },
-  { to: "/status", label: "Status" },
-  { to: "/previous", label: "Previous" },
-  { to: "/scoreboard", label: "Scoreboard" },
+  { to: "/games", label: "Fixtures" },
+  { to: "/ten-odds", label: "Picks" },
+  { to: "/status", label: "Predictions" },
+  { to: "/previous", label: "Previous Bets" },
+  { to: "/scoreboard", label: "Live Matches" },
   { to: "/analytics", label: "Analytics" },
 ];
 
@@ -24,7 +24,7 @@ const Navbar = () => {
   <img 
     src="/assets/logo.png" 
     alt="10 Odds Logo" 
-    className="h-14 w-14 object-contain"
+    className="h-24 w-24 object-contain"
   />
   <span className="text-xl font-heading font-bold text-foreground">
     10 <span className="text-gold">Odds</span>
