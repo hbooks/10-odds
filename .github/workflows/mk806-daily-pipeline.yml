@@ -6,8 +6,7 @@ on:
     - cron: '0 3 * * *'
     # Result Updater – 4:00 AM Kenya (1:00 AM UTC)
     - cron: '0 1 * * *'
-    # Pattern Updater – 6:30 AM Kenya (3:30 AM UTC)
-    - cron: '30 3 * * *'
+    # Pattern Updater – 6:30 AM Kenya
   workflow_dispatch:
 
 jobs:
