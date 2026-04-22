@@ -12,7 +12,7 @@ const supabase = createClient(
 // ─── Your existing navigation links + News ─────────────────────────────────────
 const navLinks = [
   { to: "/news", label: "News & Updates", hasBadge: true },
-  { to: "/about", label: "Guide", hasBadge: true },
+  { to: "/about", label: "Guide"},
 
   { to: "/games", label: "Fixtures" },
   { to: "/scoreboard", label: "Live Matches" },
@@ -104,7 +104,7 @@ const Navbar = () => {
           <img
             src="/assets/o.png"
             alt="10 Odds Logo"
-            className="h-12 w-12 object-contain"
+            className="h-10 w-10 object-contain"
           />
           <span className="text-xl font-heading font-bold text-foreground">
             10 <span className="text-gold">Odds</span>
