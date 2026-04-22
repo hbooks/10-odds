@@ -238,6 +238,75 @@ const AboutPage = () => {
           </p>
         </Section>
 
+        {/* ── Why Some Matches Aren't Predicted ────────────────────────────────── */}
+<Section index={4} icon={AlertTriangle} title="Why Aren't All Matches Predicted?">
+  <p>
+    You may occasionally notice that certain fixtures appear on the{" "}
+    <strong className="text-foreground">Games</strong> page but don't receive a
+    prediction, or that odds are listed as <em>"unavailable"</em>. This isn't a
+    bug — it's a deliberate part of how MK-806 operates, and it stems from a
+    combination of data availability and our quality standards.
+  </p>
+
+  <div className="space-y-4 mt-4">
+    <div>
+      <h4 className="text-sm font-heading font-semibold text-foreground mb-1">
+        Odds Availability
+      </h4>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        The odds you see on 10dds are sourced in real‑time from third‑party
+        bookmaker APIs. These services are subject to regional restrictions,
+        market suspensions, and occasional technical delays. When a particular
+        market (e.g., Over 2.5 Goals or Both Teams to Score) isn't offered by
+        any available bookmaker for a given fixture, we simply can't display a
+        price. We'd rather show <em>"Odds not available"</em> than fabricate a
+        number.
+      </p>
+    </div>
+
+    <div>
+      <h4 className="text-sm font-heading font-semibold text-foreground mb-1">
+         Prediction Coverage
+      </h4>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        MK-806 only generates a prediction when it has access to a complete set
+        of the data it needs to make a high‑confidence assessment. This includes
+        reliable team Elo ratings, recent form statistics, and (where possible)
+        Expected Goals (xG) metrics. If any of these core inputs are missing for
+        a team — for example, a newly promoted side with limited historical
+        data, or a match in a competition we're not yet fully tracking — the
+        engine will deliberately skip that fixture rather than produce a
+        low‑quality guess.
+      </p>
+    </div>
+
+    <div>
+      <h4 className="text-sm font-heading font-semibold text-foreground mb-1">
+         Competition Coverage
+      </h4>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Currently, 10dds focuses on the five major European leagues:{" "}
+        <strong className="text-foreground">
+          Premier League, La Liga, Serie A, Bundesliga, and Ligue 1
+        </strong>
+        . We're actively working on expanding coverage to include the{" "}
+        <strong className="text-foreground">UEFA Champions League</strong> and
+        the{" "}
+        <strong className="text-foreground">FIFA World Cup</strong> — these
+        competitions are technically available via our data sources, but they
+        require additional configuration and testing before they can be reliably
+        integrated. Expect to see them appear on the platform in the near future.
+      </p>
+    </div>
+  </div>
+
+  <p className="text-xs text-muted-foreground/70 italic mt-4">
+    We believe it's better to be transparent about limitations than to pretend
+    everything is perfect. As our data coverage expands, so will the number of
+    predicted matches.
+  </p>
+</Section>
+
         {/* ── Pattern Insights ─────────────────────────────────────────────── */}
         <Section index={4} icon={MessageSquare} title="Understanding Pattern Insights">
           <p>
