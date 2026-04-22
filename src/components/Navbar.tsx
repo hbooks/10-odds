@@ -22,7 +22,7 @@ const Navbar = () => {
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
       <Link to="/" className="flex items-center gap-2">
   <img 
-    src="/assets/logo.png" 
+    src="/assets/o.png" 
     alt="10 Odds Logo" 
     className="h-12 w-12 object-contain"
   />
