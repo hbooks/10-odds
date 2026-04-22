@@ -1,46 +1,80 @@
+import { Suspense, lazy, createContext, useContext, useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import GamesPage from "./pages/GamesPage.tsx";
-import TenOddsPage from "./pages/TenOddsPage.tsx";
-import StatusPage from "./pages/StatusPage.tsx";
-import PreviousPage from "./pages/PreviousPage.tsx";
-import AnalyticsPage from "./pages/AnalyticsPage.tsx";
-import ScoreboardPage from "./pages/ScoreboardPage.tsx";
-import AboutPage from "./pages/AboutPage.tsx";
-import PatternAnalyserPage from "./pages/Patternanalyserpage.tsx";
-import NotFound from "./pages/NotFound.tsx";
-import Terms from "./pages/Terms.tsx";
-import Privacy from "./pages/Privacy.tsx";
+import GlobalLoader from "@/components/GlobalLoader";
+
+const IndexPage        = lazy(() => import("@/pages/Index"));
+const GamesPage        = lazy(() => import("@/pages/GamesPage"));
+const TenOddsPage      = lazy(() => import("@/pages/TenOddsPage"));
+const StatusPage       = lazy(() => import("@/pages/StatusPage"));
+const PreviousPage     = lazy(() => import("@/pages/PreviousPage"));
+const AnalyticsPage    = lazy(() => import("@/pages/AnalyticsPage"));
+const ScoreboardPage   = lazy(() => import("@/pages/ScoreboardPage"));
+const PatternPage      = lazy(() => import("@/pages/Patternanalyserpage"));
+const AboutPage        = lazy(() => import("@/pages/AboutPage"));
+const TermsPage        = lazy(() => import("@/pages/Terms"));
+const PrivacyPage      = lazy(() => import("@/pages/Privacy"));
+const NewsPage         = lazy(() => import("@/pages/NewsPage"));
+const AdminNewsPage    = lazy(() => import("@/pages/AdminNewsPage"));
+const NotFound         = lazy(() => import("@/pages/NotFound"));
+
+// ─── Loading context ─────
+interface LoadingCtx {
+  isLoading: boolean;
+  setIsLoading: (v: boolean) => void;
+}
+const LoadingContext = createContext<LoadingCtx>({ isLoading: false, setIsLoading: () => {} });
+export const useLoading = () => useContext(LoadingContext);
+
+// Fallback displayed while a lazy chunk is downloading
+const LazyFallback = () => <GlobalLoader />;
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/games" element={<GamesPage />} />
-          <Route path="/ten-odds" element={<TenOddsPage />} />
-          <Route path="/status" element={<StatusPage />} />
-          <Route path="/previous" element={<PreviousPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/scoreboard" element={<ScoreboardPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/pattern-analyser" element={<PatternAnalyserPage />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+
+function App() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <LoadingContext.Provider value={{ isLoading, setIsLoading }}>
+          <BrowserRouter>
+            {/* Global loader overlay – manually triggered via useLoading */}
+            <AnimatePresence>
+              {isLoading && <GlobalLoader key="global-loader" />}
+            </AnimatePresence>
+
+            {/* Lazy‑loading fallback */}
+            <Suspense fallback={<LazyFallback />}>
+              <Routes>
+                <Route path="/"                element={<IndexPage />} />
+                <Route path="/games"           element={<GamesPage />} />
+                <Route path="/ten-odds"        element={<TenOddsPage />} />
+                <Route path="/status"          element={<StatusPage />} />
+                <Route path="/previous"        element={<PreviousPage />} />
+                <Route path="/analytics"       element={<AnalyticsPage />} />
+                <Route path="/scoreboard"      element={<ScoreboardPage />} />
+                <Route path="/pattern-analyser" element={<PatternPage />} />
+                <Route path="/about"           element={<AboutPage />} />
+                <Route path="/terms"           element={<TermsPage />} />
+                <Route path="/privacy"         element={<PrivacyPage />} />
+                <Route path="/news"            element={<NewsPage />} />
+                <Route path="/admin/news"      element={<AdminNewsPage />} />
+                <Route path="*"                element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </LoadingContext.Provider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;

@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@supabase/supabase-js";
 
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL as string,
+  import.meta.env.VITE_SUPABASE_ANON_KEY as string
+);
+
+// ─── Your existing navigation links + News ─────────────────────────────────────
 const navLinks = [
   { to: "/", label: "Home" },
   { to: "/games", label: "Fixtures" },
@@ -11,44 +18,96 @@ const navLinks = [
   { to: "/previous", label: "Previous Bets" },
   { to: "/scoreboard", label: "Live Matches" },
   { to: "/analytics", label: "Analytics" },
+  { to: "/news", label: "News", hasBadge: true },   // <-- News added
 ];
 
+// ─── Unread count fetcher ─────────────────────────────────────────────────────
+async function fetchUnreadCount(): Promise<number> {
+  const lastRead = localStorage.getItem("news_last_read") ?? "1970-01-01T00:00:00Z";
+  const { count, error } = await supabase
+    .from("news_messages")
+    .select("*", { count: "exact", head: true })
+    .gt("created_at", lastRead);
+  return error || count === null ? 0 : count;
+}
+
+// ─── Badge component ──────────────────────────────────────────────────────────
+function UnreadBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <motion.span
+      key={count}
+      initial={{ scale: 0.5, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.5, opacity: 0 }}
+      className="absolute -top-1.5 -right-2.5 h-4 min-w-[16px] px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center tabular-nums"
+    >
+      {count > 9 ? "9+" : count}
+    </motion.span>
+  );
+}
+
+// ─── Navbar Component ─────────────────────────────────────────────────────────
 const Navbar = () => {
   const [open, setOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { pathname } = useLocation();
+
+  // Fetch unread count and listen for "news_read" event (dispatched by News.tsx)
+  useEffect(() => {
+    const refresh = () => fetchUnreadCount().then(setUnreadCount);
+    refresh();
+    window.addEventListener("news_read", refresh);
+    return () => window.removeEventListener("news_read", refresh);
+  }, []);
+
+  // Re-fetch when pathname changes (e.g., user navigated to /news)
+  useEffect(() => {
+    fetchUnreadCount().then(setUnreadCount);
+  }, [pathname]);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
     <nav className="sticky top-0 z-50 glass">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-      <Link to="/" className="flex items-center gap-2">
-  <img 
-    src="/assets/o.png" 
-    alt="10 Odds Logo" 
-    className="h-12 w-12 object-contain"
-  />
-  <span className="text-xl font-heading font-bold text-foreground">
-    10 <span className="text-gold">Odds</span>
-  </span>
-</Link>
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2">
+          <img
+            src="/assets/o.png"
+            alt="10 Odds Logo"
+            className="h-12 w-12 object-contain"
+          />
+          <span className="text-xl font-heading font-bold text-foreground">
+            10 <span className="text-gold">Odds</span>
+          </span>
+        </Link>
 
-        {/* Desktop */}
+        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                pathname === link.to
-                  ? "bg-accent/20 text-accent-foreground font-semibold"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const isActive = pathname === link.to;
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-accent/20 text-accent-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {link.label}
+                {link.hasBadge && <UnreadBadge count={unreadCount} />}
+              </Link>
+            );
+          })}
         </div>
 
-        {/* Mobile toggle */}
+        {/* Mobile hamburger */}
         <button
           className="md:hidden p-2 rounded-md hover:bg-muted"
           onClick={() => setOpen(!open)}
@@ -57,7 +116,7 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile Menu */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -67,20 +126,23 @@ const Navbar = () => {
             className="md:hidden overflow-hidden border-t border-border"
           >
             <div className="container mx-auto px-4 py-2 flex flex-col gap-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  onClick={() => setOpen(false)}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    pathname === link.to
-                      ? "bg-accent/20 text-accent-foreground font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const isActive = pathname === link.to;
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-accent/20 text-accent-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {link.label}
+                    {link.hasBadge && <UnreadBadge count={unreadCount} />}
+                  </Link>
+                );
+              })}
             </div>
           </motion.div>
         )}
