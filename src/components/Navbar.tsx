@@ -11,14 +11,16 @@ const supabase = createClient(
 
 // ─── Your existing navigation links + News ─────────────────────────────────────
 const navLinks = [
-  { to: "/", label: "Home" },
+  { to: "/news", label: "News & Updates", hasBadge: true },
+  { to: "/about", label: "Guide", hasBadge: true },
+
   { to: "/games", label: "Fixtures" },
+  { to: "/scoreboard", label: "Live Matches" },
   { to: "/ten-odds", label: "Picks" },
   { to: "/status", label: "Predictions" },
   { to: "/previous", label: "Previous Bets" },
-  { to: "/scoreboard", label: "Live Matches" },
   { to: "/analytics", label: "Analytics" },
-  { to: "/news", label: "News", hasBadge: true },
+  
 ];
 
 // ─── Unread count fetcher ─────────────────────────────────────────────────────
