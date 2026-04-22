@@ -36,7 +36,6 @@ function formatTime(iso: string): string {
     ` at ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-// Whether a message was posted since the last read
 function isNew(iso: string, lastReadIso: string | null): boolean {
   if (!lastReadIso) return true;
   return new Date(iso) > new Date(lastReadIso);
@@ -57,20 +56,16 @@ function MessageBubble({
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className="flex items-start gap-3 max-w-[90%] md:max-w-[70%]"
     >
-      {/* Avatar */}
       <div className="relative shrink-0">
         <img
           src={TECH_AVATAR}
           alt="tECH"
           className="h-9 w-9 rounded-full border-2 border-border bg-muted"
         />
-        {/* Online dot */}
         <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-background" />
       </div>
 
-      {/* Bubble */}
       <div className="flex flex-col gap-1">
-        {/* Header */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-foreground">tECH</span>
           <BadgeCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
@@ -79,7 +74,6 @@ function MessageBubble({
           </span>
         </div>
 
-        {/* Message content */}
         <div
           className={`rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap
             ${highlight
@@ -95,7 +89,6 @@ function MessageBubble({
           )}
         </div>
 
-        {/* Timestamp */}
         <p className="text-[11px] text-muted-foreground/60 pl-1">
           {formatTime(message.created_at)}
           {message.updated_at !== message.created_at && (
@@ -114,6 +107,7 @@ const NewsPage = () => {
   const [error, setError]       = useState<string | null>(null);
   const [lastRead, setLastRead] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = async () => {
     setLoading(true);
@@ -133,30 +127,40 @@ const NewsPage = () => {
   };
 
   useEffect(() => {
-    // Capture previous last-read before marking as read
     const prev = localStorage.getItem("news_last_read");
     setLastRead(prev);
 
     fetchMessages().then(() => {
-      // Mark all as read
       localStorage.setItem("news_last_read", new Date().toISOString());
-      // Dispatch custom event so Navbar badge can update
       window.dispatchEvent(new Event("news_read"));
     });
+
+    // ── Real‑time subscription for new messages ─────────────────────────────
+    const channel = supabase
+      .channel("news_page")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "news_messages" },
+        (payload) => {
+          const newMsg = payload.new as NewsMessage;
+          setMessages((prev) => [...prev, newMsg]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Auto-scroll to bottom when messages load
+  // Auto‑scroll to bottom when new messages arrive
   useEffect(() => {
-    if (!loading && messages.length > 0) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [loading, messages.length]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
 
   return (
     <Layout>
       <div className="flex flex-col h-[calc(100vh-4rem)]">
-
-        {/* ── Channel header ─────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card/80 backdrop-blur-sm shrink-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15">
             <MessageCircle className="h-4 w-4 text-emerald-400" />
@@ -179,7 +183,6 @@ const NewsPage = () => {
           </button>
         </div>
 
-        {/* ── Messages area ──────────────────────────────────────────────── */}
         <div
           className="flex-1 overflow-y-auto px-4 py-6 space-y-5"
           style={{
@@ -219,8 +222,7 @@ const NewsPage = () => {
             ))}
           </AnimatePresence>
 
-          {/* Scroll anchor */}
-          <div ref={bottomRef} />
+          <div ref={messagesEndRef} />
         </div>
       </div>
     </Layout>

@@ -18,7 +18,7 @@ const navLinks = [
   { to: "/previous", label: "Previous Bets" },
   { to: "/scoreboard", label: "Live Matches" },
   { to: "/analytics", label: "Analytics" },
-  { to: "/news", label: "News", hasBadge: true },   // <-- News added
+  { to: "/news", label: "News", hasBadge: true },
 ];
 
 // ─── Unread count fetcher ─────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ const Navbar = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const { pathname } = useLocation();
 
-  // Fetch unread count and listen for "news_read" event (dispatched by News.tsx)
+  // ── Initial fetch & "news_read" event listener ───────────────────────────
   useEffect(() => {
     const refresh = () => fetchUnreadCount().then(setUnreadCount);
     refresh();
@@ -61,7 +61,30 @@ const Navbar = () => {
     return () => window.removeEventListener("news_read", refresh);
   }, []);
 
-  // Re-fetch when pathname changes (e.g., user navigated to /news)
+  // ── Real‑time subscription for new messages ─────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel("navbar_badge")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "news_messages" },
+        (payload) => {
+          const newMsg = payload.new as { created_at: string };
+          const lastRead = localStorage.getItem("news_last_read") ?? "1970-01-01T00:00:00Z";
+          // Only increment if the new message was created after the last read
+          if (newMsg.created_at > lastRead) {
+            setUnreadCount((prev) => prev + 1);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Re‑fetch when pathname changes (e.g., user navigated to /news)
   useEffect(() => {
     fetchUnreadCount().then(setUnreadCount);
   }, [pathname]);
