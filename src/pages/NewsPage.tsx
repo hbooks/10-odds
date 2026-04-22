@@ -1,10 +1,3 @@
-/**
- * News.tsx  —  10 Odds / tECH public news channel
- * ─────────────────────────────────────────────────
- * Chat-style room. Messages from tECH appear as left-aligned bubbles.
- * Auto-scrolls to latest on mount. Marks messages as read via localStorage.
- */
-
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
@@ -25,7 +18,7 @@ interface NewsMessage {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const TECH_AVATAR = "https://api.dicebear.com/9.x/avataaars/svg?seed=TECH&backgroundColor=b6e3f4";
+const TECH_AVATAR = "https://api.dicebear.com/9.x/notionists/svg?gesture=waveOkLongArms";
 
 function formatTime(iso: string): string {
   const d   = new Date(iso);
