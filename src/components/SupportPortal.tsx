@@ -2,13 +2,22 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, X, Sparkles, Coffee, CreditCard, DollarSign } from "lucide-react";
 
+// ── Generic popup helper (opens a centered small window over our site) ─────────
+function openPopup(url: string, width = 500, height = 650) {
+  const left = (window.screen.width - width) / 2;
+  const top = (window.screen.height - height) / 2;
+  const features = `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=no`;
+  window.open(url, "donation-popup", features);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 const SupportPortal = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
-      {/* Floating trigger button */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+      {/* Floating trigger button – bottom‑right with breathing space */}
+      <div className="fixed bottom-8 right-8 z-40">
         <button
           onClick={() => setIsOpen(true)}
           className="group flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 font-medium text-sm"
@@ -63,14 +72,12 @@ const SupportPortal = () => {
                 </div>
               </div>
 
-              {/* Donation cards */}
+              {/* Donation cards – all open a centered popup */}
               <div className="space-y-3">
                 {/* PayPal USD */}
-                <a
-                  href="https://www.paypal.com/donate?hosted_button_id=YLND6XC9LJEK2"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-gold/40 transition-all group"
+                <button
+                  onClick={() => openPopup("https://www.paypal.com/donate?hosted_button_id=YLND6XC9LJEK2")}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-gold/40 transition-all group w-full text-left"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20">
                     <DollarSign className="h-5 w-5 text-blue-400" />
@@ -84,14 +91,12 @@ const SupportPortal = () => {
                     alt="PayPal"
                     className="h-8 opacity-80 group-hover:opacity-100"
                   />
-                </a>
+                </button>
 
                 {/* PayPal EUR / Card */}
-                <a
-                  href="https://www.paypal.com/donate?hosted_button_id=6XEHPLS4HEEUG"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-gold/40 transition-all group"
+                <button
+                  onClick={() => openPopup("https://www.paypal.com/donate?hosted_button_id=6XEHPLS4HEEUG")}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-gold/40 transition-all group w-full text-left"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600/20">
                     <CreditCard className="h-5 w-5 text-indigo-400" />
@@ -105,14 +110,12 @@ const SupportPortal = () => {
                     alt="PayPal Card"
                     className="h-8 opacity-80 group-hover:opacity-100"
                   />
-                </a>
+                </button>
 
-                {/* Ko‑fi */}
-                <a
-                  href="https://ko-fi.com/M4M11YATHD"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-gold/40 transition-all group"
+                {/* Ko‑fi – custom button, opens popup */}
+                <button
+                  onClick={() => openPopup("https://ko-fi.com/M4M11YATHD")}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-gold/40 transition-all group w-full text-left"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600/20">
                     <Coffee className="h-5 w-5 text-emerald-400" />
@@ -121,12 +124,12 @@ const SupportPortal = () => {
                     <p className="font-semibold text-sm">Buy me a Ko‑fi</p>
                     <p className="text-xs text-slate-400">One‑time support</p>
                   </div>
-                  <img
-                    src="https://storage.ko-fi.com/cdn/brandasset/logo_white_blue.png"
-                    alt="Ko‑fi"
-                    className="h-8 opacity-80 group-hover:opacity-100"
-                  />
-                </a>
+                  {/* Custom Ko‑fi visual */}
+                  <span className="flex items-center gap-1 bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                    <Coffee className="h-3.5 w-3.5" />
+                    Ko‑fi
+                  </span>
+                </button>
               </div>
 
               {/* Footer note */}

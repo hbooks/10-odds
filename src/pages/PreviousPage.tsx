@@ -81,11 +81,11 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
 // ─── League Emblem Helper ─────────────────────────────────────────────────────
 const getLeagueEmblem = (code: string): string => {
   const emblems: Record<string, string> = {
-    PL: "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png", // From freelogovectors.net[reference:0]
-    PD: "https://www.freelogovectors.net/wp-content/uploads/2023/07/laliga-logo-02-freelogovectors.net_.png", // Primary vector logo[reference:1]
-    SA: "https://www.freelogovectors.net/wp-content/uploads/2021/08/serie-a-logo-freelogovectors.net_.png", // Primary vector logo[reference:2]
-    BL1: "https://logotyp.us/files/bundesliga.svg", // Primary vector logo[reference:3]
-    FL1: "https://logotyp.us/files/ligue-1.svg" // Primary vector logo[reference:4]
+    PL: "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png", 
+    PD: "https://www.freelogovectors.net/wp-content/uploads/2023/07/laliga-logo-02-freelogovectors.net_.png", 
+    SA: "https://www.freelogovectors.net/wp-content/uploads/2021/08/serie-a-logo-freelogovectors.net_.png",
+    BL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/bundesliga_logo.png", 
+    FL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/ligue1logo.png" 
   };
   return emblems[code] || "";
 };
