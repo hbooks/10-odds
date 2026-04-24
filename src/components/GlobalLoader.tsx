@@ -1,14 +1,3 @@
-/**
- * GlobalLoader.tsx
- * ─────────────────
- * Full-screen branded loading overlay.
- * Render it from App.tsx whenever a global loading state is active.
- *
- * Usage:
- *   import { LoadingProvider, useLoading } from "@/context/LoadingContext";
- *   // Or simply: {isLoading && <GlobalLoader />}
- */
-
 import { motion } from "framer-motion";
 
 // ── Football SVG (classic black pentagon on white) ────────────────────────────
@@ -74,7 +63,7 @@ const GlobalLoader = () => {
         transition={{ delay: 0.2 }}
       >
         <p className="font-heading text-sm font-semibold text-foreground tracking-wide">
-          MK-806 is calculating…
+          Fetching…
         </p>
         {/* Ellipsis dots */}
         <div className="flex gap-1.5">

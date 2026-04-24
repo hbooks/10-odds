@@ -94,18 +94,6 @@ const ScoreboardPage = () => {
           </button>
         </div>
 
-        {/* Information Banner */}
-        <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
-          <Info className="h-5 w-5 text-white-400 shrink-0 mt-0.5" />
-          <div className="text-sm text-white-300/90">
-            <p className="font-medium mb-1">Live match data may be slightly delayed.</p>
-            <p className="text-xs text-white-300/70">
-              Scores and statuses are updated periodically. Finished matches may take a few minutes
-              to reflect final results. Thank you for your patience.
-            </p>
-          </div>
-        </div>
-
         {loading ? (
           <div className="flex justify-center py-20">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -120,22 +108,17 @@ const ScoreboardPage = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Live matches section */}
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Circle className="h-4 w-4 text-red-500 fill-red-500 animate-pulse" />
-                <h2 className="text-xl font-heading font-semibold">Live Now</h2>
-                <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
-                  {liveMatches.length} {liveMatches.length === 1 ? "match" : "matches"}
-                </span>
-              </div>
-
-              {liveMatches.length === 0 ? (
-                <div className="rounded-xl border border-border bg-card/30 p-8 text-center text-muted-foreground">
-                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No live matches at the moment.</p>
+            {/* Live matches section – only shown when there are live matches */}
+            {liveMatches.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Circle className="h-4 w-4 text-red-500 fill-red-500 animate-pulse" />
+                  <h2 className="text-xl font-heading font-semibold">Live Now</h2>
+                  <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
+                    {liveMatches.length} {liveMatches.length === 1 ? "match" : "matches"}
+                  </span>
                 </div>
-              ) : (
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {liveMatches.map((match) => (
                     <div key={match.id} className="rounded-xl border border-border bg-card p-4 hover:shadow-md transition-shadow">
@@ -170,10 +153,24 @@ const ScoreboardPage = () => {
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Finished matches section */}
+            {/* Info banner – only when there are NO live matches */}
+            {liveMatches.length === 0 && (
+              <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 flex items-start gap-3">
+                <Info className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-300/90">
+                  <p className="font-medium mb-1">No live matches right now.</p>
+                  <p className="text-xs text-amber-300/70">
+                    Our orchestrator updates match statuses every 30 minutes, so a match that is currently being played
+                    might not appear as live immediately. Refresh to check again, and thanks for your patience.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Finished matches section (always shown) */}
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Clock className="h-4 w-4 text-muted-foreground" />

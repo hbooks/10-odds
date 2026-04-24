@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
-import { Calendar, Clock, AlertCircle, RefreshCw } from "lucide-react";
+import { Calendar, Clock, AlertCircle, RefreshCw, Info, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Supabase client (public anon key)
 const supabase = createClient(
@@ -203,6 +204,7 @@ const GamesPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [showBanner, setShowBanner] = useState(true);
 
   const loadMatches = async () => {
     setLoading(true);
@@ -236,7 +238,39 @@ const GamesPage = () => {
             <RefreshCw className="h-4 w-4" />
           </button>
         </div>
-        <p className="text-muted-foreground mb-6">Browse fixtures across the top 5 European leagues.</p>
+        <p className="text-muted-foreground mb-4">Browse fixtures across the top 5 European leagues.</p>
+
+        {/* Collapsible information banner about odds */}
+        <AnimatePresence>
+          {showBanner && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden mb-4 rounded-xl bg-blue-500/10 border border-blue-500/20"
+            >
+              <div className="flex items-start justify-between p-4 gap-4">
+                <div className="flex items-start gap-3 text-sm text-blue-300/90">
+                  <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium mb-1">About Fixture Odds</p>
+                    <p className="text-xs text-blue-300/70 leading-relaxed">
+                      Odds are sourced from external bookmaker APIs and may not be available for every match.
+                      This depends on market coverage, region, and real‑time availability. <strong>Not all matches will display odds.</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBanner(false)}
+                  className="p-1.5 text-blue-300 hover:text-blue-100 transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">

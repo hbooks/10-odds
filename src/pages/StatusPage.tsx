@@ -13,9 +13,12 @@ import {
   TrendingDown,
   Minus,
   HelpCircle,
+  Info,
+  BookOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import DonationBanner from "@/components/DonationBanner";
+import { Link } from "react-router-dom";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
 const supabase = createClient(
@@ -342,6 +345,7 @@ const StatusPage = () => {
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
+  const [showGuideBanner, setShowGuideBanner] = useState(true);
 
   const fetchActivePredictions = useCallback(async () => {
     setLoading(true);
@@ -395,9 +399,45 @@ const StatusPage = () => {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
-        <p className="text-muted-foreground mb-6 text-sm">
+        <p className="text-muted-foreground mb-4 text-sm">
           Live status of MK-806's current picks. Tap a row to see full analysis.
         </p>
+
+        {/* Collapsible Guide Banner */}
+        <AnimatePresence>
+          {showGuideBanner && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden mb-6 rounded-xl bg-gold/10 border border-gold/30"
+            >
+              <div className="flex items-start justify-between p-4 gap-4">
+                <div className="flex items-start gap-3 text-sm text-amber-300/90">
+                  <BookOpen className="h-5 w-5 text-gold shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium mb-1">Read Before Building Your Betslip</p>
+                    <p className="text-xs text-amber-300/70 leading-relaxed">
+                      Understanding how MK‑806 and _806 work together can help you make more informed decisions.
+                      We strongly recommend reading our{" "}
+                      <Link to="/guide" className="text-gold underline hover:no-underline font-medium">
+                        Pattern & Prediction Guide
+                      </Link>{" "}
+                      before placing any real‑world bets.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowGuideBanner(false)}
+                  className="p-1.5 text-amber-300 hover:text-amber-100 transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {loading && (
           <div className="flex justify-center py-20">
