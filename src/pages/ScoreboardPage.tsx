@@ -157,14 +157,13 @@ const ScoreboardPage = () => {
             )}
 
             {/* Info banner – only when there are NO live matches */}
-            {liveMatches.length === 0 && (
-              <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 flex items-start gap-3">
-                <Info className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-300/90">
-                  <p className="font-medium mb-1">No live matches right now.</p>
-                  <p className="text-xs text-amber-300/70">
-                    Our orchestrator updates match statuses every 30 minutes, so a match that is currently being played
-                    might not appear as live immediately. Refresh to check again, and thanks for your patience.
+                     {liveMatches.length === 0 && (
+              <div className="rounded-xl bg-slate-800/90 border border-slate-600/60 p-5 flex items-start gap-4 shadow-lg">
+                <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-semibold text-white mb-1">No live matches right now.</p>
+                  <p className="text-slate-300/90">
+                    Match statuses are updated periodically by our orchestrator. Some ongoing matches may not appear as live immediately. Refresh to check again — thank you for your patience.
                   </p>
                 </div>
               </div>
