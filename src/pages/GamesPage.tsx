@@ -241,36 +241,37 @@ const GamesPage = () => {
         <p className="text-muted-foreground mb-4">Browse fixtures across the top 5 European leagues.</p>
 
         {/* Collapsible information banner about odds */}
-        <AnimatePresence>
-          {showBanner && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden mb-4 rounded-xl bg-blue-500/10 border border-blue-500/20"
-            >
-              <div className="flex items-start justify-between p-4 gap-4">
-                <div className="flex items-start gap-3 text-sm text-blue-300/90">
-                  <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium mb-1">About Fixture Odds</p>
-                    <p className="text-xs text-blue-300/70 leading-relaxed">
-                      Odds are sourced from external bookmaker APIs and may not be available for every match.
-                      This depends on market coverage, region, and real‑time availability. <strong>Not all matches will display odds.</strong>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowBanner(false)}
-                  className="p-1.5 text-blue-300 hover:text-blue-100 transition-colors"
-                  aria-label="Dismiss"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+       <AnimatePresence>
+  {showBanner && (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: "auto", opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      className="overflow-hidden mb-4 rounded-xl bg-slate-800/90 border border-blue-500/40 shadow-lg"
+    >
+      <div className="flex items-start justify-between p-5 gap-4">
+        <div className="flex items-start gap-3 text-sm">
+          <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-white mb-1">About Fixture Odds</p>
+            <p className="text-slate-300 leading-relaxed">
+              Odds are sourced from external bookmaker APIs and may not be available for every match.
+              This depends on market coverage, region, and real‑time availability.{" "}
+              <strong className="text-white">Not all matches will display odds.</strong>
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowBanner(false)}
+          className="p-1.5 text-slate-400 hover:text-white transition-colors"
+          aria-label="Dismiss"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">

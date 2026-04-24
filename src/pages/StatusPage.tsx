@@ -404,40 +404,40 @@ const StatusPage = () => {
         </p>
 
         {/* Collapsible Guide Banner */}
-        <AnimatePresence>
-          {showGuideBanner && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden mb-6 rounded-xl bg-gold/10 border border-gold/30"
-            >
-              <div className="flex items-start justify-between p-4 gap-4">
-                <div className="flex items-start gap-3 text-sm text-amber-300/90">
-                  <BookOpen className="h-5 w-5 text-gold shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium mb-1">Read Before Building Your Betslip</p>
-                    <p className="text-xs text-amber-300/70 leading-relaxed">
-                      Understanding how MK‑806 and _806 work together can help you make more informed decisions.
-                      We strongly recommend reading our{" "}
-                      <Link to="/guide" className="text-gold underline hover:no-underline font-medium">
-                        Pattern & Prediction Guide
-                      </Link>{" "}
-                      before placing any real‑world bets.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowGuideBanner(false)}
-                  className="p-1.5 text-amber-300 hover:text-amber-100 transition-colors"
-                  aria-label="Dismiss"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+  <AnimatePresence>
+  {showGuideBanner && (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: "auto", opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      className="overflow-hidden mb-6 rounded-xl bg-slate-800/90 border border-gold/40 shadow-lg"
+    >
+      <div className="flex items-start justify-between p-5 gap-4">
+        <div className="flex items-start gap-3 text-sm">
+          <BookOpen className="h-5 w-5 text-gold shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-white mb-1">Read Before Building Your Betslip</p>
+            <p className="text-slate-300 leading-relaxed">
+              Understanding how MK‑806 and _806 work together can help you make more informed decisions.
+              We strongly recommend reading our{" "}
+              <Link to="/guide" className="text-gold underline hover:no-underline font-semibold">
+                Pattern & Prediction Guide
+              </Link>{" "}
+              before placing any real‑world bets.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowGuideBanner(false)}
+          className="p-1.5 text-slate-400 hover:text-white transition-colors"
+          aria-label="Dismiss"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
         {loading && (
           <div className="flex justify-center py-20">
