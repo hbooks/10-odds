@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
+import SupportPortal from "@/components/SupportPortal"; // <-- new
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
 const GamesPage        = lazy(() => import("@/pages/GamesPage"));
@@ -22,7 +23,6 @@ const NewsPage         = lazy(() => import("@/pages/NewsPage"));
 const AdminNewsPage    = lazy(() => import("@/pages/AdminNewsPage"));
 const NotFound         = lazy(() => import("@/pages/NotFound"));
 
-// ─── Loading context ─────
 interface LoadingCtx {
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
@@ -30,11 +30,8 @@ interface LoadingCtx {
 const LoadingContext = createContext<LoadingCtx>({ isLoading: false, setIsLoading: () => {} });
 export const useLoading = () => useContext(LoadingContext);
 
-// Fallback displayed while a lazy chunk is downloading
 const LazyFallback = () => <GlobalLoader />;
-
 const queryClient = new QueryClient();
-
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
@@ -46,12 +43,10 @@ function App() {
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading }}>
           <BrowserRouter>
-            {/* Global loader overlay – manually triggered via useLoading */}
             <AnimatePresence>
               {isLoading && <GlobalLoader key="global-loader" />}
             </AnimatePresence>
 
-            {/* Lazy‑loading fallback */}
             <Suspense fallback={<LazyFallback />}>
               <Routes>
                 <Route path="/"                element={<IndexPage />} />
@@ -70,6 +65,9 @@ function App() {
                 <Route path="*"                element={<NotFound />} />
               </Routes>
             </Suspense>
+
+            {/* Floating support portal – appears on every page */}
+            <SupportPortal />
           </BrowserRouter>
         </LoadingContext.Provider>
       </TooltipProvider>

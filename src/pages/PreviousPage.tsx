@@ -14,7 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import DonationBanner from "@/components/DonationBanner";
+
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -426,9 +426,7 @@ const PreviousPage = () => {
           </div>
         )}
 
-        {/* ── Donation banner — below all predictions ──────────────────── */}
-        <DonationBanner />
-
+        {/* ── Prediction modal ──────────────────────────────────────────── */}
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}

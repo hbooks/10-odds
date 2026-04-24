@@ -17,7 +17,6 @@ import {
   BookOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import DonationBanner from "@/components/DonationBanner";
 import { Link } from "react-router-dom";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
@@ -526,9 +525,7 @@ const StatusPage = () => {
           </div>
         )}
 
-        {/* ── Donation banner ──────────────────────────────────────────── */}
-        <DonationBanner />
-
+       {/* ── Prediction modal ──────────────────────────────────────────── */}
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}
