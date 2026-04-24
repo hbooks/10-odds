@@ -1,125 +1,17 @@
-import { useEffect, useRef } from "react";
 import { Heart, Sparkles } from "lucide-react";
 
-// ── Extend global Window for dynamically loaded widget libraries ──────────────
-declare global {
-  interface Window {
-    PayPal?: {
-      Donation: {
-        Button: (config: object) => { render: (selector: string) => void };
-      };
-    };
-    kofiwidget2?: {
-      init: (text: string, color: string, code: string) => void;
-      draw: () => void;
-    };
-  }
+// ── Ko‑fi pop‑up opener (centered, no modal) ─────────────────────────────────
+function openKofiPopup() {
+  const width = 500;
+  const height = 650;
+  const left = (window.screen.width - width) / 2;
+  const top = (window.screen.height - height) / 2;
+  const features = `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=no`;
+  window.open("https://ko-fi.com/M4M11YATHD", "kofi-popup", features);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Reusable helper to mount a PayPal donation button
-// ──────────────────────────────────────────────────────────────────────────────
-interface PayPalBtnConfig {
-  containerId: string;
-  hostedButtonId: string;
-  imgSrc: string;
-  imgAlt: string;
-}
-
-function PayPalButton({ containerId, hostedButtonId, imgSrc, imgAlt }: PayPalBtnConfig) {
-  const mountedRef = useRef(false);
-
-  useEffect(() => {
-    if (mountedRef.current) return; // only mount once
-
-    const mount = () => {
-      if (window.PayPal?.Donation?.Button) {
-        window.PayPal.Donation.Button({
-          env: "production",
-          hosted_button_id: hostedButtonId,
-          image: {
-            src: imgSrc,
-            alt: imgAlt,
-            title: "PayPal - The safer, easier way to pay online!",
-          },
-        }).render(`#${containerId}`);
-        mountedRef.current = true;
-      }
-    };
-
-    if (window.PayPal?.Donation?.Button) {
-      mount();
-      return;
-    }
-
-    const scriptSrc = "https://www.paypalobjects.com/donate/sdk/donate-sdk.js";
-    if (!document.querySelector(`script[src="${scriptSrc}"]`)) {
-      const script = document.createElement("script");
-      script.src = scriptSrc;
-      script.charset = "UTF-8";
-      script.async = true;
-      script.onload = mount;
-      document.body.appendChild(script);
-    } else {
-      const interval = setInterval(() => {
-        if (window.PayPal?.Donation?.Button) {
-          clearInterval(interval);
-          mount();
-        }
-      }, 100);
-      return () => clearInterval(interval);
-    }
-  }, [containerId, hostedButtonId, imgSrc, imgAlt]);
-
-  return <div id={containerId} className="flex items-center justify-center" />;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Reusable helper to mount the Ko‑fi widget
-// ──────────────────────────────────────────────────────────────────────────────
-function KofiButton() {
-  const mountedRef = useRef(false);
-
-  useEffect(() => {
-    if (mountedRef.current) return;
-
-    const mount = () => {
-      if (window.kofiwidget2) {
-        window.kofiwidget2.init("Support 10 Odds on Ko-fi", "#27e66a", "M4M11YATHD");
-        window.kofiwidget2.draw();
-        mountedRef.current = true;
-      }
-    };
-
-    if (window.kofiwidget2) {
-      mount();
-      return;
-    }
-
-    const scriptSrc = "https://storage.ko-fi.com/cdn/widget/Widget_2.js";
-    if (!document.querySelector(`script[src="${scriptSrc}"]`)) {
-      const script = document.createElement("script");
-      script.src = scriptSrc;
-      script.type = "text/javascript";
-      script.async = true;
-      script.onload = mount;
-      document.body.appendChild(script);
-    } else {
-      const interval = setInterval(() => {
-        if (window.kofiwidget2) {
-          clearInterval(interval);
-          mount();
-        }
-      }, 100);
-      return () => clearInterval(interval);
-    }
-  }, []);
-
-  return <div id="kofi-container" className="min-h-[45px] flex items-center justify-center" />;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// The actual support banner
+// The donation / support banner
 // ──────────────────────────────────────────────────────────────────────────────
 const DonationBanner = () => {
   return (
@@ -149,45 +41,62 @@ const DonationBanner = () => {
         <div className="flex items-start gap-3 text-slate-300 text-sm leading-relaxed">
           <Heart className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" fill="currentColor" />
           <p>
-            We're genuinely grateful you're here. If 10 Odds has given you value, any contribution—no matter how small—helps cover the live data, servers, and the countless hours of development. It's always optional, never expected.
+            We're genuinely grateful you're here. If 10 Odds has given you value, any contribution — no matter how small —
+            helps cover the live data, servers, and the countless hours of development. It's always optional, never expected.
           </p>
         </div>
 
-        {/* Buttons section */}
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 py-2">
-          {/* PayPal — USD */}
-          <div className="flex flex-col items-center gap-1.5">
-            <PayPalButton
-              containerId="paypal-usd-btn"
-              hostedButtonId="YLND6XC9LJEK2"
-              imgSrc="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif"
-              imgAlt="Donate with PayPal (USD)"
+        {/* Support buttons — PayPal links + direct Ko‑fi popup */}
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-4 py-2">
+          {/* PayPal USD */}
+          <a
+            href="https://www.paypal.com/donate?hosted_button_id=YLND6XC9LJEK2"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center gap-1.5 transition-opacity hover:opacity-90"
+            title="Donate with PayPal (USD)"
+          >
+            <img
+              src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif"
+              alt="Donate with PayPal"
+              className="h-12"
             />
             <span className="text-xs text-slate-400">USD · PayPal</span>
-          </div>
+          </a>
 
-          {/* Divider */}
           <span className="hidden sm:inline-block text-slate-600 font-light">|</span>
 
-          {/* PayPal — EUR / Cards */}
-          <div className="flex flex-col items-center gap-1.5">
-            <PayPalButton
-              containerId="paypal-eur-btn"
-              hostedButtonId="6XEHPLS4HEEUG"
-              imgSrc="https://www.paypalobjects.com/en_US/FR/i/btn/btn_donateCC_LG.gif"
-              imgAlt="Donate with card (EUR)"
+          {/* PayPal EUR / card */}
+          <a
+            href="https://www.paypal.com/donate?hosted_button_id=6XEHPLS4HEEUG"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center gap-1.5 transition-opacity hover:opacity-90"
+            title="Donate with card (EUR)"
+          >
+            <img
+              src="https://www.paypalobjects.com/en_US/FR/i/btn/btn_donateCC_LG.gif"
+              alt="Donate with card"
+              className="h-12"
             />
             <span className="text-xs text-slate-400">EUR · Credit / Debit</span>
-          </div>
+          </a>
 
-          {/* Divider */}
           <span className="hidden sm:inline-block text-slate-600 font-light">|</span>
 
-          {/* Ko‑fi */}
-          <div className="flex flex-col items-center gap-1.5">
-            <KofiButton />
+          {/* Ko‑fi – opens directly in a centered popup (no modal) */}
+          <button
+            onClick={openKofiPopup}
+            className="flex flex-col items-center gap-1.5 transition-opacity hover:opacity-90"
+            title="Support on Ko‑fi"
+          >
+            <img
+              src="https://storage.ko-fi.com/cdn/brandasset/logo_white_blue.png"
+              alt="Support me on Ko-fi"
+              className="h-12"
+            />
             <span className="text-xs text-slate-400">Ko‑fi</span>
-          </div>
+          </button>
         </div>
 
         {/* Footer note */}
