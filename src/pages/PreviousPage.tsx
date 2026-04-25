@@ -14,7 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
+import DonationBanner from "@/components/DonationBanner";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -81,11 +81,11 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
 // ─── League Emblem Helper ─────────────────────────────────────────────────────
 const getLeagueEmblem = (code: string): string => {
   const emblems: Record<string, string> = {
-    PL: "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png", 
-    PD: "https://www.freelogovectors.net/wp-content/uploads/2023/07/laliga-logo-02-freelogovectors.net_.png", 
-    SA: "https://www.freelogovectors.net/wp-content/uploads/2021/08/serie-a-logo-freelogovectors.net_.png",
-    BL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/bundesliga_logo.png", 
-    FL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/ligue1logo.png" 
+    PL:  "https://upload.wikimedia.org/wikipedia/en/f/f2/Premier_League_Logo.svg",
+    PD:  "https://upload.wikimedia.org/wikipedia/commons/9/9a/LaLiga_Santander.svg",
+    SA:  "https://upload.wikimedia.org/wikipedia/en/e/e9/Serie_A_logo_2022.svg",
+    BL1: "https://upload.wikimedia.org/wikipedia/en/d/df/Bundesliga_logo.svg",
+    FL1: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Ligue_1_Uber_Eats.svg",
   };
   return emblems[code] || "";
 };
@@ -373,7 +373,7 @@ const PreviousPage = () => {
                   >
                     <div className="flex items-center gap-3">
                       {emblem && (
-                        <img src={emblem} alt="" className="h-12 w-12 object-contain" />
+                        <img src={emblem} alt="" className="h-6 w-6 object-contain" />
                       )}
                       <span className="font-heading font-semibold text-foreground">{leagueName}</span>
                       <span className="text-xs text-muted-foreground">
@@ -426,12 +426,12 @@ const PreviousPage = () => {
           </div>
         )}
 
-        {/* ── Prediction modal ──────────────────────────────────────────── */}
-        <PredictionModal
-          prediction={selectedPrediction}
-          onClose={() => setSelectedPrediction(null)}
-        />
-      </div>
+      {/* ── Prediction modal — for displaying detailed prediction info ────────── */}
+      <PredictionModal
+        prediction={selectedPrediction}
+        onClose={() => setSelectedPrediction(null)}
+      />
+    </div>
     </Layout>
   );
 };
