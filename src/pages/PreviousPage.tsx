@@ -1,25 +1,17 @@
 import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
-import {
-  RefreshCw,
-  AlertCircle,
-  X,
-  Calendar,
-  Trophy,
-  Target,
-  CheckCircle,
-  XCircle,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
+import { RefreshCw, AlertCircle, X, Calendar, Trophy, Target, CheckCircle, XCircle, ChevronDown, ChevronRight, BadgeCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
   import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
+
+const FUNCTIONS_BASE =
+  (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string) ??
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 type PredictionResult = "PENDING" | "WIN" | "LOSS" | "HALF_WIN" | "HALF_LOSS" | "VOID";
 
@@ -61,9 +53,9 @@ interface Prediction {
 
 const STATUS_STYLES: Record<PredictionResult, { label: string; className: string; icon: any }> = {
   PENDING:   { label: "Pending",   className: "bg-yellow-500/20 text-yellow-200 border border-yellow-400/30", icon: null },
-  WIN:       { label: "Won",       className: "bg-green-500/20 text-green-400",   icon: CheckCircle },
-  LOSS:      { label: "Lost",      className: "bg-red-500/20 text-red-400",       icon: XCircle },
-  HALF_WIN:  { label: "½ Win",     className: "bg-green-400/20 text-green-300",   icon: CheckCircle },
+  WIN:       { label: "Won",       className: "bg-green-500/20 text-green-400", icon: CheckCircle },
+  LOSS:      { label: "Lost",      className: "bg-red-500/20 text-red-400", icon: XCircle },
+  HALF_WIN:  { label: "½ Win",     className: "bg-green-400/20 text-green-300", icon: CheckCircle },
   HALF_LOSS: { label: "½ Loss",    className: "bg-orange-500/20 text-orange-300", icon: XCircle },
   VOID:      { label: "Void",      className: "bg-muted/40 text-muted-foreground", icon: null },
 };
@@ -78,7 +70,6 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
   );
 };
 
-// ─── League Emblem Helper ─────────────────────────────────────────────────────
 const getLeagueEmblem = (code: string): string => {
   const emblems: Record<string, string> = {
     PL: "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png", 
@@ -90,7 +81,81 @@ const getLeagueEmblem = (code: string): string => {
   return emblems[code] || "";
 };
 
-// ─── Modal Component ──────────────────────────────────────────────────────────
+// ─── Previous Advisor Bar Component ──────────────────────────────────────────
+function PreviousAdvisorBar({
+  confidenceScore,
+  selection,
+}: {
+  confidenceScore: number;
+  selection: string;
+}) {
+  const [advice, setAdvice] = useState<{ pattern_label: string; message: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAdvice = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${FUNCTIONS_BASE}/get-pattern-message-previous`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confidence_score: confidenceScore, selection }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setAdvice(data);
+      } catch {
+        if (!cancelled) setAdvice(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchAdvice();
+    return () => { cancelled = true; };
+  }, [confidenceScore, selection]);
+
+  if (loading) {
+    return (
+      <div className="mt-4 rounded-xl bg-black/30 border border-white/10 p-3.5 animate-pulse">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-white/10 shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-2.5 bg-white/10 rounded w-1/4" />
+            <div className="h-2 bg-white/10 rounded w-3/4" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!advice) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      className="mt-4 rounded-xl bg-black/40 border border-white/10 overflow-hidden"
+    >
+      <div className="px-4 py-3 flex items-start gap-3">
+        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold select-none shrink-0">
+          <span>806</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-xs font-semibold text-white/90">_806</span>
+            <BadgeCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+            <span className="text-[10px] text-white/50 ml-auto font-mono">{advice.pattern_label}</span>
+          </div>
+          <p className="text-xs text-white/75 leading-relaxed">{advice.message}</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Modal Component ─────────────────────────────────────────────────────────
 interface PredictionModalProps {
   prediction: Prediction | null;
   onClose: () => void;
@@ -99,8 +164,8 @@ interface PredictionModalProps {
 const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   if (!prediction) return null;
 
-  const match  = prediction.matches;
-  const isWin  = prediction.status === "WIN" || prediction.status === "HALF_WIN";
+  const match = prediction.matches;
+  const isWin = prediction.status === "WIN" || prediction.status === "HALF_WIN";
   const isLoss = prediction.status === "LOSS" || prediction.status === "HALF_LOSS";
 
   const backgroundStyle = {
@@ -139,9 +204,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 {match.home_team.crest_url && (
                   <img src={match.home_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
                 )}
-                <span className="font-heading text-xl font-bold text-center">
-                  {match.home_team.name}
-                </span>
+                <span className="font-heading text-xl font-bold text-center">{match.home_team.name}</span>
               </div>
               <div className="text-center">
                 <span className="text-3xl font-bold text-white">VS</span>
@@ -155,9 +218,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 {match.away_team.crest_url && (
                   <img src={match.away_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
                 )}
-                <span className="font-heading text-xl font-bold text-center">
-                  {match.away_team.name}
-                </span>
+                <span className="font-heading text-xl font-bold text-center">{match.away_team.name}</span>
               </div>
             </div>
 
@@ -168,9 +229,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               </span>
               <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full">
                 <Calendar className="h-3.5 w-3.5" />
-                {new Date(match.utc_date).toLocaleDateString("en-GB", {
-                  day: "numeric", month: "short", year: "numeric",
-                })}
+                {new Date(match.utc_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
               </span>
             </div>
 
@@ -183,32 +242,28 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 <span className="text-xl font-bold text-gold">{prediction.selection}</span>
                 <span className="text-lg font-semibold">{prediction.predicted_odds.toFixed(2)}</span>
               </div>
-
               <div className="flex items-center gap-2 mb-2">
                 <Target className="h-4 w-4 text-gold" />
                 <span className="text-sm text-white/80">Confidence:</span>
                 <span className="text-sm font-bold">{Math.round(prediction.confidence_score * 100)}%</span>
                 <div className="ml-2 h-1.5 flex-1 bg-white/20 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gold rounded-full"
-                    style={{ width: `${prediction.confidence_score * 100}%` }}
-                  />
+                  <div className="h-full bg-gold rounded-full" style={{ width: `${prediction.confidence_score * 100}%` }} />
                 </div>
               </div>
 
-              <div className={`mt-3 p-3 rounded-lg ${
-                isWin
-                  ? "bg-green-500/20 border border-green-400/30"
-                  : isLoss
-                  ? "bg-red-500/20 border border-red-400/30"
-                  : "bg-white/5"
-              }`}>
+              <div className={`mt-3 p-3 rounded-lg ${isWin ? 'bg-green-500/20 border border-green-400/30' : isLoss ? 'bg-red-500/20 border border-red-400/30' : 'bg-white/5'}`}>
                 <p className="text-sm font-medium">
-                  {isWin  && "Prediction was correct!"}
+                  {isWin && "Prediction was correct!"}
                   {isLoss && "Prediction was incorrect."}
                   {!isWin && !isLoss && "Result pending."}
                 </p>
               </div>
+
+              {/* _806 retrospective message */}
+              <PreviousAdvisorBar
+                confidenceScore={prediction.confidence_score}
+                selection={prediction.selection}
+              />
             </div>
           </div>
         </motion.div>
@@ -217,15 +272,15 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   );
 };
 
-// ─── Main Page Component ──────────────────────────────────────────────────────
+// ─── Main Page Component ─────────────────────────────────────────────────────
 type DateFilter = "yesterday" | "today" | "all";
 
 const PreviousPage = () => {
-  const [predictions, setPredictions]     = useState<Prediction[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [error, setError]                 = useState<string | null>(null);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
-  const [filter, setFilter]               = useState<DateFilter>("all");
+  const [filter, setFilter] = useState<DateFilter>("all");
   const [expandedLeagues, setExpandedLeagues] = useState<Set<string>>(new Set());
 
   const fetchCompletedPredictions = async () => {
@@ -259,7 +314,7 @@ const PreviousPage = () => {
 
       if (error) throw error;
       setPredictions(data as unknown as Prediction[]);
-    } catch {
+    } catch (e) {
       setError("Failed to load previous predictions.");
     } finally {
       setLoading(false);
@@ -270,7 +325,6 @@ const PreviousPage = () => {
     fetchCompletedPredictions();
   }, []);
 
-  // Filter predictions by selected date (UTC+3 offset)
   const getKenyaDate = (utcDate: string): string => {
     const date = new Date(utcDate);
     const kenyaTime = new Date(date.getTime() + 3 * 60 * 60 * 1000);
@@ -279,18 +333,17 @@ const PreviousPage = () => {
 
   const filteredPredictions = predictions.filter((p) => {
     const matchDate = getKenyaDate(p.matches.utc_date);
-    const today     = new Date();
-    const todayStr  = new Date(today.getTime() + 3 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const today = new Date();
+    const todayStr = new Date(today.getTime() + 3 * 60 * 60 * 1000).toISOString().split("T")[0];
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
     const yesterdayStr = new Date(yesterday.getTime() + 3 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-    if (filter === "today")     return matchDate === todayStr;
+    if (filter === "today") return matchDate === todayStr;
     if (filter === "yesterday") return matchDate === yesterdayStr;
     return true;
   });
 
-  // Group by league
   const groupedByLeague: Record<string, Prediction[]> = {};
   filteredPredictions.forEach((p) => {
     const leagueName = p.matches.competition.name;
@@ -307,10 +360,11 @@ const PreviousPage = () => {
     });
   };
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("en-GB", {
-      day: "numeric", month: "short", year: "numeric",
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("en-GB", {
+      day: "numeric", month: "short", year: "numeric"
     });
+  };
 
   return (
     <Layout>
@@ -362,8 +416,8 @@ const PreviousPage = () => {
         ) : (
           <div className="space-y-4">
             {Object.entries(groupedByLeague).map(([leagueName, leaguePredictions]) => {
-              const first    = leaguePredictions[0];
-              const emblem   = getLeagueEmblem(first.matches.competition.code);
+              const first = leaguePredictions[0];
+              const emblem = getLeagueEmblem(first.matches.competition.code);
               const isExpanded = expandedLeagues.has(leagueName);
               return (
                 <div key={leagueName} className="rounded-xl border border-border bg-card overflow-hidden">
@@ -372,19 +426,13 @@ const PreviousPage = () => {
                     className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      {emblem && (
-                        <img src={emblem} alt="" className="h-12 w-12 object-contain" />
-                      )}
+                      {emblem && <img src={emblem} alt="" className="h-6 w-6 object-contain" />}
                       <span className="font-heading font-semibold text-foreground">{leagueName}</span>
                       <span className="text-xs text-muted-foreground">
                         ({leaguePredictions.length} prediction{leaguePredictions.length !== 1 ? "s" : ""})
                       </span>
                     </div>
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    )}
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                   </button>
                   {isExpanded && (
                     <div className="border-t border-border overflow-x-auto">
@@ -400,7 +448,7 @@ const PreviousPage = () => {
                         </thead>
                         <tbody>
                           {leaguePredictions.map((p) => {
-                            const match       = p.matches;
+                            const match = p.matches;
                             const fixtureName = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
                             return (
                               <tr
@@ -426,7 +474,6 @@ const PreviousPage = () => {
           </div>
         )}
 
-        {/* ── Prediction modal ──────────────────────────────────────────── */}
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}
