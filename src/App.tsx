@@ -1,4 +1,4 @@
-import { Suspense, lazy, createContext, useContext, useState } from "react";
+import { Suspense, lazy, createContext, useContext, useState, useEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,7 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
-import SupportPortal from "@/components/SupportPortal"; // <-- new
+import SupportPortal from "@/components/SupportPortal";
 import AdminCommunity from "@/pages/AdminCommunity";
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
@@ -36,15 +36,35 @@ export const useLoading = () => useContext(LoadingContext);
 const LazyFallback = () => <GlobalLoader />;
 const queryClient = new QueryClient();
 
+// ── Minimum loader display time (ms) ─────────────────────────────────────────
+const MIN_LOADER_MS = 2500;
+
 function App() {
   const [isLoading, setIsLoading] = useState(false);
+  const loaderStartRef = useRef<number>(0);
+
+  // ── Delayed hide function ─────────────────────────────────────────────────
+  const delayedSetIsLoading = (v: boolean) => {
+    if (v) {
+      loaderStartRef.current = Date.now();
+      setIsLoading(true);
+    } else {
+      const elapsed = Date.now() - loaderStartRef.current;
+      const remaining = Math.max(0, MIN_LOADER_MS - elapsed);
+      if (remaining > 0) {
+        setTimeout(() => setIsLoading(false), remaining);
+      } else {
+        setIsLoading(false);
+      }
+    }
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <LoadingContext.Provider value={{ isLoading, setIsLoading }}>
+        <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
           <BrowserRouter>
             <AnimatePresence>
               {isLoading && <GlobalLoader key="global-loader" />}
@@ -59,7 +79,7 @@ function App() {
                 <Route path="/previous"        element={<PreviousPage />} />
                 <Route path="/analytics"       element={<AnalyticsPage />} />
                 <Route path="/scoreboard"      element={<ScoreboardPage />} />
-                <Route path="/patterns" element={<PatternPage />} />
+                <Route path="/patterns"        element={<PatternPage />} />
                 <Route path="/about"           element={<AboutPage />} />
                 <Route path="/terms"           element={<TermsPage />} />
                 <Route path="/community-terms" element={<CommunityTermsPage />} />    
@@ -72,7 +92,6 @@ function App() {
               </Routes>
             </Suspense>
 
-            {/* Floating support portal – appears on every page */}
             <SupportPortal />
           </BrowserRouter>
         </LoadingContext.Provider>
