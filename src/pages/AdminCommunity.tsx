@@ -15,19 +15,15 @@ import {
   Clock,
   Check,
   Ban,
-  ChevronDown,
-  ChevronUp,
   Newspaper,
 } from "lucide-react";
-import Layout from "@/components/Layout";
 
-// ── Supabase ─────────────────────────────────────────────────────────────────
-// For admin operations (UPDATE / DELETE) on community_members you need the
-// service-role key. Store it as VITE_SUPABASE_SERVICE_KEY in your .env and
-// never expose it publicly – only the admin page (behind secret key) uses it.
+// ──────────────────────────────────────────────────────────────────────────────
+// Supabase client – uses service_role key for admin operations (update/delete)
+// Falls back to anon key if the service key is not set in .env
+// ──────────────────────────────────────────────────────────────────────────────
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
-  // Prefer service key for admin; fall back to anon key if not set.
   (import.meta.env.VITE_SUPABASE_SERVICE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string,
 );
 
@@ -74,7 +70,7 @@ const AdminCommunity = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // ── Auth gate ───────────────────────────────────────────────────────────
+  // ── Auth gate – requires ?key=ADMIN_SECRET ────────────────────────────────
   useEffect(() => {
     const key = searchParams.get("key");
     if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
@@ -151,11 +147,6 @@ const AdminCommunity = () => {
   const [members,         setMembers]         = useState<CommunityMember[]>([]);
   const [loadingMembers,  setLoadingMembers]  = useState(false);
   const [updatingId,      setUpdatingId]      = useState<number | null>(null);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
-    approved: true,
-    rejected: true,
-    banned:   true,
-  });
 
   const fetchMembers = async (status?: CommunityFilter) => {
     const s = status ?? communityFilter;
@@ -171,7 +162,6 @@ const AdminCommunity = () => {
 
   useEffect(() => {
     if (activeTab === "community") fetchMembers(communityFilter);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, communityFilter]);
 
   const updateStatus = async (id: number, status: CommunityMember["status"]) => {
@@ -188,10 +178,6 @@ const AdminCommunity = () => {
     }
   };
 
-  const toggleSection = (s: string) =>
-    setCollapsedSections((prev) => ({ ...prev, [s]: !prev[s] }));
-
-  // ─── Tab filter buttons for community ────────────────────────────────────
   const FILTERS: { key: CommunityFilter; label: string; icon: React.ReactNode }[] = [
     { key: "pending",  label: "Pending",  icon: <Clock className="h-3.5 w-3.5" /> },
     { key: "approved", label: "Approved", icon: <CheckCircle className="h-3.5 w-3.5" /> },
@@ -200,7 +186,8 @@ const AdminCommunity = () => {
   ];
 
   return (
-    <Layout>
+    // No Layout – standalone admin panel with a plain container
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
 
         {/* ── Page header ────────────────────────────────────────────────── */}
@@ -527,7 +514,7 @@ const AdminCommunity = () => {
           </motion.div>
         )}
       </AnimatePresence>
-    </Layout>
+    </div>
   );
 };
 
