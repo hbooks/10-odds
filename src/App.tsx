@@ -36,21 +36,21 @@ export const useLoading = () => useContext(LoadingContext);
 const LazyFallback = () => <GlobalLoader />;
 const queryClient = new QueryClient();
 
-// ── Minimum loader display time (ms) ─────────────────────────────────────────
-const MIN_LOADER_MS = 5500;
+// ── Minimum display time for the boot loader (ms) ────────────────────────────
+const BOOT_LOADER_MS = 5500; // increase this to enjoy the animation longer
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
   const loaderStartRef = useRef<number>(0);
 
-  // ── Delayed hide function ─────────────────────────────────────────────────
+  // ── Delayed hide function for manual loading states ────────────────────────
   const delayedSetIsLoading = (v: boolean) => {
     if (v) {
       loaderStartRef.current = Date.now();
       setIsLoading(true);
     } else {
       const elapsed = Date.now() - loaderStartRef.current;
-      const remaining = Math.max(0, MIN_LOADER_MS - elapsed);
+      const remaining = Math.max(0, BOOT_LOADER_MS - elapsed);
       if (remaining > 0) {
         setTimeout(() => setIsLoading(false), remaining);
       } else {
@@ -58,6 +58,17 @@ function App() {
       }
     }
   };
+
+  // ── One‑time boot loader ───────────────────────────────────────────────────
+  const [showBootLoader, setShowBootLoader] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowBootLoader(false);
+    }, BOOT_LOADER_MS);
+
+    return () => clearTimeout(timer);
+  }, []); // runs only once when the app mounts
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -67,7 +78,11 @@ function App() {
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
           <BrowserRouter>
             <AnimatePresence>
-              {isLoading && <GlobalLoader key="global-loader" />}
+              {/* Show the creative boot loader for the configured duration */}
+              {showBootLoader && <GlobalLoader key="boot-loader" />}
+
+              {/* Also show the manual loader when triggered (but it will be hidden behind the boot loader if still visible) */}
+              {!showBootLoader && isLoading && <GlobalLoader key="global-loader" />}
             </AnimatePresence>
 
             <Suspense fallback={<LazyFallback />}>
