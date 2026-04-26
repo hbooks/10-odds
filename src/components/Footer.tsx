@@ -25,7 +25,7 @@ const Footer = () => {
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <Link to="/games" className="hover:text-foreground transition-colors">Games</Link>
               <Link to="/analytics" className="hover:text-foreground transition-colors">Analytics</Link>
-              <Link to="/pattern-analyser" className="hover:text-foreground transition-colors">Pattern Analyser</Link>
+              <Link to="/patterns" className="hover:text-foreground transition-colors">Pattern Analyser</Link>
               <Link to="/community" className="hover:text-foreground transition-colors">Our Community Board</Link>
             </div>
           </div>

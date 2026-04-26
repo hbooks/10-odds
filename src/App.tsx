@@ -59,7 +59,7 @@ function App() {
                 <Route path="/previous"        element={<PreviousPage />} />
                 <Route path="/analytics"       element={<AnalyticsPage />} />
                 <Route path="/scoreboard"      element={<ScoreboardPage />} />
-                <Route path="/pattern-analyser" element={<PatternPage />} />
+                <Route path="/patterns" element={<PatternPage />} />
                 <Route path="/about"           element={<AboutPage />} />
                 <Route path="/terms"           element={<TermsPage />} />
                 <Route path="/community-terms" element={<CommunityTermsPage />} />    
