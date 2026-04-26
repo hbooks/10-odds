@@ -37,7 +37,7 @@ const LazyFallback = () => <GlobalLoader />;
 const queryClient = new QueryClient();
 
 // ── Minimum loader display time (ms) ─────────────────────────────────────────
-const MIN_LOADER_MS = 2500;
+const MIN_LOADER_MS = 5500;
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
