@@ -30,20 +30,6 @@ const stagger = {
   visible: { transition: { staggerChildren: 0.1 } },
 };
 
-// ─── Screenshot placeholder component ────────────────────────────────────────
-function ScreenshotPlaceholder({ label }: { label: string }) {
-  return (
-    <div className="w-full rounded-xl bg-muted/50 border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 p-8 my-6">
-      {/* Replace this entire <div> with an <img> tag when you have real screenshots */}
-      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-        <BookOpen className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <p className="text-sm text-muted-foreground text-center font-medium">{label}</p>
-      <p className="text-xs text-muted-foreground/50">Replace this block with your screenshot image</p>
-    </div>
-  );
-}
-
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 function GuideSection({
   index,
@@ -71,7 +57,6 @@ function GuideSection({
       className="rounded-2xl border border-border bg-card overflow-hidden"
     >
       <motion.div variants={fadeUp} className="p-6 md:p-8">
-        {/* Section badge */}
         <div className="flex items-center gap-3 mb-5">
           <div
             className="flex h-10 w-10 items-center justify-center rounded-xl shrink-0"
@@ -205,8 +190,15 @@ const GuidePage = () => {
             </motion.div>
 
             {/* SCREENSHOT: The Pattern Analyser page showing the 18 patterns and their win rates */}
-            <motion.div variants={fadeUp}>
-              <ScreenshotPlaceholder label="SCREENSHOT: The Pattern Analyser page showing all 18 patterns and their win rates" />
+            <motion.div variants={fadeUp} className="my-6">
+              <img
+                src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/pta.png"
+                alt="Pattern Analyser page showing all 18 patterns and their win rates"
+                className="w-full rounded-xl border border-border shadow-lg"
+              />
+              <p className="text-xs text-muted-foreground/50 text-center mt-2">
+                The Pattern Analyser page — showing all 18 patterns and their actual win/loss records
+              </p>
             </motion.div>
 
             <motion.div variants={fadeUp}>
@@ -272,9 +264,16 @@ const GuidePage = () => {
               </p>
             </motion.div>
 
-            {/* SCREENSHOT: The Status page modal showing the _806 message */}
-            <motion.div variants={fadeUp}>
-              <ScreenshotPlaceholder label="SCREENSHOT: The Status page modal showing the _806 advisor message" />
+            {/* SCREENSHOT: The Status page modal showing the _806 advisor message */}
+            <motion.div variants={fadeUp} className="my-6">
+              <img
+                src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/06.png"
+                alt="Status page modal showing the _806 advisor message"
+                className="w-full rounded-xl border border-border shadow-lg"
+              />
+              <p className="text-xs text-muted-foreground/50 text-center mt-2">
+                The prediction popup — showing MK-806's pick and _806's pattern advice
+              </p>
             </motion.div>
 
             <motion.div variants={fadeUp}>
