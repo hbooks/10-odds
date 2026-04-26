@@ -21,6 +21,7 @@ const TermsPage        = lazy(() => import("@/pages/Terms"));
 const PrivacyPage      = lazy(() => import("@/pages/Privacy"));
 const NewsPage         = lazy(() => import("@/pages/NewsPage"));
 const AdminNewsPage    = lazy(() => import("@/pages/AdminNewsPage"));
+const GuidePage        = lazy(() => import("@/pages/GuidePage"));
 const NotFound         = lazy(() => import("@/pages/NotFound"));
 
 interface LoadingCtx {
@@ -60,6 +61,7 @@ function App() {
                 <Route path="/about"           element={<AboutPage />} />
                 <Route path="/terms"           element={<TermsPage />} />
                 <Route path="/privacy"         element={<PrivacyPage />} />
+                <Route path="/guide"           element={<GuidePage />} /> 
                 <Route path="/news"            element={<NewsPage />} />
                 <Route path="/admin/news"      element={<AdminNewsPage />} />
                 <Route path="*"                element={<NotFound />} />

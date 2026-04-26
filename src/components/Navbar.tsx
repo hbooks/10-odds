@@ -12,8 +12,8 @@ const supabase = createClient(
 // ─── Your existing navigation links + News ─────────────────────────────────────
 const navLinks = [
   { to: "/news", label: "News & Updates", hasBadge: true },
-  { to: "/about", label: "Guide"},
-  {},
+  { to: "/guide", label: "Guide"},
+  ,
   { to: "/games", label: "Fixtures" },
   { to: "/scoreboard", label: "Live Matches" },
   { to: "/status", label: "Predictions" },
