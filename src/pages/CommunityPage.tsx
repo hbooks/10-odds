@@ -13,6 +13,8 @@ import {
   ArrowLeft,
   Star,
   Sparkles,
+  ShieldCheck,
+  Eye,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -94,14 +96,17 @@ const containsBannedWord = (str: string): boolean => {
   return BANNED_WORDS.some((w) => lower.includes(w.replace(/[^a-z0-9]/g, "")));
 };
 
-const LS_FAIL_KEY = "10odds_cm_fails";
-const LS_BAN_KEY  = "10odds_cm_banned";
-const MAX_FAILS   = 3;
+const LS_FAIL_KEY      = "10odds_cm_fails";
+const LS_BAN_KEY       = "10odds_cm_banned";
+const LS_SUBMITTED_KEY = "10odds_cm_submitted";
+const MAX_FAILS        = 3;
 
-const getFailCount   = () => parseInt(localStorage.getItem(LS_FAIL_KEY) ?? "0", 10);
-const incrementFail  = () => localStorage.setItem(LS_FAIL_KEY, String(getFailCount() + 1));
-const isBrowserBanned = () => localStorage.getItem(LS_BAN_KEY) === "true";
-const banBrowser     = () => localStorage.setItem(LS_BAN_KEY, "true");
+const getFailCount      = () => parseInt(localStorage.getItem(LS_FAIL_KEY) ?? "0", 10);
+const incrementFail     = () => localStorage.setItem(LS_FAIL_KEY, String(getFailCount() + 1));
+const isBrowserBanned   = () => localStorage.getItem(LS_BAN_KEY) === "true";
+const banBrowser        = () => localStorage.setItem(LS_BAN_KEY, "true");
+const hasSubmitted      = () => localStorage.getItem(LS_SUBMITTED_KEY) === "true";
+const markSubmitted     = () => localStorage.setItem(LS_SUBMITTED_KEY, "true");
 
 interface Member { id: number; username: string; avatar: string; created_at: string; }
 interface Team   { id: number; name: string; crest_url: string; }
@@ -123,40 +128,57 @@ const BannedScreen = () => (
   </div>
 );
 
-// ─── Floating football pitch pattern SVG ──────────────────────────────────────
-const PitchPattern = () => (
-  <svg
-    className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <defs>
-      <pattern id="pitch" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
-        <rect width="80" height="80" fill="none" stroke="currentColor" strokeWidth="0.8" />
-        <circle cx="40" cy="40" r="12" fill="none" stroke="currentColor" strokeWidth="0.8" />
-        <line x1="40" y1="0" x2="40" y2="80" stroke="currentColor" strokeWidth="0.8" />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#pitch)" />
-  </svg>
+// ─── Rhythmic diagonal stripe background ──────────────────────────────────────
+const RhythmicBackground = () => (
+  <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
+    {/* Animated diagonal stripes */}
+    <motion.div
+      className="absolute inset-0"
+      style={{
+        backgroundImage:
+          "repeating-linear-gradient(45deg, rgba(245,158,11,0.08) 0px, rgba(245,158,11,0.08) 2px, transparent 2px, transparent 20px, rgba(16,185,129,0.06) 20px, rgba(16,185,129,0.06) 22px, transparent 22px, transparent 40px)",
+      }}
+      animate={{ backgroundPosition: ["0px 0px", "40px 40px"] }}
+      transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+    />
+    {/* Rotating soft glow orb */}
+    <motion.div
+      className="absolute top-1/4 -left-20 w-72 h-72 rounded-full bg-amber-400/8 blur-3xl"
+      animate={{ x: [0, 80, 0], y: [0, 40, 0] }}
+      transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }}
+    />
+    <motion.div
+      className="absolute bottom-1/3 -right-20 w-80 h-80 rounded-full bg-emerald-500/8 blur-3xl"
+      animate={{ x: [0, -60, 0], y: [0, -30, 0] }}
+      transition={{ repeat: Infinity, duration: 10, ease: "easeInOut" }}
+    />
+    {/* Centre subtle glow */}
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] rounded-full bg-gradient-to-br from-amber-400/5 via-emerald-400/3 to-transparent blur-3xl" />
+  </div>
 );
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 const CommunityPage = () => {
-  const [banned, setBanned]               = useState(isBrowserBanned());
-  const [members, setMembers]             = useState<Member[]>([]);
+  const [banned, setBanned]                = useState(isBrowserBanned());
+  const [alreadySubmitted, setAlreadySubmitted] = useState(hasSubmitted());
+  const [members, setMembers]              = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
-  const [modalOpen, setModalOpen]         = useState(false);
-  const [teams, setTeams]                 = useState<Team[]>([]);
-  const [loadingTeams, setLoadingTeams]   = useState(false);
+  const [modalOpen, setModalOpen]          = useState(false);
+  const [teams, setTeams]                  = useState<Team[]>([]);
+  const [loadingTeams, setLoadingTeams]    = useState(false);
 
-  const [realName, setRealName]           = useState("");
-  const [username, setUsername]           = useState("");
+  const [realName, setRealName]            = useState("");
+  const [username, setUsername]            = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState("");
-  const [isSupporter, setIsSupporter]     = useState(false);
-  const [termsAgreed, setTermsAgreed]     = useState(false);
-  const [fieldError, setFieldError]       = useState("");
-  const [submitting, setSubmitting]       = useState(false);
-  const [submitted, setSubmitted]         = useState(false);
+  const [isSupporter, setIsSupporter]      = useState(false);
+  const [termsAgreed, setTermsAgreed]      = useState(false);
+  const [fieldError, setFieldError]        = useState("");
+  const [submitting, setSubmitting]        = useState(false);
+  const [submitted, setSubmitted]          = useState(false);
+
+  // ── Confirmation popup state ─────────────────────────────────────────────
+  const [showConfirm, setShowConfirm]      = useState(false);
+  const [confirmChecked, setConfirmChecked] = useState(false);
 
   useEffect(() => {
     if (banned) return;
@@ -173,7 +195,7 @@ const CommunityPage = () => {
   }, [banned]);
 
   const openModal = async () => {
-    if (banned) return;
+    if (banned || alreadySubmitted) return;
     setModalOpen(true);
     if (teams.length === 0) {
       setLoadingTeams(true);
@@ -188,41 +210,64 @@ const CommunityPage = () => {
     setModalOpen(false);
     setFieldError("");
     setSubmitted(false);
+    setShowConfirm(false);
+    setConfirmChecked(false);
     setRealName(""); setUsername(""); setSelectedAvatar("");
     setIsSupporter(false); setTermsAgreed(false);
   };
 
   const sanitise = (raw: string) => raw.replace(/<[^>]*>/g, "").trim().slice(0, 30);
 
-  const handleSubmit = async () => {
+  const handleFormValidation = (): boolean => {
     setFieldError("");
     const cleanName = realName.trim();
     const cleanUser = sanitise(username);
-    if (!cleanName)       return setFieldError("Please enter your full name.");
-    if (!cleanUser)       return setFieldError("Please enter a username.");
-    if (cleanUser.length < 2) return setFieldError("Username must be at least 2 characters.");
-    if (!selectedAvatar)  return setFieldError("Please select a team avatar.");
-    if (!isSupporter)     return setFieldError("Please confirm you have supported the project.");
-    if (!termsAgreed)     return setFieldError("Please agree to the community terms.");
+    if (!cleanName)       { setFieldError("Please enter your full name."); return false; }
+    if (!cleanUser)       { setFieldError("Please enter a username."); return false; }
+    if (cleanUser.length < 2) { setFieldError("Username must be at least 2 characters."); return false; }
+    if (!selectedAvatar)  { setFieldError("Please select a team avatar."); return false; }
+    if (!isSupporter)     { setFieldError("Please confirm you have supported the project."); return false; }
+    if (!termsAgreed)     { setFieldError("Please agree to the community terms."); return false; }
 
     if (containsBannedWord(cleanUser)) {
       const fails = getFailCount() + 1;
       incrementFail();
-      if (fails >= MAX_FAILS) { banBrowser(); setBanned(true); return; }
-      return setFieldError(`That username isn't allowed, please choose another. (Warning ${fails}/${MAX_FAILS})`);
+      if (fails >= MAX_FAILS) { banBrowser(); setBanned(true); return false; }
+      setFieldError(`That username isn't allowed, please choose another. (Warning ${fails}/${MAX_FAILS})`);
+      return false;
     }
+    return true;
+  };
 
+  // ── Open confirmation popup ──────────────────────────────────────────────
+  const handleInitialSubmit = () => {
+    if (handleFormValidation()) {
+      setShowConfirm(true);
+    }
+  };
+
+  // ── Final submission from confirmation ───────────────────────────────────
+  const handleFinalSubmit = async () => {
     setSubmitting(true);
+    const cleanName = realName.trim();
+    const cleanUser = sanitise(username);
+
     const { error } = await supabase.from("community_members").insert({
       real_name: cleanName, username: cleanUser, avatar: selectedAvatar,
       is_supporter: isSupporter, terms_agreed: termsAgreed, status: "pending",
     });
     setSubmitting(false);
     if (error) {
-      if (error.code === "23505") return setFieldError("That username is already taken.");
-      return setFieldError("Something went wrong. Please try again.");
+      if (error.code === "23505") { setFieldError("That username is already taken."); setShowConfirm(false); return; }
+      setFieldError("Something went wrong. Please try again.");
+      setShowConfirm(false);
+      return;
     }
     setSubmitted(true);
+    setShowConfirm(false);
+    setConfirmChecked(false);
+    markSubmitted();
+    setAlreadySubmitted(true);
   };
 
   if (banned) return <BannedScreen />;
@@ -231,21 +276,12 @@ const CommunityPage = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#0a0f1a] text-white">
-      {/* ── Lively gradient background ─────────────────────────────────── */}
-      <div className="absolute inset-0 pointer-events-none">
-        {/* Deep green pitch glow at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-emerald-950/60 to-transparent" />
-        {/* Gold spotlight top-centre */}
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full bg-amber-400/8 blur-3xl" />
-        {/* Side glows */}
-        <div className="absolute top-1/3 -left-32 w-64 h-64 rounded-full bg-emerald-600/10 blur-3xl" />
-        <div className="absolute top-1/3 -right-32 w-64 h-64 rounded-full bg-blue-600/10 blur-3xl" />
-        <PitchPattern />
-      </div>
+      {/* ── Rhythmic background ────────────────────────────────────────────── */}
+      <RhythmicBackground />
 
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-5xl">
 
-        {/* ── Back button ────────────────────────────────────────────────── */}
+        {/* ── Back button ─────────────────────────────────────────────────── */}
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-sm text-white/60 hover:text-white transition-colors mb-8 group"
@@ -254,14 +290,13 @@ const CommunityPage = () => {
           Back to Home
         </Link>
 
-        {/* ── Hero header ────────────────────────────────────────────────── */}
+        {/* ── Hero header ─────────────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="text-center mb-12"
         >
-          {/* Trophy badge */}
           <motion.div
             animate={{ rotate: [-3, 3, -3] }}
             transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
@@ -282,7 +317,6 @@ const CommunityPage = () => {
             A hall of fame for the people who keep 10 Odds running. Hand-verified, forever celebrated.
           </p>
 
-          {/* Live count pill */}
           {!loadingMembers && members.length > 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -296,7 +330,7 @@ const CommunityPage = () => {
           )}
         </motion.div>
 
-        {/* ── Member grid ────────────────────────────────────────────────── */}
+        {/* ── Member grid ─────────────────────────────────────────────────── */}
         {loadingMembers ? (
           <div className="flex justify-center py-20">
             <RefreshCw className="h-6 w-6 animate-spin text-white/30" />
@@ -334,13 +368,10 @@ const CommunityPage = () => {
                     boxShadow: `0 4px 24px ${accent}20, inset 0 1px 0 rgba(255,255,255,0.06)`,
                   }}
                 >
-                  {/* Glowing top accent line */}
                   <div
                     className="absolute top-0 left-4 right-4 h-0.5 rounded-full"
                     style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
                   />
-
-                  {/* Avatar ring */}
                   <div
                     className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden"
                     style={{
@@ -355,12 +386,9 @@ const CommunityPage = () => {
                       onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0.2"; }}
                     />
                   </div>
-
                   <p className="text-xs font-bold text-center text-white/90 leading-tight break-all">
                     {m.username}
                   </p>
-
-                  {/* Star sparkle */}
                   <Sparkles
                     className="absolute top-2 right-2 h-3 w-3 opacity-30"
                     style={{ color: accent }}
@@ -372,30 +400,40 @@ const CommunityPage = () => {
         )}
       </div>
 
-      {/* ── Floating join button (raised to avoid support button) ──────────── */}
-      <motion.button
-        initial={{ opacity: 0, scale: 0.7, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ delay: 0.5, type: "spring", stiffness: 260, damping: 20 }}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={openModal}
-        className="fixed bottom-24 right-6 z-40 flex items-center gap-2 text-sm font-bold px-5 py-3.5 rounded-2xl shadow-2xl"
-        style={{
-          background: "linear-gradient(135deg,#f59e0b,#ea580c)",
-          boxShadow: "0 8px 32px rgba(245,158,11,0.4)",
-          color: "#fff",
-        }}
-      >
-        <Plus className="h-4 w-4" />
-        Join the Board
-      </motion.button>
+      {/* ── Floating join button OR "already submitted" message ────────────── */}
+      {alreadySubmitted ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.7, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="fixed bottom-24 right-6 z-40 flex items-center gap-2 text-xs font-semibold text-white/70 bg-white/5 border border-white/10 px-4 py-3 rounded-2xl backdrop-blur-md shadow-lg"
+        >
+          <ShieldCheck className="h-4 w-4 text-emerald-400" />
+          You're already on the board! One profile per person.
+        </motion.div>
+      ) : (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.7, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ delay: 0.5, type: "spring", stiffness: 260, damping: 20 }}
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={openModal}
+          className="fixed bottom-24 right-6 z-40 flex items-center gap-2 text-sm font-bold px-5 py-3.5 rounded-2xl shadow-2xl"
+          style={{
+            background: "linear-gradient(135deg,#f59e0b,#ea580c)",
+            boxShadow: "0 8px 32px rgba(245,158,11,0.4)",
+            color: "#fff",
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          Join the Board
+        </motion.button>
+      )}
 
       {/* ── Join Modal ──────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {modalOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -404,7 +442,6 @@ const CommunityPage = () => {
               className="fixed inset-0 z-40 bg-black/80 backdrop-blur-md"
             />
 
-            {/* Modal – perfectly centred on all viewports */}
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <motion.div
                 initial={{ opacity: 0, scale: 0.88, y: 24 }}
@@ -438,7 +475,6 @@ const CommunityPage = () => {
                   </div>
                 ) : (
                   <div className="p-6 space-y-5">
-                    {/* Header */}
                     <div className="flex items-center justify-between">
                       <div>
                         <h2 className="text-lg font-black">Join the Board</h2>
@@ -449,7 +485,6 @@ const CommunityPage = () => {
                       </button>
                     </div>
 
-                    {/* Full name */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-white/70 uppercase tracking-wide">Full Name</label>
                       <p className="text-[11px] text-white/30">Never displayed – for verification only.</p>
@@ -462,7 +497,6 @@ const CommunityPage = () => {
                       />
                     </div>
 
-                    {/* Username */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-white/70 uppercase tracking-wide">Username</label>
                       <p className="text-[11px] text-white/30">Displayed on the board. Max 30 chars.</p>
@@ -476,7 +510,6 @@ const CommunityPage = () => {
                       />
                     </div>
 
-                    {/* Avatar grid */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-white/70 uppercase tracking-wide">Team Avatar</label>
                       <p className="text-[11px] text-white/30">Pick the crest you'd like on your card.</p>
@@ -510,7 +543,6 @@ const CommunityPage = () => {
                       )}
                     </div>
 
-                    {/* Supporter checkbox */}
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input
                         type="checkbox"
@@ -523,7 +555,6 @@ const CommunityPage = () => {
                       </span>
                     </label>
 
-                    {/* Terms checkbox */}
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input
                         type="checkbox"
@@ -544,7 +575,6 @@ const CommunityPage = () => {
                       </span>
                     </label>
 
-                    {/* Error */}
                     {fieldError && (
                       <motion.div
                         initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
@@ -555,20 +585,110 @@ const CommunityPage = () => {
                       </motion.div>
                     )}
 
-                    {/* Submit */}
                     <button
-                      onClick={handleSubmit}
+                      onClick={handleInitialSubmit}
                       disabled={!canSubmit || submitting}
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                       style={{ background: "linear-gradient(135deg,#f59e0b,#ea580c)" }}
                     >
                       {submitting
                         ? <><RefreshCw className="h-4 w-4 animate-spin" /> Submitting…</>
-                        : "Submit for Review ✨"
+                        : <>Review Submission</>
                       }
                     </button>
                   </div>
                 )}
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Confirmation Popup ────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showConfirm && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setShowConfirm(false); setConfirmChecked(false); }}
+              className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md"
+            />
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 24 }}
+                animate={{ opacity: 1, scale: 1,    y: 0 }}
+                exit={{ opacity: 0, scale: 0.88, y: 24 }}
+                transition={{ type: "spring", stiffness: 320, damping: 28 }}
+                className="w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl p-6 space-y-5"
+                style={{ background: "rgba(12,18,32,0.99)" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-amber-400/15 flex items-center justify-center">
+                    <Eye className="h-4 w-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black">Confirm your details</h2>
+                    <p className="text-xs text-white/40">Double-check everything before submitting.</p>
+                  </div>
+                </div>
+
+                {/* Summary list */}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Username</span>
+                    <span className="font-semibold text-white">{sanitise(username)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Avatar</span>
+                    <span className="font-semibold text-white">
+                      {selectedAvatar ? <img src={selectedAvatar} alt="" className="h-5 w-5 inline-block object-contain" /> : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Supporter</span>
+                    <span className="font-semibold text-white">{isSupporter ? "Yes" : " No"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Terms Agreed</span>
+                    <span className="font-semibold text-white">{termsAgreed ? " Yes" : " No"}</span>
+                  </div>
+                </div>
+
+                {/* Confirmation checkbox */}
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={confirmChecked}
+                    onChange={(e) => setConfirmChecked(e.target.checked)}
+                    className="mt-0.5 accent-amber-400 h-4 w-4 cursor-pointer"
+                  />
+                  <span className="text-xs text-white/50 leading-relaxed group-hover:text-white/70 transition-colors">
+                    I have checked everything and it's correct.
+                  </span>
+                </label>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowConfirm(false); setConfirmChecked(false); }}
+                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    onClick={handleFinalSubmit}
+                    disabled={!confirmChecked || submitting}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: "linear-gradient(135deg,#f59e0b,#ea580c)" }}
+                  >
+                    {submitting
+                      ? <><RefreshCw className="h-4 w-4 animate-spin" /> Submitting…</>
+                      : <><CheckCircle className="h-4 w-4" /> Confirm & Submit</>
+                    }
+                  </button>
+                </div>
               </motion.div>
             </div>
           </>
