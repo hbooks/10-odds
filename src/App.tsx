@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
 import SupportPortal from "@/components/SupportPortal"; // <-- new
+import AdminCommunity from "@/pages/AdminCommunity";
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
 const GamesPage        = lazy(() => import("@/pages/GamesPage"));
@@ -20,7 +21,7 @@ const AboutPage        = lazy(() => import("@/pages/AboutPage"));
 const TermsPage        = lazy(() => import("@/pages/Terms"));
 const PrivacyPage      = lazy(() => import("@/pages/Privacy"));
 const NewsPage         = lazy(() => import("@/pages/NewsPage"));
-const AdminNewsPage    = lazy(() => import("@/pages/AdminNewsPage"));
+const CommunityPage    = lazy(() => import("@/pages/CommunityPage"));
 const GuidePage        = lazy(() => import("@/pages/GuidePage"));
 const NotFound         = lazy(() => import("@/pages/NotFound"));
 
@@ -62,8 +63,9 @@ function App() {
                 <Route path="/terms"           element={<TermsPage />} />
                 <Route path="/privacy"         element={<PrivacyPage />} />
                 <Route path="/guide"           element={<GuidePage />} /> 
+                <Route path="/community"       element={<CommunityPage />} />
                 <Route path="/news"            element={<NewsPage />} />
-                <Route path="/admin/news"      element={<AdminNewsPage />} />
+                <Route path="/admin/news"      element={<AdminCommunity/>} />
                 <Route path="*"                element={<NotFound />} />
               </Routes>
             </Suspense>

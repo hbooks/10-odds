@@ -26,6 +26,7 @@ const Footer = () => {
               <Link to="/games" className="hover:text-foreground transition-colors">Games</Link>
               <Link to="/analytics" className="hover:text-foreground transition-colors">Analytics</Link>
               <Link to="/pattern-analyser" className="hover:text-foreground transition-colors">Pattern Analyser</Link>
+              <Link to="/community" className="hover:text-foreground transition-colors">Our Community Board</Link>
             </div>
           </div>
           <div>
@@ -34,12 +35,12 @@ const Footer = () => {
               <Link to="/about" className="hover:text-foreground transition-colors">About Us</Link>
               <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
               <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-              <Link to="/support" className="hover:text-foreground transition-colors">Support</Link>
+              {/* <Link to="/support" className="hover:text-foreground transition-colors">Support</Link> */} {/* Placeholder for future support page */}
             </div>
           </div>
         </div>
         <div className="mt-8 pt-4 border-t border-border text-center text-xs text-muted-foreground">
-          © 2026 10dds. All rights reserved. Gambling involves risk. Please bet responsibly.
+          © 2026 10 Odds. All rights reserved. Gambling involves risk. Please bet responsibly.
         </div>
       </div>
     </footer>
