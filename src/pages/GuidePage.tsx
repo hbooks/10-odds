@@ -1,11 +1,3 @@
-/**
- * GuidePage.tsx  —  Pattern & Prediction Guide
- * ─────────────────────────────────────────────
- * Route: /guide
- * A friendly, animated walkthrough explaining patterns, _806, and MK-806.
- * No math, no algorithms, no internal details — just clear, warm explanations.
- */
-
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
