@@ -657,7 +657,7 @@ const CommunityPage = () => {
           style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
         >
           <ShieldCheck className="h-4 w-4 text-emerald-400" />
-          Submission pending review!
+          Submission Sent! Once approved, you'll appear on the board within 1–2 business days.
         </motion.div>
       ) : (
         <motion.button
