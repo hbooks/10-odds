@@ -19,6 +19,7 @@ const ScoreboardPage   = lazy(() => import("@/pages/ScoreboardPage"));
 const PatternPage      = lazy(() => import("@/pages/Patternanalyserpage"));
 const AboutPage        = lazy(() => import("@/pages/AboutPage"));
 const TermsPage        = lazy(() => import("@/pages/Terms"));
+const CommunityTermsPage = lazy(() => import("@/pages/CommunityTermsPage"));
 const PrivacyPage      = lazy(() => import("@/pages/Privacy"));
 const NewsPage         = lazy(() => import("@/pages/NewsPage"));
 const CommunityPage    = lazy(() => import("@/pages/CommunityPage"));
@@ -61,6 +62,7 @@ function App() {
                 <Route path="/pattern-analyser" element={<PatternPage />} />
                 <Route path="/about"           element={<AboutPage />} />
                 <Route path="/terms"           element={<TermsPage />} />
+                <Route path="/community-terms" element={<CommunityTermsPage />} />    
                 <Route path="/privacy"         element={<PrivacyPage />} />
                 <Route path="/guide"           element={<GuidePage />} /> 
                 <Route path="/community"       element={<CommunityPage />} />
