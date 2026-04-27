@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import footballImg from "@/assets/football.png";
 
@@ -7,13 +7,46 @@ const BOUNCE_DURATION = 0.72;   // seconds per bounce cycle
 const BOUNCE_HEIGHT   = 36;     // px the ball travels upward
 const SPIN_DEG        = 22;     // degrees of rotation per bounce
 
-// ── Captions that cycle every 3.5 seconds ─────────────────────────────────────
 const CAPTIONS = [
   "Simulating futures…",
   "Scanning the odds…",
   "Crunching the data…",
-  "Almost there…",
+  "Aligning with reality…",
+  "Reading past patterns…",
+  "Checking team form…",
+  "Evaluating expected value…",
+  "Consulting the tape…",
+  "Warming up the engine…",
+  "Polishing the crystal ball…",
+  "Decoding market signals…",
+  "Bending time a little…",
+  "Running deep simulations…",
+  "Balancing probabilities…",
+  "Tuning the antenna…",
+  "Reading the script…",
+  "Gathering whispers from the pitch…",
+  "Weighing every outcome…",
+  "Sharpening the insight…",
+  "Connecting historical dots…",
+  "Interpreting crowd noise…",
+  "Breathing life into numbers…",
+  "Forecasting the vibe…",
+  "Scanning for value…",
+  "Listening to past results…",
+  "Drawing invisible lines…",
+  "Looking through the noise…",
+  "Peeking at the unplayed minutes…",
+  "Distilling the data…",
+  "Preparing something special…",
 ];
+
+// ── Helper to pick a random index different from the previous one ──────────────
+function getRandomIndexExcluding(max: number, excludeIndex: number) {
+  if (max <= 1) return 0;
+  let idx = Math.floor(Math.random() * (max - 1));
+  if (idx >= excludeIndex) idx++;
+  return idx;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUB‑COMPONENTS
@@ -102,7 +135,7 @@ const ShimmerText = () => (
       animate={{ opacity: 1, letterSpacing: "0.22em" }}
       transition={{ duration: 0.7, delay: 0.25 }}
     >
-      MK-806
+      10 ODDS
     </motion.p>
     <motion.div
       className="absolute inset-0 pointer-events-none"
@@ -151,25 +184,35 @@ const LoadingDots = () => (
 );
 
 const CyclingCaption = () => {
-  const [index, setIndex] = useState(0);
+  const [caption, setCaption] = useState<string>(() => CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)]);
+  const lastIndexRef = useRef(CAPTIONS.indexOf(caption));
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setIndex((prev) => (prev + 1) % CAPTIONS.length);
-    }, 3500);
-    return () => clearInterval(interval);
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const tick = () => {
+      const nextIndex = getRandomIndexExcluding(CAPTIONS.length, lastIndexRef.current);
+      lastIndexRef.current = nextIndex;
+      setCaption(CAPTIONS[nextIndex]);
+
+      const nextDelay = 1000 + Math.random() * 1000; // 1‑2 seconds
+      timeoutId = setTimeout(tick, nextDelay);
+    };
+
+    timeoutId = setTimeout(tick, 1000);
+    return () => clearTimeout(timeoutId);
   }, []);
 
   return (
     <motion.p
-      key="caption"
+      key={caption}
       className="text-xs text-muted-foreground/70 tracking-wide font-medium"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {CAPTIONS[index]}
+      {caption}
     </motion.p>
   );
 };

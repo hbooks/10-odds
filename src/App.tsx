@@ -37,7 +37,7 @@ const LazyFallback = () => <GlobalLoader />;
 const queryClient = new QueryClient();
 
 // ── Minimum display time for the boot loader (ms) ────────────────────────────
-const BOOT_LOADER_MS = 5500; // increase this to enjoy the animation longer
+const BOOT_LOADER_MS = 7000; 
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
