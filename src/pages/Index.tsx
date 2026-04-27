@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import Layout from "@/components/Layout";
+import { useMemo } from "react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -83,17 +84,38 @@ const TICKER_ITEMS = [
   "🧠 Pattern Analysis",
   "💎 Both Teams to Score",
   "⚡ Over 2.5 Goals",
-  "📋 10 Odds patterns",
+  "📋 10-Odds Slip",
   "🔮 Simulated Futures",
   "📉 Under 2.5 Goals",
   "👤 _806 Advisor",
   "🏟️ Home Advantage",
   "📅 Today's Fixtures",
   "✨ Hand-Picked Selections",
+  "🚀 Boosting Bankrolls",
+  "🎲 Risk Management",
+  "📋 Multi-Bet Slips",
+  "🔄 Daily Updates",
+  "🛡️ Safe Staking",
+  "📊 Data-Driven",
+  "🔒 Secure Platform",
+  "🌍 Global Coverage",
+  "💡 Expert Insights",
+  "📱 Mobile Friendly",
 ];
 
+
 const Ticker = () => {
-  const items = [...TICKER_ITEMS, ...TICKER_ITEMS]; // duplicate for seamless loop
+  const shuffled = useMemo(() => {
+    const arr = [...TICKER_ITEMS];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }, []);
+
+  const items = [...shuffled, ...shuffled]; // duplicate for seamless loop
+
   return (
     <div className="overflow-hidden py-3.5 border-y border-white/6 bg-white/[0.02]">
       <motion.div
@@ -102,7 +124,10 @@ const Ticker = () => {
         transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
       >
         {items.map((item, i) => (
-          <span key={i} className="text-xs font-mono font-semibold tracking-widest text-muted-foreground uppercase shrink-0">
+          <span
+            key={i}
+            className="text-xs font-mono font-semibold tracking-widest text-muted-foreground uppercase shrink-0"
+          >
             {item}
           </span>
         ))}
@@ -115,7 +140,7 @@ const Ticker = () => {
 const BENTO = [
   {
     icon: BrainCircuit,
-    title: "MK-806 AI Engine",
+    title: "MK-806 Intelligence Engine",
     desc: "Thousands of match simulations daily — Poisson, Elo, xG, and market edge signals blended into one confident pick.",
     accent: "#f59e0b",
     span: "md:col-span-2",
@@ -188,7 +213,7 @@ const HOW_IT_WORKS = [
 const TRUST = [
   { icon: Shield,     label: "Safe & Secure" },
   { icon: Eye,        label: "No login required" },
-  { icon: Flame,      label: "Updated every morning" },
+  { icon: Flame,      label: "Updated every Day" },
   { icon: Globe2,     label: "5 leagues covered" },
   { icon: Star,       label: "Transparent data" },
   { icon: Users,      label: "Growing community" },
@@ -196,11 +221,31 @@ const TRUST = [
 
 // ─── Leagues strip ────────────────────────────────────────────────────────────
 const LEAGUES = [
-  { name: "Premier League", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
-  { name: "La Liga",        flag: "🇪🇸" },
-  { name: "Bundesliga",     flag: "🇩🇪" },
-  { name: "Serie A",        flag: "🇮🇹" },
-  { name: "Ligue 1",        flag: "🇫🇷" },
+  {
+    name: "Premier League",
+    code: "GB-ENG",
+    flagSrc: "https://flagcdn.com/24x18/gb-eng.png",
+  },
+  {
+    name: "La Liga",
+    code: "ES",
+    flagSrc: "https://flagcdn.com/24x18/es.png",
+  },
+  {
+    name: "Bundesliga",
+    code: "DE",
+    flagSrc: "https://flagcdn.com/24x18/de.png",
+  },
+  {
+    name: "Serie A",
+    code: "IT",
+    flagSrc: "https://flagcdn.com/24x18/it.png",
+  },
+  {
+    name: "Ligue 1",
+    code: "FR",
+    flagSrc: "https://flagcdn.com/24x18/fr.png",
+  },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -325,7 +370,7 @@ const IndexPage = () => {
                 style={{ background: "linear-gradient(90deg, #f59e0b, #fb923c)" }}
                 initial={{ width: 0 }}
                 animate={{ width: "100%" }}
-                transition={{ delay: 1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ delay: 1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               />
             </span>
             <br />
@@ -345,15 +390,16 @@ const IndexPage = () => {
 
           {/* League flags */}
           <motion.div variants={fadeUp} className="flex items-center gap-3 flex-wrap justify-center">
-            {LEAGUES.map((l) => (
-              <span
-                key={l.name}
-                className="flex items-center gap-1.5 text-xs font-medium text-white/50 px-3 py-1.5 rounded-full border border-white/10"
-                style={{ backdropFilter: "blur(8px)", background: "rgba(255,255,255,0.04)" }}
-              >
-                <span>{l.flag}</span> {l.name}
-              </span>
-            ))}
+       {LEAGUES.map((league) => (
+  <div key={league.code} className="flex items-center gap-2">
+    <img
+      src={league.flagSrc}
+      alt={league.name}
+      className="h-4 w-5 object-cover rounded-sm shadow-sm"
+    />
+    <span>{league.name}</span>
+  </div>
+))}
           </motion.div>
 
           {/* CTA buttons */}
