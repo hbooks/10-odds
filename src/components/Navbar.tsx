@@ -104,9 +104,9 @@ const Navbar = () => {
             alt="10 Odds Logo"
             className="h-10 w-10 object-contain"
           />
-          <span className="text-xl font-heading font-bold text-blue-500">
-            10 <span className="text-gold">Odds</span>
-          </span>
+         <span className="text-xl font-heading font-bold" style={{ color: "#4A5BA8" }}>
+  10 <span className="text-gold">Odds</span>
+</span>
         </Link>
 
         {/* Desktop Navigation */}
