@@ -104,7 +104,7 @@ const Navbar = () => {
             alt="10 Odds Logo"
             className="h-10 w-10 object-contain"
           />
-          <span className="text-xl font-heading font-bold text-foreground">
+          <span className="text-xl font-heading font-bold text-blue-500">
             10 <span className="text-gold">Odds</span>
           </span>
         </Link>
