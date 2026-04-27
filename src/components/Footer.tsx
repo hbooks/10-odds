@@ -12,9 +12,9 @@ const Footer = () => {
     alt="10 Odds Logo" 
     className="h-10 w-10 object-contain"
   />
-  <span className="text-lg font-heading font-bold">
-    10 <span className="text-gold">Odds</span>
-  </span>
+  <span className="text-xl font-heading font-bold" style={{ color: "#4A5BA8" }}>
+  10 <span className="text-gold">Odds</span>
+</span>
 </div>
             <p className="text-sm text-muted-foreground">
               Football predictions by MK-806. Smart picks, better odds.
