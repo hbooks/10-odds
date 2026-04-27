@@ -79,7 +79,17 @@ const TICKER_ITEMS = [
   "🤖 MK-806 Engine",
   "🔥 Daily Accumulators",
   "📈 Value Betting",
-  "✅ Free Forever",
+  "🎯 High Confidence Picks",
+  "🧠 Pattern Analysis",
+  "💎 Both Teams to Score",
+  "⚡ Over 2.5 Goals",
+  "📋 10 Odds patterns",
+  "🔮 Simulated Futures",
+  "📉 Under 2.5 Goals",
+  "👤 _806 Advisor",
+  "🏟️ Home Advantage",
+  "📅 Today's Fixtures",
+  "✨ Hand-Picked Selections",
 ];
 
 const Ticker = () => {
@@ -115,11 +125,11 @@ const BENTO = [
   },
   {
     icon: Target,
-    title: "Daily 10-Odds Slip",
-    desc: "One curated 10-leg accumulator every morning. Only the highest-value picks make the cut.",
+    title: "Daily 10 Odds Predictions",
+    desc: "One curated 10 Odds prediction. Only the the best picks make the cut.",
     accent: "#10b981",
     span: "md:col-span-1",
-    link: "/ten-odds",
+    link: "/status",
   },
   {
     icon: Activity,
@@ -144,7 +154,7 @@ const BENTO = [
     accent: "#8b5cf6",
     span: "md:col-span-2",
     big: true,
-    link: "/pattern-analyser",
+    link: "/patterns",
     img: "https://images.unsplash.com/photo-1543286386-713bdd548da4?w=800&q=80",
   },
 ];
@@ -176,7 +186,7 @@ const HOW_IT_WORKS = [
 
 // ─── Trust pills ──────────────────────────────────────────────────────────────
 const TRUST = [
-  { icon: Shield,     label: "Free forever" },
+  { icon: Shield,     label: "Safe & Secure" },
   { icon: Eye,        label: "No login required" },
   { icon: Flame,      label: "Updated every morning" },
   { icon: Globe2,     label: "5 leagues covered" },
@@ -294,7 +304,7 @@ const IndexPage = () => {
               animate={{ boxShadow: ["0 0 0px rgba(245,158,11,0)", "0 0 24px rgba(245,158,11,0.3)", "0 0 0px rgba(245,158,11,0)"] }}
               transition={{ duration: 3, repeat: Infinity }}
             >
-              <Zap className="h-3 w-3" /> Powered by MK-806 · AI Football Intelligence
+              <Zap className="h-3 w-3" /> Powered by MK-806 · Smart Football Intelligence
             </motion.span>
           </motion.div>
 
@@ -303,7 +313,7 @@ const IndexPage = () => {
             variants={fadeUp}
             className="text-5xl sm:text-6xl md:text-8xl font-heading font-black text-white leading-[1.0] tracking-tight"
           >
-            The God of{" "}
+            The god of{" "}
             <span className="relative inline-block">
               <span className="text-transparent bg-clip-text" style={{
                 backgroundImage: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 40%, #fb923c 100%)"
@@ -315,7 +325,7 @@ const IndexPage = () => {
                 style={{ background: "linear-gradient(90deg, #f59e0b, #fb923c)" }}
                 initial={{ width: 0 }}
                 animate={{ width: "100%" }}
-                transition={{ delay: 1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ delay: 1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
               />
             </span>
             <br />
@@ -348,7 +358,7 @@ const IndexPage = () => {
 
           {/* CTA buttons */}
           <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-center gap-4">
-            <Link to="/ten-odds">
+            <Link to="/status">
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: "0 20px 60px rgba(245,158,11,0.4)" }}
                 whileTap={{ scale: 0.97 }}
@@ -678,7 +688,7 @@ const IndexPage = () => {
         {/* Background */}
         <div className="absolute inset-0">
           <img
-            src="https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1800&q=80"
+            src="https://vulplex.com/images/featured/Camp-Nou-Stadium-Night-View-Vibrant-Lights-and-Crowd-Energy-Wallpaper-68a363ae400ad.jpg"
             alt="Football stadium night"
             className="w-full h-full object-cover object-center opacity-25"
           />
@@ -726,7 +736,7 @@ const IndexPage = () => {
           </motion.p>
 
           <motion.div variants={fadeUp} className="flex flex-wrap gap-4 justify-center mb-10">
-            <Link to="/ten-odds">
+            <Link to="/status">
               <motion.button
                 whileHover={{ scale: 1.06, boxShadow: "0 24px 60px rgba(245,158,11,0.4)" }}
                 whileTap={{ scale: 0.97 }}
@@ -735,13 +745,13 @@ const IndexPage = () => {
                 View Today's Slip <ArrowRight className="h-4 w-4" />
               </motion.button>
             </Link>
-            <Link to="/status">
+            <Link to="/previous">
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className="text-muted-foreground hover:text-foreground font-semibold px-7 py-4 rounded-2xl border border-border hover:border-gold/30 transition-colors text-sm"
               >
-                Active Predictions
+                Previous Predictions
               </motion.button>
             </Link>
           </motion.div>
@@ -751,7 +761,7 @@ const IndexPage = () => {
             variants={fadeIn}
             className="flex flex-wrap justify-center gap-x-7 gap-y-2 text-xs text-muted-foreground"
           >
-            {["Free forever", "No login required", "Updated every morning", "5 leagues covered"].map((t) => (
+            {["Safe & Secure", "No login required", "Updated Daily", "5 leagues covered"].map((t) => (
               <span key={t} className="flex items-center gap-1.5">
                 <CheckCircle className="h-3.5 w-3.5 text-gold/70 shrink-0" /> {t}
               </span>
