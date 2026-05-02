@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
 import { RefreshCw, AlertCircle, Circle, Clock, Trophy, Info } from "lucide-react";
@@ -8,6 +8,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
 
+// ─── Types ────────────────────────────────────────────────────────────────
 interface Team {
   name: string;
   tla: string | null;
@@ -25,6 +26,213 @@ interface Match {
   competition: { name: string };
 }
 
+// ─── Clock phases ─────────────────────────────────────────────────────────
+type ClockPhase =
+  | "firstHalf"
+  | "addedTime1"
+  | "halfTime"
+  | "secondHalf"
+  | "addedTime2"
+  | "completed";
+
+// ─── Clock state persisted to localStorage ───────────────────────────────
+interface PersistedClock {
+  // The top-of-the-hour after kickoff when the match was marked LIVE
+  liveBoundaryUtc: string;      // ISO string
+  // The initial clock offset in seconds (e.g. 27 * 60 = 1620)
+  initialOffsetSec: number;
+  // Current phase
+  phase: ClockPhase;
+}
+
+// ─── Helper: get stored clocks object ─────────────────────────────────────
+function readStoredClocks(): Record<number, PersistedClock> {
+  try {
+    const raw = localStorage.getItem("scoreboard_clocks");
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredClocks(clocks: Record<number, PersistedClock>) {
+  localStorage.setItem("scoreboard_clocks", JSON.stringify(clocks));
+}
+
+// ─── Compute orchestor‑friendly offset & live boundary ────────────────────
+function computeClockParams(kickoffUtc: string): {
+  liveBoundaryUtc: string;
+  initialOffsetSec: number;
+} {
+  const kickoff = new Date(kickoffUtc);
+  // Kenya time (UTC+3)
+  const kenyaKickoff = new Date(kickoff.getTime() + 3 * 3600_000);
+  const kickoffMinutes = kenyaKickoff.getHours() * 60 + kenyaKickoff.getMinutes();
+
+  // The orchestrator runs hourly. The last run BEFORE this match was marked LIVE
+  // is the hour boundary that is ≤ kickoff time (in Kenya hours).
+  const lastOrchHour = new Date(kenyaKickoff);
+  lastOrchHour.setMinutes(0, 0, 0);          // top of the hour
+  if (lastOrchHour.getTime() > kenyaKickoff.getTime()) {
+    lastOrchHour.setHours(lastOrchHour.getHours() - 1);
+  }
+
+  const lastOrchMinutes = lastOrchHour.getHours() * 60;
+  const diffMinutes = kickoffMinutes - lastOrchMinutes; // e.g. 15
+
+  // initial offset = 45 min * 60 sec - (diffMinutes * 60 + 180)
+  const initialOffsetSec = Math.max(
+    0,
+    45 * 60 - (diffMinutes * 60 + 180)
+  );
+
+  // The match will be marked LIVE at the NEXT hour boundary after kickoff
+  const liveBoundary = new Date(lastOrchHour);
+  liveBoundary.setHours(liveBoundary.getHours() + 1); // 20:00 in the example
+
+  return {
+    liveBoundaryUtc: liveBoundary.toISOString(),
+    initialOffsetSec,
+  };
+}
+
+// ─── Given clock params, calculate current display & phase ────────────────
+function evaluateClock(params: PersistedClock): {
+  displaySec: number;        // total seconds from start (simulated)
+  phase: ClockPhase;
+} {
+  const nowMs = Date.now();
+  const boundaryMs = new Date(params.liveBoundaryUtc).getTime();
+  const elapsedRealSec = Math.max(0, (nowMs - boundaryMs) / 1000);
+
+  // total simulated seconds = initial offset + real elapsed
+  const totalSec = params.initialOffsetSec + elapsedRealSec;
+
+  // Phase transitions based on totalSec
+  if (totalSec < 45 * 60) {
+    return { displaySec: totalSec, phase: "firstHalf" };
+  } else if (totalSec < (45 + 3) * 60) {
+    return { displaySec: totalSec, phase: "addedTime1" };
+  } else if (totalSec < (45 + 3 + 16) * 60) {
+    return { displaySec: totalSec, phase: "halfTime" };
+  } else if (totalSec < (45 + 3 + 16 + 45) * 60) {
+    // second half – offset so that display starts from 45:00
+    const secondHalfSec = totalSec - (45 + 3 + 16) * 60;
+    return { displaySec: secondHalfSec + 45 * 60, phase: "secondHalf" };
+  } else if (totalSec < (45 + 3 + 16 + 45 + 3.5) * 60) {
+    return { displaySec: totalSec, phase: "addedTime2" };
+  } else {
+    return { displaySec: totalSec, phase: "completed" };
+  }
+}
+
+// ─── Format seconds as M:SS ───────────────────────────────────────────────
+function formatClock(seconds: number): string {
+  const min = Math.floor(seconds / 60);
+  const sec = Math.floor(seconds % 60);
+  return `${min}:${sec.toString().padStart(2, "0")}`;
+}
+
+// ─── Live match card with clock ───────────────────────────────────────────
+function LiveMatchCard({ match }: { match: Match }) {
+  const [clocks, setClocks] = useState<Record<number, PersistedClock>>(readStoredClocks);
+  const [, forceRender] = useState(0); // used to force re-render on interval
+
+  // Setup (or reuse) clock for this match
+  useEffect(() => {
+    const stored = readStoredClocks();
+    if (!stored[match.id]) {
+      const params = computeClockParams(match.utc_date);
+      stored[match.id] = {
+        ...params,
+        phase: "firstHalf",
+      };
+      writeStoredClocks(stored);
+      setClocks({ ...stored });
+    } else {
+      setClocks({ ...stored });
+    }
+  }, [match.id, match.utc_date]);
+
+  // Tick every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      forceRender((n) => n + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const clockParams = clocks[match.id];
+  if (!clockParams) return null; // not yet initialised
+
+  const { displaySec, phase } = evaluateClock(clockParams);
+
+  // Clock display text or phase label
+  let clockLabel: string;
+  if (phase === "firstHalf" || phase === "secondHalf") {
+    clockLabel = formatClock(displaySec);
+  } else if (phase === "addedTime1") {
+    clockLabel = "Playing Added time to halftime";
+  } else if (phase === "addedTime2") {
+    clockLabel = "Playing Added time to fulltime";
+  } else if (phase === "halfTime") {
+    clockLabel = "Half‑Time";
+  } else {
+    clockLabel = "FT";
+  }
+
+  // Blur score – only the score span
+  const scoreBlurred =
+    phase !== "completed" ? (
+      <span className="relative inline-flex items-center justify-center rounded-md bg-red-500/20 px-2 py-0.5 backdrop-blur-sm">
+        <span className="font-mono font-bold text-xl blur-[3px] select-none">
+          {match.home_score ?? 0} – {match.away_score ?? 0}
+        </span>
+        <span className="absolute inset-0 flex items-center justify-center text-red-400/60 text-xs font-mono">
+          LIVE
+        </span>
+      </span>
+    ) : (
+      <span className="font-mono font-bold text-xl">
+        {match.home_score} – {match.away_score}
+      </span>
+    );
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 hover:shadow-md transition-shadow">
+      {/* Top row: competition & clock */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <Trophy className="h-3 w-3" />
+          {match.competition.name}
+        </span>
+        <span className="flex items-center gap-1 text-xs font-medium text-red-400">
+          <Circle className="h-2 w-2 fill-red-500 animate-pulse" />
+          <span className="uppercase tracking-wider">{clockLabel}</span>
+        </span>
+      </div>
+
+      {/* Teams + blurred score */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {match.home_team.crest_url && (
+            <img src={match.home_team.crest_url} alt="" className="h-8 w-8 object-contain" />
+          )}
+          <span className="font-medium">{match.home_team.name}</span>
+        </div>
+        {scoreBlurred}
+        <div className="flex items-center gap-3">
+          <span className="font-medium">{match.away_team.name}</span>
+          {match.away_team.crest_url && (
+            <img src={match.away_team.crest_url} alt="" className="h-8 w-8 object-contain" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────
 const ScoreboardPage = () => {
   const [liveMatches, setLiveMatches] = useState<Match[]>([]);
   const [finishedMatches, setFinishedMatches] = useState<Match[]>([]);
@@ -68,7 +276,6 @@ const ScoreboardPage = () => {
 
   useEffect(() => {
     fetchMatches();
-    // Auto-refresh every 60 seconds for live matches
     const interval = setInterval(fetchMatches, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -121,43 +328,14 @@ const ScoreboardPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {liveMatches.map((match) => (
-                    <div key={match.id} className="rounded-xl border border-border bg-card p-4 hover:shadow-md transition-shadow">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Trophy className="h-3 w-3" />
-                          {match.competition.name}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs font-medium text-red-400">
-                          <Circle className="h-2 w-2 fill-red-500 animate-pulse" />
-                          LIVE {match.home_score !== null && match.away_score !== null ? `${match.home_score}'` : ""}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {match.home_team.crest_url && (
-                            <img src={match.home_team.crest_url} alt="" className="h-8 w-8 object-contain" />
-                          )}
-                          <span className="font-medium">{match.home_team.name}</span>
-                        </div>
-                        <span className="text-xl font-mono font-bold">
-                          {match.home_score ?? 0} – {match.away_score ?? 0}
-                        </span>
-                        <div className="flex items-center gap-3">
-                          <span className="font-medium">{match.away_team.name}</span>
-                          {match.away_team.crest_url && (
-                            <img src={match.away_team.crest_url} alt="" className="h-8 w-8 object-contain" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <LiveMatchCard key={match.id} match={match} />
                   ))}
                 </div>
               </div>
             )}
 
             {/* Info banner – only when there are NO live matches */}
-                     {liveMatches.length === 0 && (
+            {liveMatches.length === 0 && (
               <div className="rounded-xl bg-slate-800/90 border border-slate-600/60 p-5 flex items-start gap-4 shadow-lg">
                 <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
                 <div className="text-sm">
