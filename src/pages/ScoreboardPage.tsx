@@ -18,9 +18,8 @@ interface Team {
 
 interface Match {
   id: number;
-  utc_date: string;       // ISO kick-off time in UTC
-  status: string;         // IN_PLAY | LIVE | PAUSED | FINISHED …
-  minute: number | null;  // game-minute stored by the orchestrator (e.g. 23)
+  utc_date: string;           // ISO UTC kick-off time, e.g. "2024-05-02T16:15:00Z"
+  status: string;             // IN_PLAY | LIVE | PAUSED | FINISHED | TIMED | …
   home_score: number | null;
   away_score: number | null;
   home_team: Team;
@@ -28,7 +27,7 @@ interface Match {
   competition: { name: string };
 }
 
-// ─── Clock phase ────────────────────────────────────────────────────────────
+// ─── Clock phases ──────────────────────────────────────────────────────────
 
 type ClockPhase =
   | "firstHalf"
@@ -38,25 +37,13 @@ type ClockPhase =
   | "addedTime2"
   | "completed";
 
-// ─── What we persist in localStorage per match ─────────────────────────────
-//
-// When the match first appears as LIVE (or each time the DB minute updates)
-// we snapshot:
-//   anchorGameSec  – the game-second the clock was showing at that moment
-//                    (derived from DB `minute` if present, else wall-clock diff)
-//   anchorWallMs   – the real wall-clock ms at snapshot time
-//
-// At any later time:
-//   currentGameSec = anchorGameSec + (Date.now() - anchorWallMs) / 1000
-//
-// This anchoring survives page refreshes and gives an accurate ticking clock.
 
 interface PersistedClock {
   anchorGameSec: number;
   anchorWallMs: number;
 }
 
-const LS_KEY = "scoreboard_clocks_v3";
+const LS_KEY = "scoreboard_clocks_v4";
 
 function readStoredClocks(): Record<number, PersistedClock> {
   try {
@@ -70,65 +57,96 @@ function readStoredClocks(): Record<number, PersistedClock> {
 function writeStoredClocks(clocks: Record<number, PersistedClock>): void {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(clocks));
-  } catch { /* quota – ignore */ }
+  } catch { /* storage quota – ignore */ }
 }
 
-// ─── Compute the anchor game-second for a match ────────────────────────────
-//
-// Priority:
-//   1. DB `minute` field (most accurate – set by the orchestrator each hour)
-//   2. Wall-clock fallback: (now − kickoff), minus 15 min halftime gap if past 45+15 min
 
-const HALFTIME_REAL_SEC = 15 * 60;
+const HT_DURATION_SEC = 15 * 60; // 900 s
 
-function computeAnchorGameSec(match: Match): number {
-  if (match.minute != null && match.minute > 0) {
-    return match.minute * 60;
+function computeAnchorGameSec(kickoffUtcStr: string): number {
+  const kickoffMs       = new Date(kickoffUtcStr).getTime();
+  const realElapsedSec  = Math.max(0, (Date.now() - kickoffMs) / 1000);
+  const firstHalfEndSec = 45 * 60; // 2700 s
+
+  if (realElapsedSec <= firstHalfEndSec) {
+    // Still in first half (or very beginning)
+    return realElapsedSec;
   }
-  const kickoffMs = new Date(match.utc_date).getTime();
-  const realElapsed = Math.max(0, (Date.now() - kickoffMs) / 1000);
-  if (realElapsed > 45 * 60 + HALFTIME_REAL_SEC) {
-    return realElapsed - HALFTIME_REAL_SEC;
+
+  const halfTimeEndReal = firstHalfEndSec + HT_DURATION_SEC; // 3600 s real
+  if (realElapsedSec <= halfTimeEndReal) {
+    // We are inside the half-time window; game clock is frozen at 45:xx
+    return firstHalfEndSec; // will render as HT, frozen
   }
-  return realElapsed;
+
+  // Second half — subtract the paused half-time window
+  return realElapsedSec - HT_DURATION_SEC;
 }
 
-// ─── Phase boundaries (in game-seconds) ────────────────────────────────────
-//
-// We simulate phases using cumulative game-seconds:
-//   0       →  2700   First half          0:00 – 45:00
-//   2700    →  2880   Added time HT       45:00 – 48:xx  (+3 min)
-//   2880    →  3780   Half-time break     clock frozen at 45:xx (15 real min)
-//   3780    →  6480   Second half         45:00 – 90:00  (+45 min)
-//   6480    →  6690   Added time FT       90:00 – 93:xx  (+3.5 min)
-//   ≥ 6690            Full time
 
-const PHASE = {
-  FH_END:  45 * 60,                          // 2700
-  AT1_END: 48 * 60,                          // 2880
-  HT_END:  48 * 60 + HALFTIME_REAL_SEC,      // 3780
-  SH_END:  48 * 60 + HALFTIME_REAL_SEC + 45 * 60, // 6480
-  AT2_END: 48 * 60 + HALFTIME_REAL_SEC + 45 * 60 + 210, // 6690
+const B = {
+  FH_END:  45 * 60,           // 2700 — end of first half game-seconds
+  AT1_END: 48 * 60,           // 2880 — end of added time 1
+  SH_END:  48 * 60 + 45 * 60, // 5580 — end of second half (48+45)
+  AT2_END: 48 * 60 + 45 * 60 + 210, // 5790 — end of added time 2 (210 s = 3.5 min)
 } as const;
 
 interface ClockState {
   phase: ClockPhase;
+  /** The game-clock value to display in seconds */
   displaySec: number;
+  /** True when the game-clock is currently paused (half-time break) */
+  frozen: boolean;
 }
 
 function evaluateClock(params: PersistedClock): ClockState {
-  const wallElapsed = (Date.now() - params.anchorWallMs) / 1000;
-  const g = params.anchorGameSec + wallElapsed; // current game-seconds
+  // How many wall-clock seconds have passed since we took the anchor snapshot?
+  const wallElapsedSec  = (Date.now() - params.anchorWallMs) / 1000;
+  // Current game-clock value
+  const gameSec         = params.anchorGameSec + wallElapsedSec;
 
-  if (g < PHASE.FH_END)  return { phase: "firstHalf",  displaySec: g };
-  if (g < PHASE.AT1_END) return { phase: "addedTime1", displaySec: g };
-  if (g < PHASE.HT_END)  return { phase: "halfTime",   displaySec: PHASE.AT1_END };
-  if (g < PHASE.SH_END)  return { phase: "secondHalf", displaySec: 45 * 60 + (g - PHASE.HT_END) };
-  if (g < PHASE.AT2_END) return { phase: "addedTime2", displaySec: 45 * 60 + (g - PHASE.HT_END) };
-  return                         { phase: "completed",  displaySec: 90 * 60 };
+  // ── First half ────────────────────────────────────────────────────────────
+  if (gameSec < B.FH_END) {
+    return { phase: "firstHalf", displaySec: gameSec, frozen: false };
+  }
+
+  // ── Added time – halftime ─────────────────────────────────────────────────
+  if (gameSec < B.AT1_END) {
+    return { phase: "addedTime1", displaySec: gameSec, frozen: false };
+  }
+
+  // ── Half-time: detect via real elapsed since kick-off ─────────────────────
+  // We check real wall time (kickoff is not stored in PersistedClock, but we
+  // can infer: anchorGameSec ≈ realElapsed at snapshot, so real kickoff was
+  // approximately anchorWallMs − anchorGameSec * 1000)
+  const inferredKickoffMs = params.anchorWallMs - params.anchorGameSec * 1000;
+  const realElapsedSec    = (Date.now() - inferredKickoffMs) / 1000;
+  const htWindowEnd       = 45 * 60 + HT_DURATION_SEC; // 3600 s real
+
+  if (realElapsedSec <= htWindowEnd) {
+    // Still in the real half-time window — freeze the clock at AT1_END
+    return { phase: "halfTime", displaySec: B.AT1_END, frozen: true };
+  }
+
+  // ── Second half ───────────────────────────────────────────────────────────
+  // Game-clock resumes from where added time left off (48:00), display from 45:00
+  if (gameSec < B.SH_END) {
+    // Remap: second half game-secs start from AT1_END (2880), display from 45:00 (2700)
+    const shOffset = gameSec - B.AT1_END;           // seconds into 2nd half
+    return { phase: "secondHalf", displaySec: 45 * 60 + shOffset, frozen: false };
+  }
+
+  // ── Added time – fulltime ─────────────────────────────────────────────────
+  if (gameSec < B.AT2_END) {
+    const shOffset = gameSec - B.AT1_END;
+    return { phase: "addedTime2", displaySec: 45 * 60 + shOffset, frozen: false };
+  }
+
+  // ── Full time ─────────────────────────────────────────────────────────────
+  return { phase: "completed", displaySec: 90 * 60, frozen: false };
 }
 
-// ─── Clock formatting ──────────────────────────────────────────────────────
+// ─── Formatting helpers ────────────────────────────────────────────────────
 
 function formatClock(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -148,17 +166,47 @@ interface ClockDisplay {
 function getClockDisplay(state: ClockState): ClockDisplay {
   switch (state.phase) {
     case "firstHalf":
-      return { label: formatClock(state.displaySec), sublabel: "1st Half",         pulsing: true,  pillClass: "bg-red-500/15 border-red-500/30 text-red-400" };
+      return {
+        label:     formatClock(state.displaySec),
+        sublabel:  "1st Half",
+        pulsing:   true,
+        pillClass: "bg-red-500/15 border-red-500/30 text-red-400",
+      };
     case "addedTime1":
-      return { label: formatClock(state.displaySec), sublabel: "Added time · HT",  pulsing: true,  pillClass: "bg-orange-500/15 border-orange-500/30 text-orange-400" };
+      return {
+        label:     formatClock(state.displaySec),
+        sublabel:  "Added time · HT",
+        pulsing:   true,
+        pillClass: "bg-orange-500/15 border-orange-500/30 text-orange-400",
+      };
     case "halfTime":
-      return { label: "HT",                          sublabel: "Half-Time",         pulsing: false, pillClass: "bg-sky-500/15 border-sky-500/30 text-sky-400" };
+      return {
+        label:     "HT",
+        sublabel:  "Half-Time",
+        pulsing:   false,
+        pillClass: "bg-sky-500/15 border-sky-500/30 text-sky-400",
+      };
     case "secondHalf":
-      return { label: formatClock(state.displaySec), sublabel: "2nd Half",          pulsing: true,  pillClass: "bg-red-500/15 border-red-500/30 text-red-400" };
+      return {
+        label:     formatClock(state.displaySec),
+        sublabel:  "2nd Half",
+        pulsing:   true,
+        pillClass: "bg-red-500/15 border-red-500/30 text-red-400",
+      };
     case "addedTime2":
-      return { label: formatClock(state.displaySec), sublabel: "Added time · FT",  pulsing: true,  pillClass: "bg-orange-500/15 border-orange-500/30 text-orange-400" };
+      return {
+        label:     formatClock(state.displaySec),
+        sublabel:  "Added time · FT",
+        pulsing:   true,
+        pillClass: "bg-orange-500/15 border-orange-500/30 text-orange-400",
+      };
     case "completed":
-      return { label: "FT",                          sublabel: "Full Time",         pulsing: false, pillClass: "bg-slate-700/60 border-slate-600/40 text-slate-400" };
+      return {
+        label:     "FT",
+        sublabel:  "Full Time",
+        pulsing:   false,
+        pillClass: "bg-slate-700/60 border-slate-600/40 text-slate-400",
+      };
   }
 }
 
@@ -167,19 +215,14 @@ function getClockDisplay(state: ClockState): ClockDisplay {
 function LiveMatchCard({ match }: { match: Match }) {
   const [tick, setTick] = useState(0);
 
-  // Sync the anchor every time the DB minute field changes (or on first render)
+  // On every DB fetch that delivers this match, re-anchor the clock.
+  // We always re-compute from utc_date so the clock stays accurate.
   useEffect(() => {
-    const stored = readStoredClocks();
-    // Always update when the DB provides a minute (authoritative)
-    // Only initialise from wall-clock if no entry exists yet
-    if (!stored[match.id] || match.minute != null) {
-      stored[match.id] = {
-        anchorGameSec: computeAnchorGameSec(match),
-        anchorWallMs:  Date.now(),
-      };
-      writeStoredClocks(stored);
-    }
-  }, [match.id, match.utc_date, match.minute]);
+    const stored       = readStoredClocks();
+    const anchorGameSec = computeAnchorGameSec(match.utc_date);
+    stored[match.id]   = { anchorGameSec, anchorWallMs: Date.now() };
+    writeStoredClocks(stored);
+  }, [match.id, match.utc_date]);
 
   // Tick every second
   useEffect(() => {
@@ -205,15 +248,15 @@ function LiveMatchCard({ match }: { match: Match }) {
       transition-all duration-300
       hover:bg-white/[0.10] hover:border-white/20 hover:-translate-y-0.5
     ">
-      {/* Top accent glow */}
+      {/* Top accent glow line */}
       <div className={`absolute inset-x-0 top-0 h-[2px] ${
-        state.phase === "halfTime"  ? "bg-gradient-to-r from-transparent via-sky-400 to-transparent"  :
-        state.phase === "completed" ? "bg-gradient-to-r from-transparent via-white/20 to-transparent" :
+        state.phase === "halfTime"  ? "bg-gradient-to-r from-transparent via-sky-400 to-transparent"   :
+        state.phase === "completed" ? "bg-gradient-to-r from-transparent via-white/20 to-transparent"  :
                                       "bg-gradient-to-r from-transparent via-red-500 to-transparent"
       }`} />
 
       <div className="p-5">
-        {/* Competition + clock */}
+        {/* Row 1: competition name + clock pill */}
         <div className="flex items-start justify-between gap-3 mb-5">
           <div className="flex items-center gap-1.5 min-w-0">
             <Trophy className="h-3 w-3 text-amber-400/80 shrink-0" />
@@ -223,6 +266,7 @@ function LiveMatchCard({ match }: { match: Match }) {
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
+            {/* Clock pill */}
             <span className={`
               inline-flex items-center gap-1.5 px-3 py-1 rounded-full
               text-xs font-mono font-bold tracking-widest whitespace-nowrap
@@ -244,13 +288,17 @@ function LiveMatchCard({ match }: { match: Match }) {
           </div>
         </div>
 
-        {/* Teams + score */}
+        {/* Row 2: home — score — away */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          {/* Home */}
+
+          {/* Home team */}
           <div className="flex flex-col items-center gap-2">
             {match.home_team.crest_url ? (
-              <img src={match.home_team.crest_url} alt={match.home_team.name}
-                className="h-12 w-12 object-contain drop-shadow-lg" />
+              <img
+                src={match.home_team.crest_url}
+                alt={match.home_team.name}
+                className="h-12 w-12 object-contain drop-shadow-lg"
+              />
             ) : (
               <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs font-bold">
                 {(match.home_team.tla || match.home_team.name).slice(0, 3).toUpperCase()}
@@ -261,7 +309,7 @@ function LiveMatchCard({ match }: { match: Match }) {
             </span>
           </div>
 
-          {/* Score */}
+          {/* Score — blurred while live */}
           <div className="flex flex-col items-center gap-1.5">
             {isLive ? (
               <div className="relative">
@@ -289,11 +337,14 @@ function LiveMatchCard({ match }: { match: Match }) {
             )}
           </div>
 
-          {/* Away */}
+          {/* Away team */}
           <div className="flex flex-col items-center gap-2">
             {match.away_team.crest_url ? (
-              <img src={match.away_team.crest_url} alt={match.away_team.name}
-                className="h-12 w-12 object-contain drop-shadow-lg" />
+              <img
+                src={match.away_team.crest_url}
+                alt={match.away_team.name}
+                className="h-12 w-12 object-contain drop-shadow-lg"
+              />
             ) : (
               <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs font-bold">
                 {(match.away_team.tla || match.away_team.name).slice(0, 3).toUpperCase()}
@@ -303,10 +354,11 @@ function LiveMatchCard({ match }: { match: Match }) {
               {match.away_team.name}
             </span>
           </div>
+
         </div>
       </div>
 
-      {/* Bottom accent */}
+      {/* Bottom accent line */}
       <div className={`h-px w-full ${
         isLive
           ? "bg-gradient-to-r from-transparent via-red-500/30 to-transparent"
@@ -377,13 +429,13 @@ const ScoreboardPage = () => {
       const today    = new Date().toISOString().split("T")[0];
       const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
 
+      // NOTE: no `minute` column — removed to fix the 400 error
       const { data, error: supaErr } = await supabase
         .from("matches")
         .select(`
           id,
           utc_date,
           status,
-          minute,
           home_score,
           away_score,
           home_team:teams!matches_home_team_id_fkey ( name, tla, crest_url ),
@@ -402,7 +454,8 @@ const ScoreboardPage = () => {
       ));
       setFinishedMatches(matches.filter(m => m.status === "FINISHED"));
       setLastRefreshed(new Date());
-    } catch {
+    } catch (e) {
+      console.error("Supabase fetch error:", e);
       setError("Failed to load matches. Please try again.");
     } finally {
       setLoading(false);
@@ -421,8 +474,8 @@ const ScoreboardPage = () => {
   return (
     <Layout>
       {/*
-        Background: Unsplash stadium aerial photo – free, no API key needed.
-        A layered dark gradient overlay keeps text readable at all times.
+        Background: Unsplash stadium aerial photo (free, no auth key needed).
+        A layered gradient overlay ensures all text is readable.
       */}
       <div
         className="relative min-h-screen bg-cover bg-center bg-fixed"
@@ -437,7 +490,7 @@ const ScoreboardPage = () => {
         {/* Content layer */}
         <div className="relative z-10 container mx-auto px-4 py-8 max-w-5xl">
 
-          {/* ── Page header ──────────────────────────────────────── */}
+          {/* ── Page header ──────────────────────────────────── */}
           <div className="flex items-start justify-between mb-8 gap-4">
             <div>
               <div className="flex items-center gap-2.5 mb-1">
@@ -447,7 +500,7 @@ const ScoreboardPage = () => {
                 </h1>
               </div>
               <p className="text-sm text-white/45">
-                Real-time clocks · synced from live data every minute
+                Real-time clocks · anchored to kick-off time
               </p>
               {lastRefreshed && (
                 <p className="text-[11px] text-white/25 mt-0.5">
@@ -473,7 +526,7 @@ const ScoreboardPage = () => {
             </button>
           </div>
 
-          {/* ── Body ─────────────────────────────────────────────── */}
+          {/* ── Body ─────────────────────────────────────────── */}
           {loading && liveMatches.length === 0 && finishedMatches.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-32 gap-4">
               <div className="h-10 w-10 rounded-full border-2 border-white/20 border-t-red-500 animate-spin" />
@@ -493,7 +546,7 @@ const ScoreboardPage = () => {
           ) : (
             <div className="space-y-10">
 
-              {/* Live section */}
+              {/* ── Live section ─────────────────────────────── */}
               {liveMatches.length > 0 ? (
                 <section>
                   <div className="flex items-center gap-3 mb-5">
@@ -523,7 +576,7 @@ const ScoreboardPage = () => {
                 </div>
               )}
 
-              {/* Finished section */}
+              {/* ── Finished section ─────────────────────────── */}
               <section>
                 <div className="flex items-center gap-3 mb-4">
                   <CheckCircle2 className="h-4 w-4 text-white/35" />
