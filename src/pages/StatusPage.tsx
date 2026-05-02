@@ -13,7 +13,6 @@ import {
   TrendingDown,
   Minus,
   HelpCircle,
-  Info,
   BookOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -69,7 +68,7 @@ interface PatternAdvice {
   win_rate:          number;
 }
 
-// ─── Status badge config ──────────────────────────────────────────────────────
+// ─── Status badge ─────────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<PredictionResult, { label: string; className: string }> = {
   PENDING:   { label: "Pending",   className: "bg-yellow-500/20 text-black border border-yellow-400/30" },
   WIN:       { label: "Won ✓",     className: "bg-green-500/20 text-green-400" },
@@ -88,55 +87,28 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
   );
 };
 
-// ─── Pattern type visual config ───────────────────────────────────────────────
-const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; bg: string; label: string }> = {
-  WIN: {
-    icon:  TrendingUp,
-    color: "text-emerald-400",
-    bg:    "bg-emerald-500/10 border border-emerald-500/20",
-    label: "WIN Pattern",
-  },
-  LOSS: {
-    icon:  TrendingDown,
-    color: "text-rose-400",
-    bg:    "bg-rose-500/10 border border-rose-500/20",
-    label: "LOSS Pattern",
-  },
-  NEUTRAL: {
-    icon:  Minus,
-    color: "text-amber-400",
-    bg:    "bg-amber-500/10 border border-amber-500/20",
-    label: "NEUTRAL Pattern",
-  },
-  INSUFFICIENT_DATA: {
-    icon:  HelpCircle,
-    color: "text-muted-foreground",
-    bg:    "bg-muted/40 border border-border",
-    label: "NEW Pattern",
-  },
+// ─── Pattern type config ──────────────────────────────────────────────────────
+const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; label: string }> = {
+  WIN:               { icon: TrendingUp,   color: "text-emerald-400", label: "WIN Pattern"       },
+  LOSS:              { icon: TrendingDown,  color: "text-rose-400",    label: "LOSS Pattern"      },
+  NEUTRAL:           { icon: Minus,         color: "text-amber-400",   label: "NEUTRAL Pattern"   },
+  INSUFFICIENT_DATA: { icon: HelpCircle,    color: "text-muted-foreground", label: "NEW Pattern"  },
 };
 
-// ─── Advisor message bar ──────────────────────────────────────────────────────
-function AdvisorBar({
-  confidenceScore,
-  selection,
-}: {
-  confidenceScore: number;
-  selection: string;
-}) {
-  const [advice, setAdvice]   = useState<PatternAdvice | null>(null);
+// ─── Advisor bar ──────────────────────────────────────────────────────────────
+function AdvisorBar({ confidenceScore, selection }: { confidenceScore: number; selection: string }) {
+  const [advice, setAdvice] = useState<PatternAdvice | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-
-    const fetchAdvice = async () => {
+    const fetch806 = async () => {
       setLoading(true);
       try {
         const res = await fetch(`${FUNCTIONS_BASE}/get-pattern-advice`, {
-          method:  "POST",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ confidence_score: confidenceScore, selection }),
+          body: JSON.stringify({ confidence_score: confidenceScore, selection }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: PatternAdvice = await res.json();
@@ -147,8 +119,7 @@ function AdvisorBar({
         if (!cancelled) setLoading(false);
       }
     };
-
-    fetchAdvice();
+    fetch806();
     return () => { cancelled = true; };
   }, [confidenceScore, selection]);
 
@@ -168,8 +139,8 @@ function AdvisorBar({
 
   if (!advice) return null;
 
-  const ui    = PATTERN_UI[advice.pattern_type] ?? PATTERN_UI.INSUFFICIENT_DATA;
-  const Icon  = ui.icon;
+  const ui   = PATTERN_UI[advice.pattern_type] ?? PATTERN_UI.INSUFFICIENT_DATA;
+  const Icon = ui.icon;
   const stats = advice.total_predictions >= 5
     ? `${advice.total_predictions} predictions · ${advice.win_rate.toFixed(1)}% win rate`
     : `${advice.total_predictions} prediction${advice.total_predictions !== 1 ? "s" : ""} so far`;
@@ -187,13 +158,13 @@ function AdvisorBar({
         <span className="ml-auto opacity-60">{stats}</span>
       </div>
       <div className="px-4 py-3 flex items-start gap-3">
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold select-none shrink-0">
-          <span>806</span>
+        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#4A5BA8] to-[#33468D] flex items-center justify-center text-white text-xs font-bold select-none shrink-0">
+          806
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-xs font-semibold text-white/90">_806</span>
-            <BadgeCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+            <BadgeCheck className="h-3.5 w-3.5 text-[#4A5BA8] shrink-0" />
           </div>
           <p className="text-xs text-white/75 leading-relaxed">{advice.message}</p>
         </div>
@@ -202,7 +173,7 @@ function AdvisorBar({
   );
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
+// ─── Prediction Modal ─────────────────────────────────────────────────────────
 interface PredictionModalProps {
   prediction: Prediction | null;
   onClose: () => void;
@@ -213,17 +184,13 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
 
   const match   = prediction.matches;
   const kickoff = new Date(match.utc_date).toLocaleString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
+    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   });
   const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
 
   const backgroundStyle = {
     backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.55) 100%), url('https://images.pexels.com/photos/47730/the-ball-stadion-football-the-pitch-47730.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
-    backgroundSize:     "cover",
+    backgroundSize: "cover",
     backgroundPosition: "center",
   };
 
@@ -238,8 +205,8 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
       >
         <motion.div
           initial={{ scale: 0.92, y: 24 }}
-          animate={{ scale: 1,    y: 0 }}
-          exit={{    scale: 0.92, y: 24 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.92, y: 24 }}
           transition={{ type: "spring", stiffness: 320, damping: 28 }}
           className="relative w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl"
           style={backgroundStyle}
@@ -338,46 +305,159 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   );
 };
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Helper to get Kenya date string from UTC date
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 function toKenyaDateStr(utcIso: string): string {
   const d = new Date(utcIso);
   return new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-// ─── Group predictions by match day (Today, Tomorrow, Day After) ───────────────
 function groupPredictionsByDay(predictions: Prediction[]) {
-  const nowKenya = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
-  const todayStr = nowKenya.toISOString().slice(0, 10);
-  const tomorrowStr = new Date(nowKenya.getTime() + 86400000).toISOString().slice(0, 10);
-  const dayAfterStr = new Date(nowKenya.getTime() + 2 * 86400000).toISOString().slice(0, 10);
+  const nowKenya    = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
+  const todayStr    = nowKenya.toISOString().slice(0, 10);
+  const tomorrowStr = new Date(nowKenya.getTime() + 86_400_000).toISOString().slice(0, 10);
+  const dayAfterStr = new Date(nowKenya.getTime() + 2 * 86_400_000).toISOString().slice(0, 10);
 
-  const groups: { label: string; predictions: Prediction[] }[] = [];
   const today: Prediction[] = [];
   const tomorrow: Prediction[] = [];
   const dayAfter: Prediction[] = [];
 
   predictions.forEach((p) => {
     const matchDay = toKenyaDateStr(p.matches.utc_date);
-    if (matchDay === todayStr) today.push(p);
+    if (matchDay === todayStr)        today.push(p);
     else if (matchDay === tomorrowStr) tomorrow.push(p);
     else if (matchDay === dayAfterStr) dayAfter.push(p);
   });
 
-  if (today.length > 0) groups.push({ label: "Today's Predictions", predictions: today });
-  if (tomorrow.length > 0) groups.push({ label: "Tomorrow's Predictions", predictions: tomorrow });
-  if (dayAfter.length > 0) groups.push({ label: "Day After's Predictions", predictions: dayAfter });
-
+  const groups: { label: string; predictions: Prediction[] }[] = [];
+  if (today.length > 0)    groups.push({ label: "Today",            predictions: today });
+  if (tomorrow.length > 0) groups.push({ label: "Tomorrow",         predictions: tomorrow });
+  if (dayAfter.length > 0) groups.push({ label: "Day After Tomorrow", predictions: dayAfter });
   return groups;
+}
+
+// ─── Prediction row ───────────────────────────────────────────────────────────
+// Extracted so the table body only ever contains clean <tr> data rows.
+function PredictionRow({
+  p,
+  onClick,
+}: {
+  p: Prediction;
+  onClick: () => void;
+}) {
+  const match   = p.matches;
+  const fixture = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
+  const isLive  = match.status === "IN_PLAY" || match.status === "PAUSED";
+
+  return (
+    <tr
+      className="hover:bg-muted/30 transition-colors cursor-pointer"
+      onClick={onClick}
+    >
+      <td className="px-4 py-3.5">
+        <div className="font-medium leading-tight">{fixture}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{match.competition.name}</div>
+      </td>
+      <td className="px-4 py-3.5 text-muted-foreground text-xs hidden md:table-cell max-w-[180px] truncate">
+        {p.selection}
+      </td>
+      <td className="px-4 py-3.5 font-semibold text-gold tabular-nums">
+        {p.predicted_odds.toFixed(2)}
+      </td>
+      <td className="px-4 py-3.5 hidden sm:table-cell">
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-16 rounded-full bg-muted/60 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gold"
+              style={{ width: `${p.confidence_score * 100}%` }}
+            />
+          </div>
+          <span className="text-xs tabular-nums">{Math.round(p.confidence_score * 100)}%</span>
+        </div>
+      </td>
+      <td className="px-4 py-3.5">
+        {isLive ? (
+          <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/20 text-red-400 animate-pulse">
+            LIVE
+          </span>
+        ) : (
+          <StatusBadge status={p.status} />
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function PredictionGroup({
+  group,
+  index,
+  onSelect,
+}: {
+  group: { label: string; predictions: Prediction[] };
+  index: number;
+  onSelect: (p: Prediction) => void;
+}) {
+  // Label badges per group
+  const badgeStyle =
+    index === 0
+      ? "bg-gold/15 text-gold border border-gold/30"           // Today  → gold
+      : index === 1
+      ? "bg-[#4A5BA8]/15 text-[#4A5BA8] border border-[#4A5BA8]/30" // Tomorrow → brand blue
+      : "bg-muted/60 text-muted-foreground border border-border";  // Day after → neutral
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {/* ── Group label — lives OUTSIDE and ABOVE the table card ── */}
+      <div className="flex items-center gap-3 mb-2 px-1">
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${badgeStyle}`}>
+          {group.label}
+        </span>
+        <span className="text-xs text-muted-foreground/60">
+          {group.predictions.length} prediction{group.predictions.length !== 1 ? "s" : ""}
+        </span>
+        {/* Right rule line */}
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {/* ── Group table — self-contained card, no separator rows inside ── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="text-left px-4 py-2.5 font-heading font-semibold text-xs text-muted-foreground uppercase tracking-wide">Fixture</th>
+                <th className="text-left px-4 py-2.5 font-heading font-semibold text-xs text-muted-foreground uppercase tracking-wide hidden md:table-cell">Prediction</th>
+                <th className="text-left px-4 py-2.5 font-heading font-semibold text-xs text-muted-foreground uppercase tracking-wide">Odds</th>
+                <th className="text-left px-4 py-2.5 font-heading font-semibold text-xs text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Confidence</th>
+                <th className="text-left px-4 py-2.5 font-heading font-semibold text-xs text-muted-foreground uppercase tracking-wide">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {group.predictions.map((p) => (
+                <PredictionRow
+                  key={p.id}
+                  p={p}
+                  onClick={() => onSelect(p)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StatusPage = () => {
-  const [predictions, setPredictions]   = useState<Prediction[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState<string | null>(null);
+  const [predictions,       setPredictions]       = useState<Prediction[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [error,             setError]             = useState<string | null>(null);
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
-  const [showGuideBanner, setShowGuideBanner] = useState(true);
+  const [showGuideBanner,   setShowGuideBanner]   = useState(true);
 
   const fetchActivePredictions = useCallback(async () => {
     setLoading(true);
@@ -423,6 +503,7 @@ const StatusPage = () => {
     <Layout>
       <div className="container mx-auto px-4 py-8">
 
+        {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-3xl font-heading font-bold">Active Predictions</h1>
           <button
@@ -437,7 +518,7 @@ const StatusPage = () => {
           Live status of MK-806's current picks. Tap a row to see full analysis.
         </p>
 
-        {/* Collapsible Guide Banner */}
+        {/* ── Guide banner ─────────────────────────────────────────────────── */}
         <AnimatePresence>
           {showGuideBanner && (
             <motion.div
@@ -452,18 +533,18 @@ const StatusPage = () => {
                   <div>
                     <p className="font-semibold text-white mb-1">Read Before Building Your Betslip</p>
                     <p className="text-slate-300 leading-relaxed">
-                      Understanding how MK‑806 and _806 work together can help you make more informed decisions.
+                      Understanding how MK-806 and _806 work together can help you make more informed decisions.
                       We strongly recommend reading our{" "}
                       <Link to="/guide" className="text-gold underline hover:no-underline font-semibold">
                         Pattern & Prediction Guide
                       </Link>{" "}
-                      before placing any real‑world bets.
+                      before placing any real-world bets.
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowGuideBanner(false)}
-                  className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-white transition-colors shrink-0"
                   aria-label="Dismiss"
                 >
                   <X className="h-4 w-4" />
@@ -473,12 +554,14 @@ const StatusPage = () => {
           )}
         </AnimatePresence>
 
+        {/* ── Loading ──────────────────────────────────────────────────────── */}
         {loading && (
           <div className="flex justify-center py-20">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
 
+        {/* ── Error ────────────────────────────────────────────────────────── */}
         {!loading && error && (
           <div className="flex flex-col items-center gap-4 py-16 text-center">
             <AlertCircle className="h-10 w-10 text-muted-foreground" />
@@ -489,94 +572,32 @@ const StatusPage = () => {
           </div>
         )}
 
+        {/* ── Empty ────────────────────────────────────────────────────────── */}
         {!loading && !error && predictions.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <p>No active predictions at the moment.</p>
           </div>
         )}
 
-        {!loading && !error && predictions.length > 0 && (
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/50">
-                    <th className="text-left px-4 py-3 font-heading font-semibold">Fixture</th>
-                    <th className="text-left px-4 py-3 font-heading font-semibold hidden md:table-cell">Prediction</th>
-                    <th className="text-left px-4 py-3 font-heading font-semibold">Odds</th>
-                    <th className="text-left px-4 py-3 font-heading font-semibold hidden sm:table-cell">Confidence</th>
-                    <th className="text-left px-4 py-3 font-heading font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedPredictions.map((group) => (
-                    <>
-                      {/* Separator row */}
-                      <tr key={`sep-${group.label}`}>
-                        <td colSpan={5} className="px-4 py-2">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 h-px bg-border"></div>
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
-                              {group.label}
-                            </span>
-                            <div className="flex-1 h-px bg-border"></div>
-                          </div>
-                        </td>
-                      </tr>
-                      {/* Prediction rows */}
-                      {group.predictions.map((p) => {
-                        const match = p.matches;
-                        const fixture = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
-                        const isLive  = match.status === "IN_PLAY" || match.status === "PAUSED";
-                        return (
-                          <tr
-                            key={p.id}
-                            className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                            onClick={() => setSelectedPrediction(p)}
-                          >
-                            <td className="px-4 py-3">
-                              <div className="font-medium">{fixture}</div>
-                              <div className="text-xs text-muted-foreground">{match.competition.name}</div>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell max-w-[180px] truncate">
-                              {p.selection}
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-gold tabular-nums">
-                              {p.predicted_odds.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-3 hidden sm:table-cell">
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-16 rounded-full bg-muted/60 overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full bg-gold"
-                                    style={{ width: `${p.confidence_score * 100}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs tabular-nums">
-                                  {Math.round(p.confidence_score * 100)}%
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              {isLive ? (
-                                <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/20 text-red-400 animate-pulse">
-                                  LIVE
-                                </span>
-                              ) : (
-                                <StatusBadge status={p.status} />
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {/* ── Grouped prediction tables ─────────────────────────────────────
+            Each group is a completely independent card with its own header.
+            The label sits above the card, separated by whitespace — never
+            inside the table — so there is no border confusion.
+        ────────────────────────────────────────────────────────────────── */}
+        {!loading && !error && groupedPredictions.length > 0 && (
+          <div className="space-y-6">
+            {groupedPredictions.map((group, i) => (
+              <PredictionGroup
+                key={group.label}
+                group={group}
+                index={i}
+                onSelect={setSelectedPrediction}
+              />
+            ))}
           </div>
         )}
 
+        {/* ── Modal ────────────────────────────────────────────────────────── */}
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}
