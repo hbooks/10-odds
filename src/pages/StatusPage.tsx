@@ -338,6 +338,39 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   );
 };
 
+// ────────────────────────────────────────────────────────────────────────────────
+// Helper to get Kenya date string from UTC date
+function toKenyaDateStr(utcIso: string): string {
+  const d = new Date(utcIso);
+  return new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// ─── Group predictions by match day (Today, Tomorrow, Day After) ───────────────
+function groupPredictionsByDay(predictions: Prediction[]) {
+  const nowKenya = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
+  const todayStr = nowKenya.toISOString().slice(0, 10);
+  const tomorrowStr = new Date(nowKenya.getTime() + 86400000).toISOString().slice(0, 10);
+  const dayAfterStr = new Date(nowKenya.getTime() + 2 * 86400000).toISOString().slice(0, 10);
+
+  const groups: { label: string; predictions: Prediction[] }[] = [];
+  const today: Prediction[] = [];
+  const tomorrow: Prediction[] = [];
+  const dayAfter: Prediction[] = [];
+
+  predictions.forEach((p) => {
+    const matchDay = toKenyaDateStr(p.matches.utc_date);
+    if (matchDay === todayStr) today.push(p);
+    else if (matchDay === tomorrowStr) tomorrow.push(p);
+    else if (matchDay === dayAfterStr) dayAfter.push(p);
+  });
+
+  if (today.length > 0) groups.push({ label: "Today's Predictions", predictions: today });
+  if (tomorrow.length > 0) groups.push({ label: "Tomorrow's Predictions", predictions: tomorrow });
+  if (dayAfter.length > 0) groups.push({ label: "Day After's Predictions", predictions: dayAfter });
+
+  return groups;
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StatusPage = () => {
   const [predictions, setPredictions]   = useState<Prediction[]>([]);
@@ -384,6 +417,8 @@ const StatusPage = () => {
 
   useEffect(() => { fetchActivePredictions(); }, [fetchActivePredictions]);
 
+  const groupedPredictions = groupPredictionsByDay(predictions);
+
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
@@ -403,40 +438,40 @@ const StatusPage = () => {
         </p>
 
         {/* Collapsible Guide Banner */}
-  <AnimatePresence>
-  {showGuideBanner && (
-    <motion.div
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: "auto", opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
-      className="overflow-hidden mb-6 rounded-xl bg-slate-800/90 border border-gold/40 shadow-lg"
-    >
-      <div className="flex items-start justify-between p-5 gap-4">
-        <div className="flex items-start gap-3 text-sm">
-          <BookOpen className="h-5 w-5 text-gold shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-white mb-1">Read Before Building Your Betslip</p>
-            <p className="text-slate-300 leading-relaxed">
-              Understanding how MK‑806 and _806 work together can help you make more informed decisions.
-              We strongly recommend reading our{" "}
-              <Link to="/guide" className="text-gold underline hover:no-underline font-semibold">
-                Pattern & Prediction Guide
-              </Link>{" "}
-              before placing any real‑world bets.
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowGuideBanner(false)}
-          className="p-1.5 text-slate-400 hover:text-white transition-colors"
-          aria-label="Dismiss"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </motion.div>
-  )}
-</AnimatePresence>
+        <AnimatePresence>
+          {showGuideBanner && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden mb-6 rounded-xl bg-slate-800/90 border border-gold/40 shadow-lg"
+            >
+              <div className="flex items-start justify-between p-5 gap-4">
+                <div className="flex items-start gap-3 text-sm">
+                  <BookOpen className="h-5 w-5 text-gold shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-white mb-1">Read Before Building Your Betslip</p>
+                    <p className="text-slate-300 leading-relaxed">
+                      Understanding how MK‑806 and _806 work together can help you make more informed decisions.
+                      We strongly recommend reading our{" "}
+                      <Link to="/guide" className="text-gold underline hover:no-underline font-semibold">
+                        Pattern & Prediction Guide
+                      </Link>{" "}
+                      before placing any real‑world bets.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowGuideBanner(false)}
+                  className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {loading && (
           <div className="flex justify-center py-20">
@@ -474,58 +509,74 @@ const StatusPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {predictions.map((p) => {
-                    const match = p.matches;
-                    const fixture = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
-                    const isLive  = match.status === "IN_PLAY" || match.status === "PAUSED";
-                    return (
-                      <tr
-                        key={p.id}
-                        className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                        onClick={() => setSelectedPrediction(p)}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{fixture}</div>
-                          <div className="text-xs text-muted-foreground">{match.competition.name}</div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell max-w-[180px] truncate">
-                          {p.selection}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gold tabular-nums">
-                          {p.predicted_odds.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 hidden sm:table-cell">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-16 rounded-full bg-muted/60 overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-gold"
-                                style={{ width: `${p.confidence_score * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-xs tabular-nums">
-                              {Math.round(p.confidence_score * 100)}%
+                  {groupedPredictions.map((group) => (
+                    <>
+                      {/* Separator row */}
+                      <tr key={`sep-${group.label}`}>
+                        <td colSpan={5} className="px-4 py-2">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 h-px bg-border"></div>
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                              {group.label}
                             </span>
+                            <div className="flex-1 h-px bg-border"></div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          {isLive ? (
-                            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/20 text-red-400 animate-pulse">
-                              LIVE
-                            </span>
-                          ) : (
-                            <StatusBadge status={p.status} />
-                          )}
-                        </td>
                       </tr>
-                    );
-                  })}
+                      {/* Prediction rows */}
+                      {group.predictions.map((p) => {
+                        const match = p.matches;
+                        const fixture = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
+                        const isLive  = match.status === "IN_PLAY" || match.status === "PAUSED";
+                        return (
+                          <tr
+                            key={p.id}
+                            className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                            onClick={() => setSelectedPrediction(p)}
+                          >
+                            <td className="px-4 py-3">
+                              <div className="font-medium">{fixture}</div>
+                              <div className="text-xs text-muted-foreground">{match.competition.name}</div>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell max-w-[180px] truncate">
+                              {p.selection}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-gold tabular-nums">
+                              {p.predicted_odds.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 hidden sm:table-cell">
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-16 rounded-full bg-muted/60 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-gold"
+                                    style={{ width: `${p.confidence_score * 100}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs tabular-nums">
+                                  {Math.round(p.confidence_score * 100)}%
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {isLive ? (
+                                <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/20 text-red-400 animate-pulse">
+                                  LIVE
+                                </span>
+                              ) : (
+                                <StatusBadge status={p.status} />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-       {/* ── Prediction modal ──────────────────────────────────────────── */}
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}
