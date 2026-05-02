@@ -8,7 +8,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
 import SupportPortal from "@/components/SupportPortal";
 import AdminCommunity from "@/pages/AdminCommunity";
-import AdvertPage from "@/pages/AdvertPage";
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
 const GamesPage        = lazy(() => import("@/pages/GamesPage"));
@@ -104,7 +103,6 @@ function App() {
                 <Route path="/community"       element={<CommunityPage />} />
                 <Route path="/news"            element={<NewsPage />} />
                 <Route path="/admin/news"      element={<AdminCommunity/>} />
-                <Route path="/advert"           element={<AdvertPage />} />
                 <Route path="*"                element={<NotFound />} />
               </Routes>
             </Suspense>
