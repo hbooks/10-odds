@@ -500,7 +500,7 @@ const ScoreboardPage = () => {
                 </h1>
               </div>
               <p className="text-sm text-white/45">
-                Real-time clocks · anchored to kick-off time
+                live updates. Ongoing matches are marked "live" and may show unofficial scores until confirmed. 
               </p>
               {lastRefreshed && (
                 <p className="text-[11px] text-white/25 mt-0.5">
