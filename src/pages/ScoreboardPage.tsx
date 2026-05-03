@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
 import { RefreshCw, AlertCircle, Trophy, Info, CheckCircle2, Zap } from "lucide-react";
@@ -18,8 +18,8 @@ interface Team {
 
 interface Match {
   id: number;
-  utc_date: string;           // ISO UTC kick-off time, e.g. "2024-05-02T16:15:00Z"
-  status: string;             // IN_PLAY | LIVE | PAUSED | FINISHED | TIMED | …
+  utc_date: string;
+  status: string;
   home_score: number | null;
   away_score: number | null;
   home_team: Team;
@@ -37,15 +37,33 @@ type ClockPhase =
   | "addedTime2"
   | "completed";
 
-
+// ─── localStorage schema ───────────────────────────────────────────────────
+/**
+ * Only ONE field is stored per match: kickoffMs.
+ *
+ * kickoffMs  – UTC wall-clock ms of kick-off, derived once from utc_date.
+ *              Every phase (1st half, AT1, HT, 2nd half, AT2, FT) is computed
+ *              purely from kickoffMs + Date.now(). The DB status is intentionally
+ *              IGNORED for timing — the edge function only runs hourly and cannot
+ *              be trusted to catch HT at the right moment.
+ *
+ * Half-time model (fully clock-driven):
+ *   • Real minutes 0–45   → 1st half
+ *   • Real minutes 45–48  → Added time 1 (display freezes at 45:xx, counts up)
+ *   • Real minutes 48–63  → Half-time break (15 min, display shows "HT", frozen)
+ *   • Real minutes 63–108 → 2nd half (display counts from 45:00)
+ *   • Real minutes 108–111→ Added time 2
+ *   • After 111 min       → Full time
+ *
+ * All thresholds are constants. Refresh can never affect them.
+ */
 interface PersistedClock {
-  anchorGameSec: number;
-  anchorWallMs: number;
+  kickoffMs: number;
 }
 
-const LS_KEY = "scoreboard_clocks_v4";
+const LS_KEY = "scoreboard_clocks_v6";
 
-function readStoredClocks(): Record<number, PersistedClock> {
+function readClocks(): Record<number, PersistedClock> {
   try {
     const raw = localStorage.getItem(LS_KEY);
     return raw ? (JSON.parse(raw) as Record<number, PersistedClock>) : {};
@@ -54,99 +72,89 @@ function readStoredClocks(): Record<number, PersistedClock> {
   }
 }
 
-function writeStoredClocks(clocks: Record<number, PersistedClock>): void {
+function writeClock(id: number, clock: PersistedClock): void {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(clocks));
-  } catch { /* storage quota – ignore */ }
+    const all = readClocks();
+    all[id] = clock;
+    localStorage.setItem(LS_KEY, JSON.stringify(all));
+  } catch { /* quota – ignore */ }
 }
 
+// ─── Real-time phase boundaries ────────────────────────────────────────────
+// All values are in REAL elapsed seconds since kick-off.
+// HT is treated as a fixed 15-minute real-world pause after 3 min of AT1.
 
-const HT_DURATION_SEC = 15 * 60; // 900 s
+const RT = {
+  // 1st half ends at real 45:00
+  FH_END_SEC:   45 * 60,          // 2700
 
-function computeAnchorGameSec(kickoffUtcStr: string): number {
-  const kickoffMs       = new Date(kickoffUtcStr).getTime();
-  const realElapsedSec  = Math.max(0, (Date.now() - kickoffMs) / 1000);
-  const firstHalfEndSec = 45 * 60; // 2700 s
+  // Added time 1 lasts up to 3 real minutes (45:00 → 48:00)
+  // Display is capped: we show up to 45+3 = 48:xx but freeze there
+  AT1_END_SEC:  48 * 60,          // 2880  ← HT whistle assumed here
 
-  if (realElapsedSec <= firstHalfEndSec) {
-    // Still in first half (or very beginning)
-    return realElapsedSec;
-  }
+  // Half-time break: 15 real minutes (48:00 → 63:00)
+  HT_DUR_SEC:   15 * 60,          // 900
+  HT_END_SEC:   48 * 60 + 15 * 60, // 3780  ← 2nd half kick-off
 
-  const halfTimeEndReal = firstHalfEndSec + HT_DURATION_SEC; // 3600 s real
-  if (realElapsedSec <= halfTimeEndReal) {
-    // We are inside the half-time window; game clock is frozen at 45:xx
-    return firstHalfEndSec; // will render as HT, frozen
-  }
+  // 2nd half display starts at 45:00 and runs for 45 real minutes
+  SH_DUR_SEC:   45 * 60,          // 2700
+  SH_END_SEC:   48 * 60 + 15 * 60 + 45 * 60, // 6480
 
-  // Second half — subtract the paused half-time window
-  return realElapsedSec - HT_DURATION_SEC;
-}
-
-
-const B = {
-  FH_END:  45 * 60,           // 2700 — end of first half game-seconds
-  AT1_END: 48 * 60,           // 2880 — end of added time 1
-  SH_END:  48 * 60 + 45 * 60, // 5580 — end of second half (48+45)
-  AT2_END: 48 * 60 + 45 * 60 + 210, // 5790 — end of added time 2 (210 s = 3.5 min)
+  // Added time 2 lasts up to 3 real minutes
+  AT2_END_SEC:  48 * 60 + 15 * 60 + 48 * 60, // 6660
 } as const;
 
 interface ClockState {
-  phase: ClockPhase;
-  /** The game-clock value to display in seconds */
-  displaySec: number;
-  /** True when the game-clock is currently paused (half-time break) */
-  frozen: boolean;
+  phase:      ClockPhase;
+  displaySec: number;   // what the clock face shows (game-clock seconds)
+  frozen:     boolean;  // true = clock not ticking (HT break)
 }
 
-function evaluateClock(params: PersistedClock): ClockState {
-  // How many wall-clock seconds have passed since we took the anchor snapshot?
-  const wallElapsedSec  = (Date.now() - params.anchorWallMs) / 1000;
-  // Current game-clock value
-  const gameSec         = params.anchorGameSec + wallElapsedSec;
+/**
+ * Pure function. Given only kickoffMs and the current wall time, returns
+ * exactly which phase we're in and what the clock face should display.
+ * No DB status involved. No stored game-seconds. Refresh-proof by design.
+ */
+function evaluateClock(c: PersistedClock): ClockState {
+  const realSec = (Date.now() - c.kickoffMs) / 1000; // real seconds since KO
 
-  // ── First half ────────────────────────────────────────────────────────────
-  if (gameSec < B.FH_END) {
-    return { phase: "firstHalf", displaySec: gameSec, frozen: false };
+  // ── 1st half (0:00 → 45:00) ──────────────────────────────────────────────
+  if (realSec < RT.FH_END_SEC) {
+    return { phase: "firstHalf", displaySec: realSec, frozen: false };
   }
 
-  // ── Added time – halftime ─────────────────────────────────────────────────
-  if (gameSec < B.AT1_END) {
-    return { phase: "addedTime1", displaySec: gameSec, frozen: false };
+  // ── Added time 1 (45:00 → 48:00 real) ────────────────────────────────────
+  // Display counts up from 45:00 but we cap the face at 45+3 = 48:xx
+  if (realSec < RT.AT1_END_SEC) {
+    return { phase: "addedTime1", displaySec: realSec, frozen: false };
   }
 
-  // ── Half-time: detect via real elapsed since kick-off ─────────────────────
-  // We check real wall time (kickoff is not stored in PersistedClock, but we
-  // can infer: anchorGameSec ≈ realElapsed at snapshot, so real kickoff was
-  // approximately anchorWallMs − anchorGameSec * 1000)
-  const inferredKickoffMs = params.anchorWallMs - params.anchorGameSec * 1000;
-  const realElapsedSec    = (Date.now() - inferredKickoffMs) / 1000;
-  const htWindowEnd       = 45 * 60 + HT_DURATION_SEC; // 3600 s real
-
-  if (realElapsedSec <= htWindowEnd) {
-    // Still in the real half-time window — freeze the clock at AT1_END
-    return { phase: "halfTime", displaySec: B.AT1_END, frozen: true };
+  // ── Half-time break (48:00 → 63:00 real) ─────────────────────────────────
+  // Clock face is frozen at 45:00, shows "HT"
+  if (realSec < RT.HT_END_SEC) {
+    return { phase: "halfTime", displaySec: RT.FH_END_SEC, frozen: true };
   }
 
-  // ── Second half ───────────────────────────────────────────────────────────
-  // Game-clock resumes from where added time left off (48:00), display from 45:00
-  if (gameSec < B.SH_END) {
-    // Remap: second half game-secs start from AT1_END (2880), display from 45:00 (2700)
-    const shOffset = gameSec - B.AT1_END;           // seconds into 2nd half
-    return { phase: "secondHalf", displaySec: 45 * 60 + shOffset, frozen: false };
+  // ── 2nd half (63:00 → 108:00 real) ───────────────────────────────────────
+  // Display resumes from 45:00 and counts the real seconds since HT ended
+  const shElapsed    = realSec - RT.HT_END_SEC;        // seconds into 2nd half
+  const shDisplaySec = RT.FH_END_SEC + shElapsed;      // 45:00 + elapsed
+
+  if (realSec < RT.SH_END_SEC) {
+    return { phase: "secondHalf", displaySec: shDisplaySec, frozen: false };
   }
 
-  // ── Added time – fulltime ─────────────────────────────────────────────────
-  if (gameSec < B.AT2_END) {
-    const shOffset = gameSec - B.AT1_END;
-    return { phase: "addedTime2", displaySec: 45 * 60 + shOffset, frozen: false };
+  // ── Added time 2 (108:00 → 111:00 real) ──────────────────────────────────
+  if (realSec < RT.AT2_END_SEC) {
+    const at2DisplaySec = RT.FH_END_SEC + (realSec - RT.HT_END_SEC); // continues from 90:xx
+    return { phase: "addedTime2", displaySec: at2DisplaySec, frozen: false };
   }
 
   // ── Full time ─────────────────────────────────────────────────────────────
   return { phase: "completed", displaySec: 90 * 60, frozen: false };
 }
 
-// ─── Formatting helpers ────────────────────────────────────────────────────
+// ─── Formatting ────────────────────────────────────────────────────────────
 
 function formatClock(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -154,13 +162,14 @@ function formatClock(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// ─── Clock pill display config ─────────────────────────────────────────────
+// ─── Clock display config ─────────────────────────────────────────────────
 
 interface ClockDisplay {
-  label: string;
-  sublabel: string | null;
-  pulsing: boolean;
+  label:     string;
+  sublabel:  string | null;
+  pulsing:   boolean;
   pillClass: string;
+  accent:    string;  // for the glow line
 }
 
 function getClockDisplay(state: ClockState): ClockDisplay {
@@ -171,13 +180,15 @@ function getClockDisplay(state: ClockState): ClockDisplay {
         sublabel:  "1st Half",
         pulsing:   true,
         pillClass: "bg-red-500/15 border-red-500/30 text-red-400",
+        accent:    "via-red-500",
       };
     case "addedTime1":
       return {
-        label:     formatClock(state.displaySec),
-        sublabel:  "Added time · HT",
+        label:     `${formatClock(state.displaySec)} +`,
+        sublabel:  "Added time",
         pulsing:   true,
         pillClass: "bg-orange-500/15 border-orange-500/30 text-orange-400",
+        accent:    "via-orange-500",
       };
     case "halfTime":
       return {
@@ -185,6 +196,7 @@ function getClockDisplay(state: ClockState): ClockDisplay {
         sublabel:  "Half-Time",
         pulsing:   false,
         pillClass: "bg-sky-500/15 border-sky-500/30 text-sky-400",
+        accent:    "via-sky-400",
       };
     case "secondHalf":
       return {
@@ -192,13 +204,15 @@ function getClockDisplay(state: ClockState): ClockDisplay {
         sublabel:  "2nd Half",
         pulsing:   true,
         pillClass: "bg-red-500/15 border-red-500/30 text-red-400",
+        accent:    "via-red-500",
       };
     case "addedTime2":
       return {
-        label:     formatClock(state.displaySec),
-        sublabel:  "Added time · FT",
+        label:     `${formatClock(state.displaySec)} +`,
+        sublabel:  "Added time",
         pulsing:   true,
         pillClass: "bg-orange-500/15 border-orange-500/30 text-orange-400",
+        accent:    "via-orange-500",
       };
     case "completed":
       return {
@@ -206,38 +220,109 @@ function getClockDisplay(state: ClockState): ClockDisplay {
         sublabel:  "Full Time",
         pulsing:   false,
         pillClass: "bg-slate-700/60 border-slate-600/40 text-slate-400",
+        accent:    "via-white/20",
       };
   }
+}
+
+// ─── Transition overlay ────────────────────────────────────────────────────
+// Shown for ~3 seconds on phase changes for a dramatic effect.
+
+interface TransitionOverlayProps {
+  phase: ClockPhase;
+  visible: boolean;
+}
+
+function TransitionOverlay({ phase, visible }: TransitionOverlayProps) {
+  if (!visible) return null;
+
+  const config =
+    phase === "halfTime"  ? { label: "HALF TIME",  color: "from-sky-500/90 to-sky-700/90",   emoji: "🔔" } :
+    phase === "secondHalf"? { label: "2ND HALF",   color: "from-red-600/90 to-red-900/90",   emoji: "⚽" } :
+    phase === "completed" ? { label: "FULL TIME",  color: "from-slate-600/90 to-slate-900/90", emoji: "🏁" } :
+    phase === "addedTime1"? { label: "ADDED TIME", color: "from-orange-500/90 to-orange-800/90", emoji: "⏱️" } :
+    phase === "addedTime2"? { label: "ADDED TIME", color: "from-orange-500/90 to-orange-800/90", emoji: "⏱️" } :
+    null;
+
+  if (!config) return null;
+
+  return (
+    <div
+      className={`
+        absolute inset-0 z-20 flex flex-col items-center justify-center gap-2
+        bg-gradient-to-br ${config.color} backdrop-blur-sm
+        rounded-2xl
+        animate-[fadeInOut_2.8s_ease-in-out_forwards]
+      `}
+      style={{
+        animation: "scoreboardFadeInOut 2.8s ease-in-out forwards",
+      }}
+    >
+      <span className="text-3xl" role="img" aria-label={config.label}>{config.emoji}</span>
+      <span className="text-white font-black text-xl tracking-[0.3em] uppercase drop-shadow-lg">
+        {config.label}
+      </span>
+    </div>
+  );
 }
 
 // ─── Live Match Card ───────────────────────────────────────────────────────
 
 function LiveMatchCard({ match }: { match: Match }) {
-  const [tick, setTick] = useState(0);
-
-  // On every DB fetch that delivers this match, re-anchor the clock.
-  // We always re-compute from utc_date so the clock stays accurate.
+  // ── Persist kick-off timestamp (the ONLY persisted value) ────────────────
+  // DB status is intentionally ignored for timing — the edge function runs
+  // hourly and cannot reliably catch HT. All phases are derived purely from
+  // kickoffMs + Date.now() inside evaluateClock().
   useEffect(() => {
-    const stored       = readStoredClocks();
-    const anchorGameSec = computeAnchorGameSec(match.utc_date);
-    stored[match.id]   = { anchorGameSec, anchorWallMs: Date.now() };
-    writeStoredClocks(stored);
+    const kickoffMs = new Date(match.utc_date).getTime();
+    const existing  = readClocks()[match.id];
+    // Only write if missing or kick-off changed (rescheduled match)
+    if (!existing || existing.kickoffMs !== kickoffMs) {
+      writeClock(match.id, { kickoffMs });
+    }
   }, [match.id, match.utc_date]);
 
-  // Tick every second
+  // ── Tick every second ─────────────────────────────────────────────────────
+  const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick(n => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  void tick;
+  // ── Phase transition detection ─────────────────────────────────────────────
+  const prevPhaseRef   = useRef<ClockPhase | null>(null);
+  const [showTransition, setShowTransition] = useState(false);
+  const [transitionPhase, setTransitionPhase] = useState<ClockPhase>("firstHalf");
 
-  const params = readStoredClocks()[match.id];
-  if (!params) return null;
+  const clock = readClocks()[match.id];
+  if (!clock) return null;
 
-  const state   = evaluateClock(params);
+  const state   = evaluateClock(clock);
   const display = getClockDisplay(state);
   const isLive  = state.phase !== "completed";
+
+  // Detect phase change and trigger overlay
+  if (prevPhaseRef.current !== null && prevPhaseRef.current !== state.phase) {
+    const prev = prevPhaseRef.current;
+    const curr = state.phase;
+    // Only animate meaningful transitions (not e.g. firstHalf → firstHalf)
+    const animatable: ClockPhase[] = ["halfTime", "secondHalf", "completed", "addedTime1", "addedTime2"];
+    if (animatable.includes(curr) && prev !== curr) {
+      // Use a timeout check to avoid React batching issues
+      setTimeout(() => {
+        setTransitionPhase(curr);
+        setShowTransition(true);
+        setTimeout(() => setShowTransition(false), 2900);
+      }, 0);
+    }
+  }
+  prevPhaseRef.current = state.phase;
+
+  // ── Card accent color ──────────────────────────────────────────────────────
+  const accentTop =
+    state.phase === "halfTime"  ? "from-transparent via-sky-400 to-transparent"   :
+    state.phase === "completed" ? "from-transparent via-white/20 to-transparent"  :
+                                  `from-transparent ${display.accent} to-transparent`;
 
   return (
     <div className="
@@ -248,12 +333,28 @@ function LiveMatchCard({ match }: { match: Match }) {
       transition-all duration-300
       hover:bg-white/[0.10] hover:border-white/20 hover:-translate-y-0.5
     ">
+      {/* Inject animation keyframes once */}
+      <style>{`
+        @keyframes scoreboardFadeInOut {
+          0%   { opacity: 0; transform: scale(0.92); }
+          15%  { opacity: 1; transform: scale(1); }
+          75%  { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(1.04); }
+        }
+        @keyframes scoreboardPillPop {
+          0%   { transform: scale(1); }
+          40%  { transform: scale(1.18); }
+          70%  { transform: scale(0.95); }
+          100% { transform: scale(1); }
+        }
+        .pill-pop { animation: scoreboardPillPop 0.4s ease-out; }
+      `}</style>
+
+      {/* Phase transition overlay */}
+      <TransitionOverlay phase={transitionPhase} visible={showTransition} />
+
       {/* Top accent glow line */}
-      <div className={`absolute inset-x-0 top-0 h-[2px] ${
-        state.phase === "halfTime"  ? "bg-gradient-to-r from-transparent via-sky-400 to-transparent"   :
-        state.phase === "completed" ? "bg-gradient-to-r from-transparent via-white/20 to-transparent"  :
-                                      "bg-gradient-to-r from-transparent via-red-500 to-transparent"
-      }`} />
+      <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${accentTop} transition-all duration-700`} />
 
       <div className="p-5">
         {/* Row 1: competition name + clock pill */}
@@ -266,12 +367,16 @@ function LiveMatchCard({ match }: { match: Match }) {
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
-            {/* Clock pill */}
-            <span className={`
-              inline-flex items-center gap-1.5 px-3 py-1 rounded-full
-              text-xs font-mono font-bold tracking-widest whitespace-nowrap
-              border ${display.pillClass}
-            `}>
+            {/* Clock pill — key forces remount (and pill-pop CSS) on phase change */}
+            <span
+              key={state.phase}
+              className={`
+                inline-flex items-center gap-1.5 px-3 py-1 rounded-full
+                text-xs font-mono font-bold tracking-widest whitespace-nowrap
+                border ${display.pillClass}
+                pill-pop
+              `}
+            >
               {display.pulsing && (
                 <span className="relative flex h-1.5 w-1.5 shrink-0">
                   <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping" />
@@ -281,7 +386,7 @@ function LiveMatchCard({ match }: { match: Match }) {
               {display.label}
             </span>
             {display.sublabel && (
-              <span className="text-[10px] text-white/30 tracking-wide">
+              <span className="text-[10px] text-white/30 tracking-wide transition-all duration-500">
                 {display.sublabel}
               </span>
             )}
@@ -309,7 +414,7 @@ function LiveMatchCard({ match }: { match: Match }) {
             </span>
           </div>
 
-          {/* Score — blurred while live */}
+          {/* Score */}
           <div className="flex flex-col items-center gap-1.5">
             {isLive ? (
               <div className="relative">
@@ -354,7 +459,6 @@ function LiveMatchCard({ match }: { match: Match }) {
               {match.away_team.name}
             </span>
           </div>
-
         </div>
       </div>
 
@@ -363,7 +467,7 @@ function LiveMatchCard({ match }: { match: Match }) {
         isLive
           ? "bg-gradient-to-r from-transparent via-red-500/30 to-transparent"
           : "bg-gradient-to-r from-transparent via-white/10 to-transparent"
-      }`} />
+      } transition-all duration-700`} />
     </div>
   );
 }
@@ -429,7 +533,6 @@ const ScoreboardPage = () => {
       const today    = new Date().toISOString().split("T")[0];
       const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
 
-      // NOTE: no `minute` column — removed to fix the 400 error
       const { data, error: supaErr } = await supabase
         .from("matches")
         .select(`
@@ -473,10 +576,6 @@ const ScoreboardPage = () => {
 
   return (
     <Layout>
-      {/*
-        Background: Unsplash stadium aerial photo (free, no auth key needed).
-        A layered gradient overlay ensures all text is readable.
-      */}
       <div
         className="relative min-h-screen bg-cover bg-center bg-fixed"
         style={{
@@ -484,10 +583,8 @@ const ScoreboardPage = () => {
             'url("https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1920&q=80")',
         }}
       >
-        {/* Multi-stop dark overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/65 to-black/85 pointer-events-none" />
 
-        {/* Content layer */}
         <div className="relative z-10 container mx-auto px-4 py-8 max-w-5xl">
 
           {/* ── Page header ──────────────────────────────────── */}
@@ -500,7 +597,7 @@ const ScoreboardPage = () => {
                 </h1>
               </div>
               <p className="text-sm text-white/45">
-                live updates. Ongoing matches are marked "live" and may show unofficial scores until confirmed. 
+                Live updates. Ongoing matches are marked "live" and may show unofficial scores until confirmed.
               </p>
               {lastRefreshed && (
                 <p className="text-[11px] text-white/25 mt-0.5">
