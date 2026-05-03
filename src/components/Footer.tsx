@@ -25,8 +25,8 @@ const Footer = () => {
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <Link to="/games" className="hover:text-foreground transition-colors">Games</Link>
               <Link to="/analytics" className="hover:text-foreground transition-colors">Analytics</Link>
-              <Link to="/patterns" className="hover:text-foreground transition-colors">Pattern Analyser</Link>
-              <Link to="/community" className="hover:text-foreground transition-colors">Our Community Board</Link>
+              <Link to="/patterns" className="hover:text-foreground transition-colors">Live Patterns</Link>
+              <Link to="/community" className="hover:text-foreground transition-colors">Join our Community Board</Link>
             </div>
           </div>
           <div>
@@ -39,9 +39,15 @@ const Footer = () => {
             </div>
           </div>
         </div>
-        <div className="mt-8 pt-4 border-t border-border text-center text-xs text-muted-foreground">
-          © 2026 10 Odds. All rights reserved. Gambling involves risk. Please bet responsibly.
-        </div>
+       {/* ── Bottom bar ─────────────────────────────────────────────────── */}
+<div className="mt-10 pt-6 border-t border-border flex flex-col items-center gap-1.5 text-xs text-muted-foreground">
+  <p>
+    © 2026 <span className="text-foreground font-semibold">10 <span className="text-gold">Odds</span></span>. All rights reserved.
+  </p>
+  <p className="text-[11px] text-muted-foreground/60">
+    Gambling involves financial risk. Please bet responsibly.
+  </p>
+</div>
       </div>
     </footer>
   );

@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
 import SupportPortal from "@/components/SupportPortal";
 import AdminCommunity from "@/pages/AdminCommunity";
+import { PageTracker } from "@/hooks/usePageTracking";
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
 const GamesPage        = lazy(() => import("@/pages/GamesPage"));
@@ -25,6 +26,7 @@ const NewsPage         = lazy(() => import("@/pages/NewsPage"));
 const CommunityPage    = lazy(() => import("@/pages/CommunityPage"));
 const GuidePage        = lazy(() => import("@/pages/GuidePage"));
 const NotFound         = lazy(() => import("@/pages/NotFound"));
+const AdminAnalyticsPage = lazy(() => import("@/pages/AdminAnalytics"));
 
 interface LoadingCtx {
   isLoading: boolean;
@@ -77,11 +79,9 @@ function App() {
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
           <BrowserRouter>
+             <PageTracker />
             <AnimatePresence>
-              {/* Show the creative boot loader for the configured duration */}
               {showBootLoader && <GlobalLoader key="boot-loader" />}
-
-              {/* Also show the manual loader when triggered (but it will be hidden behind the boot loader if still visible) */}
               {!showBootLoader && isLoading && <GlobalLoader key="global-loader" />}
             </AnimatePresence>
 
@@ -102,8 +102,9 @@ function App() {
                 <Route path="/guide"           element={<GuidePage />} /> 
                 <Route path="/community"       element={<CommunityPage />} />
                 <Route path="/news"            element={<NewsPage />} />
-                <Route path="/admin/news"      element={<AdminCommunity/>} />
-                <Route path="*"                element={<NotFound />} />
+                <Route path="/admin/news"      element={<AdminCommunity />} />
+                <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+                <Route path="*"               element={<NotFound />} />
               </Routes>
             </Suspense>
 
