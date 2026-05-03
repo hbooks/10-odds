@@ -2,72 +2,86 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { createClient } from "@supabase/supabase-js";
 
-
+// ── Supabase Client ─────────────────────────────────────────
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
   import.meta.env.VITE_SUPABASE_ANON_KEY as string,
 );
 
-// ─── Constants ────────────────────────────────────────────────
-const SESSION_KEY = '10odds_session_id';
-const SESSION_UPSERTED_KEY = '10odds_session_upserted';
+// ── Constants ─────────────────────────────────────────────────
+const SESSION_KEY        = '10odds_session_id';
+const SESSION_TS_KEY     = '10odds_session_ts';   // last activity timestamp
+const SESSION_BOOT_KEY   = '10odds_boot';          // sessionStorage – upserted this tab?
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;        // 30 min inactivity = new session
 
-// ─── Helpers ─────────────────────────────────────────────────
+// Skip our own analytics URLs to prevent infinite error loops
+const ANALYTICS_TABLE_NAMES = [
+  'analytics_sessions', 'page_views', 'analytics_errors', 'analytics_performance',
+];
 
-function generateSessionId(): string {
+// ── Session management ────────────────────────────────────────
+function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
 }
 
-function getSessionId(): string {
-  let id = localStorage.getItem(SESSION_KEY);
-  if (!id) {
-    id = generateSessionId();
+export function getSessionId(): string {
+  const now      = Date.now();
+  const stored   = localStorage.getItem(SESSION_KEY);
+  const lastSeen = parseInt(localStorage.getItem(SESSION_TS_KEY) ?? '0', 10);
+  const timedOut = stored && (now - lastSeen > SESSION_TIMEOUT_MS);
+
+  if (!stored || timedOut) {
+    const id = generateId();
     localStorage.setItem(SESSION_KEY, id);
+    localStorage.setItem(SESSION_TS_KEY, String(now));
+    sessionStorage.removeItem(SESSION_BOOT_KEY); // force re-upsert for new session
+    return id;
   }
-  return id;
+
+  localStorage.setItem(SESSION_TS_KEY, String(now)); // refresh timestamp
+  return stored;
 }
 
-function detectDeviceType(ua: string): string {
+// ── Device fingerprinting ─────────────────────────────────────
+function detectDeviceType(ua: string): 'desktop' | 'tablet' | 'mobile' {
   if (/tablet|ipad|playbook|silk/i.test(ua)) return 'tablet';
-  if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile/i.test(ua)) return 'mobile';
+  if (/mobile|iphone|ipod|android.*mobile|blackberry|opera mini|iemobile/i.test(ua)) return 'mobile';
   return 'desktop';
 }
 
 function parseBrowser(ua: string): { browser: string; browserVersion: string } {
-  const browsers: [RegExp, string][] = [
-    [/Edg\/([\d.]+)/, 'Edge'],
-    [/OPR\/([\d.]+)/, 'Opera'],
-    [/Chrome\/([\d.]+)/, 'Chrome'],
-    [/Firefox\/([\d.]+)/, 'Firefox'],
-    [/Safari\/([\d.]+)/, 'Safari'],
-    [/Trident.*rv:([\d.]+)/, 'IE'],
+  const list: [RegExp, string][] = [
+    [/Edg\/([\d.]+)/,             'Edge'],
+    [/OPR\/([\d.]+)/,             'Opera'],
+    [/SamsungBrowser\/([\d.]+)/,  'Samsung Internet'],
+    [/Chrome\/([\d.]+)/,          'Chrome'],
+    [/Firefox\/([\d.]+)/,         'Firefox'],
+    [/Version\/([\d.]+).*Safari/, 'Safari'],
+    [/Trident.*rv:([\d.]+)/,      'IE'],
   ];
-  for (const [regex, name] of browsers) {
-    const match = ua.match(regex);
-    if (match) return { browser: name, browserVersion: match[1] };
+  for (const [re, name] of list) {
+    const m = ua.match(re);
+    if (m) return { browser: name, browserVersion: m[1] };
   }
   return { browser: 'Unknown', browserVersion: '0' };
 }
 
 function parseOS(ua: string): { os: string; osVersion: string } {
-  const systems: [RegExp, string][] = [
-    [/Windows NT ([\d.]+)/, 'Windows'],
-    [/Mac OS X ([\d_.]+)/, 'macOS'],
-    [/Android ([\d.]+)/, 'Android'],
-    [/iPhone OS ([\d_]+)/, 'iOS'],
-    [/iPad.*OS ([\d_]+)/, 'iPadOS'],
-    [/Linux/, 'Linux'],
+  const list: [RegExp, string][] = [
+    [/Windows NT ([\d.]+)/,  'Windows'],
+    [/Mac OS X ([\d_.]+)/,   'macOS'],
+    [/Android ([\d.]+)/,     'Android'],
+    [/iPhone OS ([\d_]+)/,   'iOS'],
+    [/iPad.*OS ([\d_]+)/,    'iPadOS'],
+    [/CrOS\s\S+ ([\d.]+)/,   'ChromeOS'],
+    [/Linux/,                 'Linux'],
   ];
-  for (const [regex, name] of systems) {
-    const match = ua.match(regex);
-    if (match) {
-      const version = match[1]?.replace(/_/g, '.') ?? 'Unknown';
-      return { os: name, osVersion: version };
-    }
+  for (const [re, name] of list) {
+    const m = ua.match(re);
+    if (m) return { os: name, osVersion: m[1]?.replace(/_/g, '.') ?? 'Unknown' };
   }
   return { os: 'Unknown', osVersion: 'Unknown' };
 }
@@ -75,16 +89,17 @@ function parseOS(ua: string): { os: string; osVersion: string } {
 function getNetworkType(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const conn = (navigator as any).connection ?? (navigator as any).mozConnection ?? (navigator as any).webkitConnection;
-    if (conn) return conn.effectiveType ?? conn.type ?? 'unknown';
+    const c = (navigator as any).connection ?? (navigator as any).mozConnection ?? (navigator as any).webkitConnection;
+    if (c) return c.effectiveType ?? c.type ?? 'unknown';
   } catch { /* ignore */ }
   return 'unknown';
 }
 
+// ── DB writers ────────────────────────────────────────────────
+
 async function upsertSession(sessionId: string): Promise<void> {
-  // Only send once per page load to avoid hammering the DB
-  if (sessionStorage.getItem(SESSION_UPSERTED_KEY)) return;
-  sessionStorage.setItem(SESSION_UPSERTED_KEY, '1');
+  if (sessionStorage.getItem(SESSION_BOOT_KEY)) return;
+  sessionStorage.setItem(SESSION_BOOT_KEY, '1');
 
   try {
     const ua = navigator.userAgent;
@@ -93,249 +108,250 @@ async function upsertSession(sessionId: string): Promise<void> {
 
     await supabase.from('analytics_sessions').upsert(
       {
-        session_id: sessionId,
+        session_id:      sessionId,
         browser,
         browser_version: browserVersion,
         os,
-        os_version: osVersion,
-        device_type: detectDeviceType(ua),
-        screen_width: screen.width,
-        screen_height: screen.height,
-        viewport_width: window.innerWidth,
+        os_version:      osVersion,
+        device_type:     detectDeviceType(ua),
+        screen_width:    screen.width,
+        screen_height:   screen.height,
+        viewport_width:  window.innerWidth,
         viewport_height: window.innerHeight,
-        color_depth: screen.colorDepth,
-        pixel_ratio: window.devicePixelRatio,
-        language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        network_type: getNetworkType(),
-        touch_support: navigator.maxTouchPoints > 0,
-        last_seen_at: new Date().toISOString(),
+        color_depth:     screen.colorDepth,
+        pixel_ratio:     window.devicePixelRatio,
+        language:        navigator.language,
+        timezone:        Intl.DateTimeFormat().resolvedOptions().timeZone,
+        network_type:    getNetworkType(),
+        touch_support:   navigator.maxTouchPoints > 0,
+        last_seen_at:    new Date().toISOString(),
       },
       { onConflict: 'session_id' }
     );
   } catch { /* silent */ }
 }
 
-async function insertPageView(
-  sessionId: string,
-  pagePath: string,
+async function updateSessionLastSeen(sessionId: string): Promise<void> {
+  try {
+    await supabase
+      .from('analytics_sessions')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('session_id', sessionId);
+  } catch { /* silent */ }
+}
+
+export async function insertPageView(
+  sessionId:    string,
+  pagePath:     string,
   previousPath: string | null,
   timeOnPageMs: number | null
 ): Promise<void> {
   try {
     await supabase.from('page_views').insert({
-      session_id: sessionId,
-      page_path: pagePath,
-      previous_path: previousPath,
-      referrer: document.referrer || null,
+      session_id:      sessionId,
+      page_path:       pagePath,
+      previous_path:   previousPath,
+      referrer:        document.referrer || null,
       time_on_page_ms: timeOnPageMs,
     });
   } catch { /* silent */ }
 }
 
-async function insertError(
+export async function insertError(
   sessionId: string,
-  pagePath: string,
+  pagePath:  string,
   errorType: string,
   payload: {
-    message?: string;
-    stack?: string;
+    message?:       string;
+    stack?:         string;
     componentName?: string;
-    networkUrl?: string;
-    httpStatus?: number;
-    durationMs?: number;
-    metadata?: Record<string, unknown>;
+    networkUrl?:    string;
+    httpStatus?:    number;
+    durationMs?:    number;
+    metadata?:      Record<string, unknown>;
   }
 ): Promise<void> {
   try {
     await supabase.from('analytics_errors').insert({
-      session_id: sessionId,
-      page_path: pagePath,
-      error_type: errorType,
-      error_message: payload.message ?? null,
-      stack_trace: payload.stack ?? null,
+      session_id:     sessionId,
+      page_path:      pagePath,
+      error_type:     errorType,
+      error_message:  payload.message       ?? null,
+      stack_trace:    payload.stack         ?? null,
       component_name: payload.componentName ?? null,
-      network_url: payload.networkUrl ?? null,
-      http_status: payload.httpStatus ?? null,
-      duration_ms: payload.durationMs ?? null,
-      metadata: payload.metadata ?? null,
+      network_url:    payload.networkUrl    ?? null,
+      http_status:    payload.httpStatus    ?? null,
+      duration_ms:    payload.durationMs    ?? null,
+      metadata:       payload.metadata      ?? null,
     });
   } catch { /* silent */ }
 }
 
 async function insertPerformance(sessionId: string, pagePath: string): Promise<void> {
   try {
-    // Wait for page to fully load
-    await new Promise<void>((resolve) => {
-      if (document.readyState === 'complete') resolve();
-      else window.addEventListener('load', () => resolve(), { once: true });
+    // Wait until page is fully loaded
+    await new Promise<void>((res) => {
+      if (document.readyState === 'complete') res();
+      else window.addEventListener('load', () => res(), { once: true });
     });
 
     const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-    const paint = performance.getEntriesByType('paint');
-    const fcp = paint.find((e) => e.name === 'first-contentful-paint')?.startTime ?? null;
+    const fcp = performance.getEntriesByType('paint').find((e) => e.name === 'first-contentful-paint')?.startTime ?? null;
 
-    // LCP via PerformanceObserver (best-effort)
     let lcp: number | null = null;
-    try {
-      await new Promise<void>((resolve) => {
-        const obs = new PerformanceObserver((list) => {
-          const entries = list.getEntries();
-          lcp = entries[entries.length - 1]?.startTime ?? null;
-          obs.disconnect();
-          resolve();
-        });
-        obs.observe({ type: 'largest-contentful-paint', buffered: true });
-        setTimeout(resolve, 3000); // don't wait forever
-      });
-    } catch { /* LCP not supported */ }
-
-    // CLS
     let cls = 0;
-    try {
-      await new Promise<void>((resolve) => {
-        const obs = new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if (!(entry as any).hadRecentInput) cls += (entry as any).value;
-          }
-          obs.disconnect();
-          resolve();
-        });
-        obs.observe({ type: 'layout-shift', buffered: true });
-        setTimeout(resolve, 3000);
-      });
-    } catch { /* CLS not supported */ }
+
+    await Promise.allSettled([
+      new Promise<void>((res) => {
+        try {
+          const obs = new PerformanceObserver((list) => {
+            const es = list.getEntries();
+            lcp = es[es.length - 1]?.startTime ?? null;
+            obs.disconnect(); res();
+          });
+          obs.observe({ type: 'largest-contentful-paint', buffered: true });
+          setTimeout(res, 3000);
+        } catch { res(); }
+      }),
+      new Promise<void>((res) => {
+        try {
+          const obs = new PerformanceObserver((list) => {
+            for (const e of list.getEntries()) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              if (!(e as any).hadRecentInput) cls += (e as any).value ?? 0;
+            }
+            obs.disconnect(); res();
+          });
+          obs.observe({ type: 'layout-shift', buffered: true });
+          setTimeout(res, 3000);
+        } catch { res(); }
+      }),
+    ]);
 
     await supabase.from('analytics_performance').insert({
-      session_id: sessionId,
-      page_path: pagePath,
-      page_load_ms: nav ? Math.round(nav.loadEventEnd - nav.startTime) : null,
-      dom_content_loaded_ms: nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : null,
-      first_contentful_paint_ms: fcp ? Math.round(fcp) : null,
-      time_to_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : null,
+      session_id:                  sessionId,
+      page_path:                   pagePath,
+      page_load_ms:                nav ? Math.round(nav.loadEventEnd - nav.startTime) : null,
+      dom_content_loaded_ms:       nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : null,
+      first_contentful_paint_ms:   fcp ? Math.round(fcp) : null,
+      time_to_interactive_ms:      nav ? Math.round(nav.domInteractive - nav.startTime) : null,
       largest_contentful_paint_ms: lcp ? Math.round(lcp) : null,
-      cumulative_layout_shift: cls ? parseFloat(cls.toFixed(4)) : null,
+      cumulative_layout_shift:     parseFloat(cls.toFixed(4)),
     });
   } catch { /* silent */ }
 }
 
-// ─── Fetch override to capture network errors ─────────────────
+// ── Fetch patch – captures network errors ─────────────────────
 let fetchPatched = false;
 
 function patchFetch(sessionId: string, getPath: () => string) {
   if (fetchPatched) return;
   fetchPatched = true;
-  const origFetch = window.fetch.bind(window);
+  const orig = window.fetch.bind(window);
+
   window.fetch = async (input, init) => {
     const url = typeof input === 'string' ? input : (input as Request).url;
+    // Skip our own analytics inserts to prevent infinite loops
+    if (ANALYTICS_TABLE_NAMES.some((t) => url.includes(t))) return orig(input, init);
+
     try {
-      const res = await origFetch(input, init);
+      const res = await orig(input, init);
       if (!res.ok && res.status >= 400) {
         await insertError(sessionId, getPath(), 'network', {
           networkUrl: url,
           httpStatus: res.status,
-          message: `HTTP ${res.status} on ${url}`,
+          message:    `HTTP ${res.status} — ${url}`,
         });
       }
       return res;
     } catch (err) {
       await insertError(sessionId, getPath(), 'network', {
         networkUrl: url,
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
+        message:    err instanceof Error ? err.message : String(err),
+        stack:      err instanceof Error ? err.stack    : undefined,
       });
       throw err;
     }
   };
 }
 
-// ─── Global error listeners ───────────────────────────────────
+// ── Global JS error listeners ─────────────────────────────────
 let listenersAttached = false;
 
 function attachGlobalListeners(sessionId: string, getPath: () => string) {
   if (listenersAttached) return;
   listenersAttached = true;
 
-  window.addEventListener('error', (event) => {
+  window.addEventListener('error', (e) => {
     insertError(sessionId, getPath(), 'js_runtime', {
-      message: event.message,
-      stack: event.error?.stack,
-      metadata: { filename: event.filename, lineno: event.lineno, colno: event.colno },
+      message:  e.message,
+      stack:    e.error?.stack,
+      metadata: { filename: e.filename, lineno: e.lineno, colno: e.colno },
     });
   });
 
-  window.addEventListener('unhandledrejection', (event) => {
-    const err = event.reason;
+  window.addEventListener('unhandledrejection', (e) => {
+    const err = e.reason;
     insertError(sessionId, getPath(), 'unhandled_promise', {
       message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
+      stack:   err instanceof Error ? err.stack   : undefined,
     });
   });
 }
 
-// ─── React slow-render reporter (call from React Profiler) ────
-export async function reportSlowRender(
-  componentName: string,
-  durationMs: number
-): Promise<void> {
-  const sessionId = getSessionId();
-  const pagePath = window.location.pathname;
-  await insertError(sessionId, pagePath, 'slow_render', { componentName, durationMs });
+// ── Public helpers ────────────────────────────────────────────
+
+/** Call from React Profiler onRender for components that render slowly */
+export async function reportSlowRender(componentName: string, durationMs: number): Promise<void> {
+  await insertError(getSessionId(), window.location.pathname, 'slow_render', { componentName, durationMs });
 }
 
-// ─── React Error Boundary helper ─────────────────────────────
-export async function reportReactError(
-  error: Error,
-  componentName?: string
-): Promise<void> {
-  const sessionId = getSessionId();
-  const pagePath = window.location.pathname;
-  await insertError(sessionId, pagePath, 'react_boundary', {
+/** Call from React Error Boundary componentDidCatch */
+export async function reportReactError(error: Error, componentName?: string): Promise<void> {
+  await insertError(getSessionId(), window.location.pathname, 'react_boundary', {
     message: error.message,
-    stack: error.stack,
+    stack:   error.stack,
     componentName,
   });
 }
 
-// ─── Main Hook ───────────────────────────────────────────────
+// ── Main Hook ─────────────────────────────────────────────────
 export function usePageTracking(): void {
-  const location = useLocation();
-  const sessionId = getSessionId();
-  const previousPathRef = useRef<string | null>(null);
+  const location         = useLocation();
+  const sessionId        = getSessionId();
+  const previousPathRef  = useRef<string | null>(null);
   const pageEnterTimeRef = useRef<number>(Date.now());
-  const isFirstRender = useRef(true);
-
-  // Current path accessor for closures
-  const currentPathRef = useRef(location.pathname);
+  const isFirstRef       = useRef(true);
+  const currentPathRef   = useRef(location.pathname);
   currentPathRef.current = location.pathname;
 
+  // One-time setup per mount
   useEffect(() => {
-    // Setup once
     upsertSession(sessionId);
     attachGlobalListeners(sessionId, () => currentPathRef.current);
     patchFetch(sessionId, () => currentPathRef.current);
+
+    // Keep last_seen_at fresh when user returns to the tab
+    const onFocus = () => updateSessionLastSeen(sessionId);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [sessionId]);
 
+  // Track every navigation
   useEffect(() => {
-    const path = location.pathname;
-    const timeOnPrevious = isFirstRender.current
-      ? null
-      : Date.now() - pageEnterTimeRef.current;
+    const path       = location.pathname;
+    const timeOnPrev = isFirstRef.current ? null : Date.now() - pageEnterTimeRef.current;
+    isFirstRef.current = false;
 
-    isFirstRender.current = false;
-
-    insertPageView(sessionId, path, previousPathRef.current, timeOnPrevious);
-
-    // Capture Web Vitals for every navigation (best-effort on first load)
+    insertPageView(sessionId, path, previousPathRef.current, timeOnPrev);
     insertPerformance(sessionId, path);
 
-    previousPathRef.current = path;
+    previousPathRef.current  = path;
     pageEnterTimeRef.current = Date.now();
   }, [location.pathname, sessionId]);
 }
 
-// ─── Convenience tracker component ───────────────────────────
+// ── Zero-render component ─────────────────────────────────────
 export function PageTracker(): null {
   usePageTracking();
   return null;
