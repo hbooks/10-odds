@@ -92,7 +92,11 @@ function PreviousAdvisorBar({
   confidenceScore: number;
   selection: string;
 }) {
-  const [advice, setAdvice] = useState<{ pattern_label: string; message: string } | null>(null);
+  const [advice, setAdvice] = useState<{
+    pattern_label: string;
+    animal: string | null;
+    message: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -134,8 +138,6 @@ function PreviousAdvisorBar({
 
   if (!advice) return null;
 
-  const animal = getAnimalByLabel(advice.pattern_label);
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -151,18 +153,13 @@ function PreviousAdvisorBar({
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-xs font-semibold text-white/90">_806</span>
             <BadgeCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-           {/* {animal && (
-              <span className="flex items-center gap-1 text-xs text-white/70 ml-1">
-                <AnimalIcon animal={animal.animal} size={14} className="text-gold" />
-                {animal.animal}
+            {advice.animal ? (
+              <span className="flex items-center gap-1 text-xs font-bold text-gold ml-auto">
+                <AnimalIcon animal={advice.animal} size={14} className="text-gold" />
+                {advice.animal}
               </span>
-            )} {/*  swap in case of any errors */}
-            
-            {animal && (
-              <span className="flex items-center gap-1 text-xs text-white/70 ml-1">
-                <AnimalIcon animal={animal.animal} size={14} className="text-gold" />
-                {animal.animal}
-              </span>
+            ) : (
+              <span className="text-[10px] text-white/40 ml-auto font-mono">{advice.pattern_label}</span>
             )}
           </div>
           <p className="text-xs text-white/75 leading-relaxed">{advice.message}</p>

@@ -42,38 +42,42 @@ type SortKey = keyof Pick<
   "pattern_label" | "total_predictions" | "win_rate" | "avg_odds"
 >;
 
-// ─── Pattern type config ──────────────────────────────────────────────────────
+// ─── Pattern type config (icon + color) ───────────────────────────────────────
 const PATTERN_CONFIG: Record<
   PatternType,
-  { label: string; icon: React.ElementType; className: string; dot: string }
+  { label: string; icon: React.ElementType; className: string; dot: string; color: string }
 > = {
   WIN: {
     label: "WIN",
     icon: TrendingUp,
     className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
     dot: "bg-emerald-400",
+    color: "#34d399",
   },
   LOSS: {
     label: "LOSS",
     icon: TrendingDown,
     className: "bg-rose-500/15 text-rose-400 border border-rose-500/20",
     dot: "bg-rose-400",
+    color: "#fb7185",
   },
   NEUTRAL: {
     label: "NEUTRAL",
     icon: Minus,
     className: "bg-amber-500/15 text-amber-400 border border-amber-500/20",
     dot: "bg-amber-400",
+    color: "#fbbf24",
   },
   INSUFFICIENT_DATA: {
     label: "INSUFFICIENT",
     icon: HelpCircle,
     className: "bg-muted/50 text-muted-foreground border border-border",
     dot: "bg-muted-foreground",
+    color: "#9ca3af",
   },
 };
 
-// ─── Badge ────────────────────────────────────────────────────────────────────
+// ─── Badge (unchanged) ────────────────────────────────────────────────────────
 function PatternBadge({ type }: { type: PatternType }) {
   const cfg = PATTERN_CONFIG[type] ?? PATTERN_CONFIG.INSUFFICIENT_DATA;
   const Icon = cfg.icon;
@@ -87,7 +91,7 @@ function PatternBadge({ type }: { type: PatternType }) {
   );
 }
 
-// ─── Win rate bar ─────────────────────────────────────────────────────────────
+// ─── Win rate bar (unchanged) ─────────────────────────────────────────────────
 function WinRateBar({ rate, type }: { rate: number; type: PatternType }) {
   const color =
     type === "WIN" ? "bg-emerald-400"
@@ -121,7 +125,7 @@ function WinRateBar({ rate, type }: { rate: number; type: PatternType }) {
   );
 }
 
-// ─── Sort icon ────────────────────────────────────────────────────────────────
+// ─── Sort icon (unchanged) ────────────────────────────────────────────────────
 function SortIcon({
   col,
   active,
@@ -139,7 +143,7 @@ function SortIcon({
   );
 }
 
-// ─── Summary stat ─────────────────────────────────────────────────────────────
+// ─── Summary stat (unchanged) ─────────────────────────────────────────────────
 function SummaryStat({
   label,
   value,
@@ -204,7 +208,6 @@ const PatternAnalyserPage = () => {
 
   useEffect(() => { load(); }, []);
 
-  // ── Sorting ────────────────────────────────────────────────────────────────
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -312,7 +315,7 @@ const PatternAnalyserPage = () => {
             <SummaryStat label="Avg Win Rate" value={`${avgWinRate}%`} color="#34d399" />
             <SummaryStat label="WIN Patterns"  value={counts.WIN}  color="#34d399" />
             <SummaryStat label="LOSS Patterns" value={counts.LOSS} color="#fb7185" />
-            <SummaryStat label="Neutral / Unknown" value={counts.NEUTRAL + counts.INSUFFICIENT_DATA}  color="#e2a429ff" />
+            <SummaryStat label="Neutral / Unknown" value={counts.NEUTRAL + counts.INSUFFICIENT_DATA} color="#e2a429ff" />
           </motion.div>
         )}
 
@@ -400,6 +403,7 @@ const PatternAnalyserPage = () => {
                     {sorted.map((row, i) => {
                       const cfg = PATTERN_CONFIG[row.pattern_type] ?? PATTERN_CONFIG.INSUFFICIENT_DATA;
                       const animal = getAnimalByLabel(row.pattern_label);
+                      const TypeIcon = cfg.icon; // the lucide icon for this pattern type
                       return (
                         <motion.tr
                           key={row.id}
@@ -407,16 +411,25 @@ const PatternAnalyserPage = () => {
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.03 }}
                           className="border-b border-border/50 last:border-0 hover:bg-muted/25 transition-colors"
+                          style={{ borderLeft: `2px solid ${cfg.color}`, borderLeftWidth: "3px" }}
                         >
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2.5">
+                              {/* ★ Pattern type direction arrow – now the main visual cue */}
+                              <motion.div
+                                whileHover={{ scale: 1.15, rotate: 5 }}
+                                transition={{ type: "spring", stiffness: 400 }}
+                                className="shrink-0"
+                              >
+                                <TypeIcon className="h-5 w-5" style={{ color: cfg.color }} />
+                              </motion.div>
+
                               {animal ? (
                                 <>
                                   <AnimalIcon animal={animal.animal} size={20} className="text-foreground" />
                                   <div>
-                                    <span className="font-medium text-foreground">{animal.animal} Pattern</span>
-                                    {/*<span className="text-xs text-muted-foreground ml-1.5 font-mono">{row.pattern_label}</span>*/} 
-                                    {/* Hiding original pattern label for now since it's mostly just useful for debugging and can be a bit technical/confusing for users */}
+                                    <span className="font-semibold text-foreground">{animal.animal} Pattern</span>
+                                    {/* original label hidden for clarity */}
                                   </div>
                                 </>
                               ) : (
