@@ -361,9 +361,9 @@ const containsBannedWord = (str: string) => {
   return BANNED_WORDS.some((w) => lower.includes(w.replace(/[^a-z0-9]/g, "")));
 };
 
-const LS_FAIL_KEY      = "10odds_cm_fails";
-const LS_BAN_KEY       = "10odds_cm_banned";
-const LS_SUBMITTED_KEY = "10odds_cm_submitted";
+const LS_FAIL_KEY      = "10odds_cm_ft";
+const LS_BAN_KEY       = "10odds_cm_bot_blocker";
+const LS_SUBMITTED_KEY = "10odds_cm_conjunction_pipeline";
 const MAX_FAILS        = 3;
 
 const getFailCount    = () => parseInt(localStorage.getItem(LS_FAIL_KEY) ?? "0", 10);
@@ -598,12 +598,7 @@ const MemberCard = ({ m, index }: { m: Member; index: number }) => {
           boxShadow: `0 0 0 2px ${accent}60`,
         }}
       >
-        <img
-          src={m.avatar}
-          alt=""
-          className="w-10 h-10 object-contain drop-shadow-md"
-          onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0.2"; }}
-        />
+        <CrestImage url={m.avatar} alt="" size="md" className="w-10 h-10 drop-shadow-md" />
       </div>
 
       <p className="text-xs font-bold text-center text-white/90 leading-tight break-all">
