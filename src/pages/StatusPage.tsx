@@ -160,8 +160,11 @@ function AdvisorBar({ confidenceScore, selection }: { confidenceScore: number; s
         {animal ? (
           <span className="flex items-center gap-1.5">
             <AnimalIcon animal={animal.animal} size={14} className={ui.color} />
-            <span className="font-semibold">{animal.animal}" Pattern"</span>
+            <span className="font-semibold">{animal.animal} Pattern</span>
             {/*<span className="opacity-50 font-mono text-[10px]">({advice.pattern_label})</span>*/}
+
+            {/* Keeping the original label hidden for now since it's mostly just useful
+            for debugging and can be a bit technical/confusing for users */}
           </span>
         ) : (
           <span className="font-mono">{advice.pattern_label}</span>

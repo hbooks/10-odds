@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
+import { getAnimalByLabel } from "@/lib/patternAnimals";
+import AnimalIcon from "@/components/AnimalIcon";
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 const supabase = createClient(
@@ -182,7 +184,6 @@ const PatternAnalyserPage = () => {
       if (err) throw err;
       setRows((data as PatternRow[]) ?? []);
 
-      // Latest updated_at across all rows
       const latest = (data as PatternRow[])?.reduce((max, r) =>
         r.updated_at > max ? r.updated_at : max, ""
       );
@@ -223,7 +224,6 @@ const PatternAnalyserPage = () => {
       return sortDir === "asc" ? cmp : -cmp;
     });
 
-  // ── Summary counts ─────────────────────────────────────────────────────────
   const counts = {
     WIN:              rows.filter((r) => r.pattern_type === "WIN").length,
     LOSS:             rows.filter((r) => r.pattern_type === "LOSS").length,
@@ -236,7 +236,6 @@ const PatternAnalyserPage = () => {
       ? (rows.reduce((s, r) => s + r.win_rate, 0) / rows.length).toFixed(1)
       : "—";
 
-  // ── Column header button ───────────────────────────────────────────────────
   const Th = ({
     col,
     children,
@@ -301,7 +300,6 @@ const PatternAnalyserPage = () => {
           )}
         </motion.p>
 
-        {/* ── Summary banner ────────────────────────────────────────────── */}
         {!loading && !error && rows.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -318,7 +316,6 @@ const PatternAnalyserPage = () => {
           </motion.div>
         )}
 
-        {/* ── Filter tabs ───────────────────────────────────────────────── */}
         {!loading && !error && rows.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -353,7 +350,6 @@ const PatternAnalyserPage = () => {
           </motion.div>
         )}
 
-        {/* ── States ───────────────────────────────────────────────────── */}
         {loading && (
           <div className="flex flex-col items-center gap-4 py-24">
             <RefreshCw className="h-7 w-7 animate-spin text-gold" />
@@ -377,7 +373,6 @@ const PatternAnalyserPage = () => {
           </div>
         )}
 
-        {/* ── Table ─────────────────────────────────────────────────────── */}
         <AnimatePresence>
           {!loading && !error && sorted.length > 0 && (
             <motion.div
@@ -389,7 +384,7 @@ const PatternAnalyserPage = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/40">
-                      <Th col="pattern_label">Pattern</Th>
+                      <Th col="pattern_label">Animal / Pattern</Th>
                       <Th col="total_predictions" className="hidden sm:table-cell">Predictions</Th>
                       <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground hidden md:table-cell">
                         Wins / Losses
@@ -404,6 +399,7 @@ const PatternAnalyserPage = () => {
                   <tbody>
                     {sorted.map((row, i) => {
                       const cfg = PATTERN_CONFIG[row.pattern_type] ?? PATTERN_CONFIG.INSUFFICIENT_DATA;
+                      const animal = getAnimalByLabel(row.pattern_label);
                       return (
                         <motion.tr
                           key={row.id}
@@ -412,27 +408,27 @@ const PatternAnalyserPage = () => {
                           transition={{ delay: i * 0.03 }}
                           className="border-b border-border/50 last:border-0 hover:bg-muted/25 transition-colors"
                         >
-                          {/* Pattern label */}
                           <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`h-2 w-2 rounded-full shrink-0 ${cfg.dot}`}
-                              />
-                              <span className="font-mono text-xs font-medium text-foreground">
-                                {row.pattern_label}
-                              </span>
+                            <div className="flex items-center gap-2.5">
+                              {animal ? (
+                                <>
+                                  <AnimalIcon animal={animal.animal} size={20} className="text-foreground" />
+                                  <div>
+                                    <span className="font-medium text-foreground">{animal.animal}</span>
+                                    <span className="text-xs text-muted-foreground ml-1.5 font-mono">{row.pattern_label}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="font-mono text-xs font-medium text-foreground">{row.pattern_label}</span>
+                              )}
                             </div>
                           </td>
-
-                          {/* Total */}
                           <td className="px-4 py-3.5 hidden sm:table-cell">
                             <span className="font-heading font-bold text-foreground tabular-nums">
                               {row.total_predictions}
                             </span>
                             <span className="text-muted-foreground text-xs ml-1">preds</span>
                           </td>
-
-                          {/* Wins / Losses */}
                           <td className="px-4 py-3.5 hidden md:table-cell">
                             <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
                               <span className="text-emerald-400">{Number(row.wins).toFixed(1)}W</span>
@@ -440,18 +436,12 @@ const PatternAnalyserPage = () => {
                               <span className="text-rose-400">{Number(row.losses).toFixed(1)}L</span>
                             </div>
                           </td>
-
-                          {/* Win rate */}
                           <td className="px-4 py-3.5">
                             <WinRateBar rate={row.win_rate} type={row.pattern_type} />
                           </td>
-
-                          {/* Pattern type badge */}
                           <td className="px-4 py-3.5">
                             <PatternBadge type={row.pattern_type} />
                           </td>
-
-                          {/* Avg odds */}
                           <td className="px-4 py-3.5 hidden lg:table-cell">
                             <span className="font-mono text-xs text-gold tabular-nums">
                               {Number(row.avg_odds).toFixed(2)}
@@ -463,8 +453,6 @@ const PatternAnalyserPage = () => {
                   </tbody>
                 </table>
               </div>
-
-              {/* Footer row */}
               <div className="px-4 py-3 border-t border-border bg-muted/20 text-xs text-muted-foreground flex justify-between">
                 <span>
                   Showing {sorted.length} of {rows.length} patterns
@@ -477,7 +465,6 @@ const PatternAnalyserPage = () => {
           )}
         </AnimatePresence>
 
-        {/* ── Legend ────────────────────────────────────────────────────── */}
         {!loading && !error && rows.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -492,7 +479,6 @@ const PatternAnalyserPage = () => {
             <span><span className="text-muted-foreground font-medium">INSUFFICIENT</span> = {"<"} 5 predictions</span>
           </motion.div>
         )}
-
       </div>
     </Layout>
   );

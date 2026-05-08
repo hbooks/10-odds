@@ -3,6 +3,8 @@ import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
 import { RefreshCw, AlertCircle, X, Calendar, Trophy, Target, CheckCircle, XCircle, ChevronDown, ChevronRight, BadgeCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getAnimalByLabel } from "@/lib/patternAnimals";
+import AnimalIcon from "@/components/AnimalIcon";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -131,6 +133,8 @@ function PreviousAdvisorBar({
 
   if (!advice) return null;
 
+  const animal = getAnimalByLabel(advice.pattern_label);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -146,7 +150,13 @@ function PreviousAdvisorBar({
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-xs font-semibold text-white/90">_806</span>
             <BadgeCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-            <span className="text-[10px] text-white/50 ml-auto font-mono">{advice.pattern_label}</span>
+            {animal && (
+              <span className="flex items-center gap-1 text-xs text-white/70 ml-1">
+                <AnimalIcon animal={animal.animal} size={14} className="text-gold" />
+                {animal.animal}
+              </span>
+            )}
+            <span className="text-[10px] text-white/40 ml-auto font-mono">{advice.pattern_label}</span>
           </div>
           <p className="text-xs text-white/75 leading-relaxed">{advice.message}</p>
         </div>
@@ -155,7 +165,9 @@ function PreviousAdvisorBar({
   );
 }
 
-// ─── Modal Component ─────────────────────────────────────────────────────────
+// ─── Modal Component (unchanged except for pattern animal integration) ─────
+// (The modal itself doesn't display pattern labels directly, so no further changes needed.)
+
 interface PredictionModalProps {
   prediction: Prediction | null;
   onClose: () => void;
@@ -259,7 +271,6 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 </p>
               </div>
 
-              {/* _806 retrospective message */}
               <PreviousAdvisorBar
                 confidenceScore={prediction.confidence_score}
                 selection={prediction.selection}
@@ -272,7 +283,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   );
 };
 
-// ─── Main Page Component ─────────────────────────────────────────────────────
+// ─── Main Page Component (unchanged) ─────────────────────────────────────────
 type DateFilter = "yesterday" | "today" | "all";
 
 const PreviousPage = () => {
@@ -380,7 +391,6 @@ const PreviousPage = () => {
           </button>
         </div>
 
-        {/* Date filter buttons */}
         <div className="flex gap-2 mb-6">
           {(["yesterday", "today", "all"] as const).map((f) => (
             <button

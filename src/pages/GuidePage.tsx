@@ -12,6 +12,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Layout from "@/components/Layout";
+import { PATTERN_ANIMALS } from "@/lib/patternAnimals";
+import AnimalIcon from "@/components/AnimalIcon";
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 const fadeUp = {
@@ -146,11 +148,10 @@ const GuidePage = () => {
               </p>
               <p className="mt-3">
                 A <strong className="text-foreground">pattern</strong> is simply the
-                combination of those two qualities. Think of it like a signature that gets
-                stamped on every prediction before it goes out. MK-806 tracks{" "}
-                <strong className="text-foreground">18 distinct patterns</strong> in total —
-                ranging from "high confidence, great value" down to "lower confidence,
-                tighter market."
+                combination of those two qualities. We’ve given each pattern a friendly
+                animal name to make them easy to remember. MK-806 tracks{" "}
+                <strong className="text-foreground">18 distinct patterns</strong> in total,
+                from the confident King of the Jungle down to the cautious Worm.
               </p>
             </motion.div>
 
@@ -160,12 +161,13 @@ const GuidePage = () => {
                   Quick example
                 </p>
                 <p className="text-foreground text-sm">
-                  A prediction labelled{" "}
-                  <code className="bg-background px-1.5 py-0.5 rounded text-gold font-mono text-xs">
-                    HConf & H(+)EV
-                  </code>{" "}
+                  A prediction labeled as{" "}
+                  <span className="inline-flex items-center gap-1 text-gold font-semibold">
+                    <AnimalIcon animal="Lion" size={18} />
+                    Lion
+                  </span>{" "}
                   means MK-806 was highly confident AND spotted strong value in the market.
-                  Historically, patterns like this have delivered strong results. But they
+                  Historically, patterns like this have delivered strong results — but they
                   don't guarantee anything.
                 </p>
               </div>
@@ -177,11 +179,10 @@ const GuidePage = () => {
                 <strong className="text-foreground">not fixed in stone.</strong> A pattern
                 that has been delivering wins for months can start losing — and vice versa.
                 This flexibility keeps the advice honest and grounded in what is actually
-                happening, not what we wish was happening.
+                happening.
               </p>
             </motion.div>
 
-            {/* SCREENSHOT: The Pattern Analyser page showing the 18 patterns and their win rates */}
             <motion.div variants={fadeUp} className="my-6">
               <img
                 src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/pta.png"
@@ -231,7 +232,6 @@ const GuidePage = () => {
               </p>
             </motion.div>
 
-            {/* Avatar illustration */}
             <motion.div variants={fadeUp}>
               <div className="flex items-start gap-4 rounded-xl bg-muted/30 border border-border p-4 mt-2">
                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
@@ -245,9 +245,8 @@ const GuidePage = () => {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    "Looking back at this prediction, it was tagged as HConf & H(+)EV –
-                    High confidence, High positive Expected Value. This kind of combination
-                    shows up quite regularly in our records."
+                    "Looking back at this prediction, it falls under the <strong>Lion</strong> pattern —
+                    historically strong, but always subject to change."
                   </p>
                 </div>
               </div>
@@ -256,7 +255,6 @@ const GuidePage = () => {
               </p>
             </motion.div>
 
-            {/* SCREENSHOT: The Status page modal showing the _806 advisor message */}
             <motion.div variants={fadeUp} className="my-6">
               <img
                 src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/06.png"
@@ -271,7 +269,7 @@ const GuidePage = () => {
             <motion.div variants={fadeUp}>
               <Callout icon={AlertCircle} color="#f59e0b" bg="#f59e0b10">
                 Because _806 only uses the past, it can be wrong about the present.
-                If _806 says "this pattern has struggled historically," that doesn't mean
+                If _806 says a pattern has struggled historically, that doesn't mean
                 this specific prediction will lose. MK-806 might have spotted something
                 the historical data hasn't caught up with yet. The decision is always yours.
               </Callout>
@@ -307,7 +305,7 @@ const GuidePage = () => {
                   {
                     step: "2",
                     title: "Look at the numbers",
-                    desc: "Jump to the Pattern Analyser page and find that specific pattern. How many predictions does it have? What's the actual win rate?",
+                    desc: "Jump to the Pattern Analyser page and find that specific animal. How many predictions does it have? What's the actual win rate?",
                     color: "#10b981",
                   },
                   {
@@ -341,8 +339,7 @@ const GuidePage = () => {
                   INSUFFICIENT DATA
                 </code>
                 . When you see this, treat the advice as a placeholder — there simply
-                isn't enough history to say anything meaningful. That's not a bad sign,
-                it's just an honest one.
+                isn't enough history to say anything meaningful.
               </p>
             </motion.div>
 
@@ -372,7 +369,6 @@ const GuidePage = () => {
 
             <motion.div variants={fadeUp}>
               <div className="grid sm:grid-cols-2 gap-4 mt-2">
-                {/* MK-806 card */}
                 <div className="rounded-xl border border-gold/30 bg-gold/5 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="h-8 w-8 rounded-lg gradient-gold flex items-center justify-center">
@@ -390,10 +386,6 @@ const GuidePage = () => {
                     </li>
                     <li className="flex items-start gap-1.5">
                       <ArrowRight className="h-3 w-3 mt-0.5 text-gold shrink-0" />
-                      Analyses team strength, historical performance, market conditions
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <ArrowRight className="h-3 w-3 mt-0.5 text-gold shrink-0" />
                       Decides <strong className="text-foreground">which bet to pick</strong>
                     </li>
                     <li className="flex items-start gap-1.5">
@@ -403,7 +395,6 @@ const GuidePage = () => {
                   </ul>
                 </div>
 
-                {/* _806 card */}
                 <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-[10px] font-bold">
@@ -427,10 +418,6 @@ const GuidePage = () => {
                       <ArrowRight className="h-3 w-3 mt-0.5 text-blue-400 shrink-0" />
                       Provides <strong className="text-foreground">context</strong>, not predictions
                     </li>
-                    <li className="flex items-start gap-1.5">
-                      <ArrowRight className="h-3 w-3 mt-0.5 text-blue-400 shrink-0" />
-                      May disagree with MK-806 — that's completely normal
-                    </li>
                   </ul>
                 </div>
               </div>
@@ -441,7 +428,7 @@ const GuidePage = () => {
                 When these two align — when MK-806 picks a bet and _806 confirms the
                 pattern has historically done well — that's when you have the strongest
                 overall signal. When they point in different directions, that's valuable
-                information too: it tells you the situation is less clear-cut.
+                information too.
               </p>
             </motion.div>
 
@@ -453,6 +440,66 @@ const GuidePage = () => {
               </Callout>
             </motion.div>
           </GuideSection>
+
+          {/* ── Section 5: Pattern Animals – Meet the Cast ─────────────────── */}
+          <motion.section
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-60px" }}
+            variants={stagger}
+            className="rounded-2xl border border-border bg-card overflow-hidden"
+          >
+            <motion.div variants={fadeUp} className="p-6 md:p-8">
+              <div className="flex items-center gap-3 mb-5">
+                <div
+                  className="flex h-10 w-10 items-center justify-center rounded-xl shrink-0"
+                  style={{ background: "#f5a62320" }}
+                >
+                  <TrendingUp className="h-5 w-5" style={{ color: "#f5a623" }} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                    Section 05
+                  </p>
+                  <h2 className="text-xl font-heading font-bold text-foreground leading-tight">
+                    Pattern Animals — Meet the Cast
+                  </h2>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
+                {PATTERN_ANIMALS.map((pa, i) => (
+                  <motion.div
+                    key={pa.animal}
+                    variants={fadeUp}
+                    custom={i}
+                    whileHover={{ y: -4, boxShadow: "0 8px 24px rgba(0,0,0,0.15)" }}
+                    className="rounded-xl bg-muted/20 border border-border p-4 flex flex-col items-center text-center"
+                  >
+                    <AnimalIcon animal={pa.animal} size={40} className="text-gold mb-2" />
+                    <h3 className="font-heading font-bold text-foreground text-sm">{pa.animal}</h3>
+                    <code className="text-xs text-muted-foreground font-mono">{pa.originalLabel}</code>
+                    <div className="flex gap-2 mt-1 text-[10px] font-medium">
+                      <span className="px-1.5 py-0.5 rounded-full bg-muted/60 text-foreground">{pa.confidence}</span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-muted/60 text-foreground">{pa.evType}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+                      {pa.description}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+
+              <p className="text-xs text-muted-foreground mt-6 text-center">
+                Each animal represents a unique combination of confidence and expected value.
+                Their historical performance is tracked on the{" "}
+                <Link to="/patterns" className="text-gold hover:underline font-medium">
+                  Pattern Analyser page
+                </Link>{" "}
+                — check back regularly as patterns evolve.
+              </p>
+            </motion.div>
+          </motion.section>
 
           {/* ── Responsible use reminder ──────────────────────────────────── */}
           <motion.div
@@ -478,7 +525,6 @@ const GuidePage = () => {
               <Link to="/about" className="text-xs text-gold hover:underline">About 10 Odds</Link>
             </div>
           </motion.div>
-
         </div>
       </div>
     </Layout>
