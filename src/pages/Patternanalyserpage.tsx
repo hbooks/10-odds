@@ -414,8 +414,9 @@ const PatternAnalyserPage = () => {
                                 <>
                                   <AnimalIcon animal={animal.animal} size={20} className="text-foreground" />
                                   <div>
-                                    <span className="font-medium text-foreground">{animal.animal}</span>
-                                    <span className="text-xs text-muted-foreground ml-1.5 font-mono">{row.pattern_label}</span>
+                                    <span className="font-medium text-foreground">{animal.animal} Pattern</span>
+                                    {/*<span className="text-xs text-muted-foreground ml-1.5 font-mono">{row.pattern_label}</span>*/} 
+                                    {/* Hiding original pattern label for now since it's mostly just useful for debugging and can be a bit technical/confusing for users */}
                                   </div>
                                 </>
                               ) : (
