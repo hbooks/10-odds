@@ -1453,7 +1453,7 @@ def generate_daily_slip(predictions: List[Dict[str, Any]], slip_date: date) -> N
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    logger.info("═══ MK-807 God of Football v7 starting ═══")
+    logger.info("═══ MK-807 God of Football v7.1 starting ═══")
 
     logger.info("Step 1: Competitions...")
     upsert_competitions()
