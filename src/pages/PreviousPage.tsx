@@ -5,6 +5,7 @@ import { RefreshCw, AlertCircle, X, Calendar, Trophy, Target, CheckCircle, XCirc
 import { motion, AnimatePresence } from "framer-motion";
 import { getAnimalByLabel } from "@/lib/patternAnimals";
 import AnimalIcon from "@/components/AnimalIcon";
+import CrestImage from "@/components/CrestImage";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -150,13 +151,19 @@ function PreviousAdvisorBar({
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-xs font-semibold text-white/90">_806</span>
             <BadgeCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+           {/* {animal && (
+              <span className="flex items-center gap-1 text-xs text-white/70 ml-1">
+                <AnimalIcon animal={animal.animal} size={14} className="text-gold" />
+                {animal.animal}
+              </span>
+            )} {/*  swap in case of any errors */}
+            
             {animal && (
               <span className="flex items-center gap-1 text-xs text-white/70 ml-1">
                 <AnimalIcon animal={animal.animal} size={14} className="text-gold" />
                 {animal.animal}
               </span>
             )}
-            <span className="text-[10px] text-white/40 ml-auto font-mono">{advice.pattern_label}</span>
           </div>
           <p className="text-xs text-white/75 leading-relaxed">{advice.message}</p>
         </div>
@@ -210,29 +217,25 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
             <X className="h-5 w-5" />
           </button>
 
-          <div className="p-6 text-white">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div className="flex flex-col items-center gap-2">
-                {match.home_team.crest_url && (
-                  <img src={match.home_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
-                )}
-                <span className="font-heading text-xl font-bold text-center">{match.home_team.name}</span>
-              </div>
-              <div className="text-center">
-                <span className="text-3xl font-bold text-white">VS</span>
-                {match.home_score !== null && match.away_score !== null && (
-                  <div className="mt-2 text-2xl font-mono font-bold bg-black/40 px-3 py-1 rounded-lg">
-                    {match.home_score} – {match.away_score}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                {match.away_team.crest_url && (
-                  <img src={match.away_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
-                )}
-                <span className="font-heading text-xl font-bold text-center">{match.away_team.name}</span>
-              </div>
-            </div>
+<div className="p-6 text-white">
+  <div className="flex items-center justify-between gap-4 mb-4">
+    <div className="flex flex-col items-center gap-2">
+      <CrestImage url={match.home_team.crest_url} alt="" size="lg" className="drop-shadow-lg" />
+      <span className="font-heading text-xl font-bold text-center">{match.home_team.name}</span>
+    </div>
+    <div className="text-center">
+      <span className="text-3xl font-bold text-white">VS</span>
+      {match.home_score !== null && match.away_score !== null && (
+        <div className="mt-2 text-2xl font-mono font-bold bg-black/40 px-3 py-1 rounded-lg">
+          {match.home_score} – {match.away_score}
+        </div>
+      )}
+    </div>
+    <div className="flex flex-col items-center gap-2">
+      <CrestImage url={match.away_team.crest_url} alt="" size="lg" className="drop-shadow-lg" />
+      <span className="font-heading text-xl font-bold text-center">{match.away_team.name}</span>
+    </div>
+  </div>
 
             <div className="flex flex-wrap items-center justify-center gap-3 mb-6 text-sm text-white/80">
               <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full">

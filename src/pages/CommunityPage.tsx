@@ -20,6 +20,7 @@ import {
   Heart,
   Zap,
 } from "lucide-react";
+import CrestImage from "@/components/CrestImage";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -394,7 +395,7 @@ const BannedScreen = () => (
     <div className="text-8xl mb-6">⛔</div>
     <h1 className="text-3xl font-bold tracking-tight mb-2">YOU HAVE BEEN BANNED</h1>
     <p className="text-red-300 text-sm max-w-xs text-center">
-      This browser has been blocked from the community board due to repeated policy violations.
+      This IP address has been blocked from the community board due to repeated policy violations.
     </p>
   </div>
 );
@@ -529,7 +530,7 @@ const HBooksCard = () => {
           animate={{ scale: hovered ? [1, 1.2, 1] : 1 }}
           transition={{ duration: 0.4 }}
         >
-          H
+          HP
         </motion.span>
         {/* Inner shimmer */}
         <motion.div
@@ -874,7 +875,7 @@ const CommunityPage = () => {
               </div>
               <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold bg-amber-500/12 border border-amber-500/25 text-amber-400">
                 <Zap className="h-3 w-3" />
-                Live · Updates in real time
+                Live · Community
               </div>
             </motion.div>
           )}
@@ -1086,8 +1087,8 @@ const CommunityPage = () => {
                                   : "border-white/10 bg-white/5 hover:border-white/25"
                               }`}
                             >
-                              <img src={t.crest_url} alt={t.name} className="w-6 h-6 object-contain"
-                                onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0.2"; }} />
+                              <CrestImage url={t.crest_url} alt={t.name} size="sm" className="w-6 h-6"
+                               />
                             </button>
                           ))}
                         </div>

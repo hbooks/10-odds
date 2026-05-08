@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
 import { RefreshCw, AlertCircle, Trophy, Info, CheckCircle2, Zap } from "lucide-react";
+import CrestImage from "@/components/CrestImage";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -37,26 +38,7 @@ type ClockPhase =
   | "addedTime2"
   | "completed";
 
-// ─── localStorage schema ───────────────────────────────────────────────────
-/**
- * Only ONE field is stored per match: kickoffMs.
- *
- * kickoffMs  – UTC wall-clock ms of kick-off, derived once from utc_date.
- *              Every phase (1st half, AT1, HT, 2nd half, AT2, FT) is computed
- *              purely from kickoffMs + Date.now(). The DB status is intentionally
- *              IGNORED for timing — the edge function only runs hourly and cannot
- *              be trusted to catch HT at the right moment.
- *
- * Half-time model (fully clock-driven):
- *   • Real minutes 0–45   → 1st half
- *   • Real minutes 45–48  → Added time 1 (display freezes at 45:xx, counts up)
- *   • Real minutes 48–63  → Half-time break (15 min, display shows "HT", frozen)
- *   • Real minutes 63–108 → 2nd half (display counts from 45:00)
- *   • Real minutes 108–111→ Added time 2
- *   • After 111 min       → Full time
- *
- * All thresholds are constants. Refresh can never affect them.
- */
+
 interface PersistedClock {
   kickoffMs: number;
 }
@@ -393,22 +375,17 @@ function LiveMatchCard({ match }: { match: Match }) {
           </div>
         </div>
 
-        {/* Row 2: home — score — away */}
+               {/* Row 2: home — score — away */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
 
           {/* Home team */}
           <div className="flex flex-col items-center gap-2">
-            {match.home_team.crest_url ? (
-              <img
-                src={match.home_team.crest_url}
-                alt={match.home_team.name}
-                className="h-12 w-12 object-contain drop-shadow-lg"
-              />
-            ) : (
-              <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs font-bold">
-                {(match.home_team.tla || match.home_team.name).slice(0, 3).toUpperCase()}
-              </div>
-            )}
+            <CrestImage
+              url={match.home_team.crest_url}
+              alt={match.home_team.name}
+              size="xl"
+              className="drop-shadow-lg"
+            />
             <span className="text-sm font-semibold text-white text-center leading-tight max-w-[90px] line-clamp-2">
               {match.home_team.name}
             </span>
@@ -444,17 +421,12 @@ function LiveMatchCard({ match }: { match: Match }) {
 
           {/* Away team */}
           <div className="flex flex-col items-center gap-2">
-            {match.away_team.crest_url ? (
-              <img
-                src={match.away_team.crest_url}
-                alt={match.away_team.name}
-                className="h-12 w-12 object-contain drop-shadow-lg"
-              />
-            ) : (
-              <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs font-bold">
-                {(match.away_team.tla || match.away_team.name).slice(0, 3).toUpperCase()}
-              </div>
-            )}
+            <CrestImage
+              url={match.away_team.crest_url}
+              alt={match.away_team.name}
+              size="xl"
+              className="drop-shadow-lg"
+            />
             <span className="text-sm font-semibold text-white text-center leading-tight max-w-[90px] line-clamp-2">
               {match.away_team.name}
             </span>
@@ -494,9 +466,7 @@ function FinishedMatchCard({ match }: { match: Match }) {
       </div>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          {match.home_team.crest_url && (
-            <img src={match.home_team.crest_url} alt="" className="h-5 w-5 object-contain shrink-0" />
-          )}
+          <CrestImage url={match.home_team.crest_url} alt="" size="sm" />
           <span className="text-xs text-white/80 truncate font-medium">
             {match.home_team.tla || match.home_team.name}
           </span>
@@ -508,9 +478,7 @@ function FinishedMatchCard({ match }: { match: Match }) {
           <span className="text-xs text-white/80 truncate font-medium">
             {match.away_team.tla || match.away_team.name}
           </span>
-          {match.away_team.crest_url && (
-            <img src={match.away_team.crest_url} alt="" className="h-5 w-5 object-contain shrink-0" />
-          )}
+          <CrestImage url={match.away_team.crest_url} alt="" size="sm" />
         </div>
       </div>
     </div>

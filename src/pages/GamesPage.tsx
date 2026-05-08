@@ -3,6 +3,7 @@ import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
 import { Calendar, Clock, AlertCircle, RefreshCw, Info, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import CrestImage from "@/components/CrestImage";
 
 // Supabase client (public anon key)
 const supabase = createClient(
@@ -150,25 +151,21 @@ const FixtureCard = ({ match }: { match: Match }) => {
       </div>
 
       {/* Teams */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {match.home_team.crest_url && (
-            <img src={match.home_team.crest_url} alt="" className="h-8 w-8 object-contain" />
-          )}
-          <span className="font-heading font-semibold">
-            {match.home_team.tla || match.home_team.name}
-          </span>
-        </div>
-        <span className="text-xs font-medium text-muted-foreground">VS</span>
-        <div className="flex items-center gap-3">
-          <span className="font-heading font-semibold">
-            {match.away_team.tla || match.away_team.name}
-          </span>
-          {match.away_team.crest_url && (
-            <img src={match.away_team.crest_url} alt="" className="h-8 w-8 object-contain" />
-          )}
-        </div>
-      </div>
+<div className="flex items-center justify-between">
+  <div className="flex items-center gap-3">
+    <CrestImage url={match.home_team.crest_url} alt="" size="md" />
+    <span className="font-heading font-semibold">
+      {match.home_team.tla || match.home_team.name}
+    </span>
+  </div>
+  <span className="text-xs font-medium text-muted-foreground">VS</span>
+  <div className="flex items-center gap-3">
+    <span className="font-heading font-semibold">
+      {match.away_team.tla || match.away_team.name}
+    </span>
+    <CrestImage url={match.away_team.crest_url} alt="" size="md" />
+  </div>
+</div>
 
       {/* Odds */}
       {hasOdds ? (

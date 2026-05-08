@@ -240,7 +240,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.home_team.crest_url && (
-                 <CrestImage url={match.home_team.crest_url} alt="" size="md" />
+                 <CrestImage url={match.home_team.crest_url} alt="" size="lg" />
                 )}
                 <span className="font-heading text-base font-bold text-center leading-tight">
                   {match.home_team.name}
@@ -249,7 +249,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               <span className="text-3xl font-bold text-gold shrink-0">VS</span>
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.away_team.crest_url && (
-                  <CrestImage url={match.away_team.crest_url} alt="" size="md" />
+                  <CrestImage url={match.away_team.crest_url} alt="" size="lg" />
                 )}
                 <span className="font-heading text-base font-bold text-center leading-tight">
                   {match.away_team.name}
