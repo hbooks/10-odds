@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import AnimalIcon from "@/components/AnimalIcon";
 import { getAnimalByLabel } from "@/lib/patternAnimals";
+import CrestImage from "@/components/CrestImage";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
 const supabase = createClient(
@@ -239,7 +240,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.home_team.crest_url && (
-                  <img src={match.home_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
+                 <CrestImage url={match.home_team.crest_url} alt="" size="md" />
                 )}
                 <span className="font-heading text-base font-bold text-center leading-tight">
                   {match.home_team.name}
@@ -248,7 +249,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               <span className="text-3xl font-bold text-gold shrink-0">VS</span>
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.away_team.crest_url && (
-                  <img src={match.away_team.crest_url} alt="" className="h-16 w-16 object-contain drop-shadow-lg" />
+                  <CrestImage url={match.away_team.crest_url} alt="" size="md" />
                 )}
                 <span className="font-heading text-base font-bold text-center leading-tight">
                   {match.away_team.name}
