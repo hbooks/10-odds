@@ -7,7 +7,7 @@ interface CrestImageProps {
   url?: string | null;
   alt?: string;
   className?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }
 
 const sizeMap = {
