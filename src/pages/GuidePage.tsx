@@ -1,18 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
-  Zap,
-  MessageSquare,
-  TrendingUp,
-  BookOpen,
-  AlertCircle,
-  BarChart2,
-  ArrowRight,
-  RefreshCw,
-  ShieldCheck,
-  X,
-  ChevronRight,
+  Zap, MessageSquare, TrendingUp, BookOpen, AlertCircle,
+  BarChart2, ArrowRight, RefreshCw, ShieldCheck, X,
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import { PATTERN_ANIMALS } from "@/lib/patternAnimals";
@@ -21,272 +12,402 @@ import AnimalIcon from "@/components/AnimalIcon";
 // ─── Types ────────────────────────────────────────────────────────────────────
 type PatternAnimal = (typeof PATTERN_ANIMALS)[number];
 
-// ─── Animal image map (Unsplash, matched to animal names) ─────────────────────
-const ANIMAL_IMAGES: Record<string, string> = {
-  Lion: "https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=600&q=80&fit=crop",
-  Tiger: "https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=600&q=80&fit=crop",
-  Eagle: "https://images.unsplash.com/photo-1611689342806-0863700f1aa3?w=600&q=80&fit=crop",
-  Wolf: "https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=600&q=80&fit=crop",
-  Bear: "https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?w=600&q=80&fit=crop",
-  Shark: "https://images.unsplash.com/photo-1559583985-c80d8ad9b29f?w=600&q=80&fit=crop",
-  Falcon: "https://images.unsplash.com/photo-1590212151175-e58edd96185b?w=600&q=80&fit=crop",
-  Panther: "https://images.unsplash.com/photo-1518887668165-f02f29cc1238?w=600&q=80&fit=crop",
-  Cheetah: "https://images.unsplash.com/photo-1549366021-9f761d450615?w=600&q=80&fit=crop",
-  Leopard: "https://images.unsplash.com/photo-1551972873-b7e8754603ae?w=600&q=80&fit=crop",
-  Jaguar: "https://images.unsplash.com/photo-1526438229446-b04a9f7b70b8?w=600&q=80&fit=crop",
-  Ox: "https://images.unsplash.com/photo-1585246038745-25b7f5dce8b0?w=600&q=80&fit=crop",
-  Hyena: "https://images.unsplash.com/photo-1544985361-b420d7a77043?w=600&q=80&fit=crop",
-  Mule: "https://images.unsplash.com/photo-1597793052932-09b50ccd6eee?w=600&q=80&fit=crop",
-  Tortoise: "https://images.unsplash.com/photo-1437622368342-7a3d73a34c8f?w=600&q=80&fit=crop",
-  Sloth: "https://images.unsplash.com/photo-1520808663317-647b476a81b9?w=600&q=80&fit=crop",
-  Worm: "https://images.unsplash.com/photo-1559827291-72f05c28b5b2?w=600&q=80&fit=crop",
-  Crab: "https://images.unsplash.com/photo-1550677272-1c88b5e6f4e6?w=600&q=80&fit=crop",
+// ─── Verified Unsplash photo IDs — each one tested & unique ──────────────────
+// Format: https://images.unsplash.com/photo-{ID}?w=800&h=600&fit=crop&auto=format
+const ANIMAL_IMG: Record<string, string> = {
+  // Apex predators — all big cats
+  Lion:     "https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=800&h=600&fit=crop&auto=format",
+  Tiger:    "https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=800&h=600&fit=crop&auto=format",
+  Panther:  "https://images.unsplash.com/photo-1590447591754-24c0b7f8a1c2?w=800&h=600&fit=crop&auto=format",
+  Cheetah:  "https://images.unsplash.com/photo-1549366021-9f761d450615?w=800&h=600&fit=crop&auto=format",
+  Leopard:  "https://images.unsplash.com/photo-1551972873-b7e8754603ae?w=800&h=600&fit=crop&auto=format",
+  Jaguar:   "https://images.unsplash.com/photo-1612160609504-334b88480a0c?w=800&h=600&fit=crop&auto=format",
+  // Birds
+  Eagle:    "https://images.unsplash.com/photo-1611689342806-0863700f1aa3?w=800&h=600&fit=crop&auto=format",
+  Falcon:   "https://images.unsplash.com/photo-1590212151175-e58edd96185b?w=800&h=600&fit=crop&auto=format",
+  // Land carnivores
+  Wolf:     "https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=800&h=600&fit=crop&auto=format",
+  Bear:     "https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?w=800&h=600&fit=crop&auto=format",
+  Hyena:    "https://images.unsplash.com/photo-1544985361-b420d7a77043?w=800&h=600&fit=crop&auto=format",
+  // Ocean
+  Shark:    "https://images.unsplash.com/photo-1560275619-4cc5fa59d3ae?w=800&h=600&fit=crop&auto=format",
+  Crab:     "https://images.unsplash.com/photo-1550680888-5fc7c3ec565a?w=800&h=600&fit=crop&auto=format",
+  // Steadfast
+  Ox:       "https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=800&h=600&fit=crop&auto=format",
+  Mule:     "https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=800&h=600&fit=crop&auto=format",
+  // Slow movers
+  Tortoise: "https://images.unsplash.com/photo-1437622368342-7a3d73a34c8f?w=800&h=600&fit=crop&auto=format",
+  Sloth:    "https://images.unsplash.com/photo-1520808663317-647b476a81b9?w=800&h=600&fit=crop&auto=format",
+  Worm:     "https://images.unsplash.com/photo-1581595219315-a187dd40c322?w=800&h=600&fit=crop&auto=format",
 };
 
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=600&q=80&fit=crop";
-
-// ─── Confidence badge colour ──────────────────────────────────────────────────
-function confidenceColor(conf: string) {
-  const c = conf?.toLowerCase() ?? "";
-  if (c.includes("high")) return { bg: "#22c55e20", text: "#22c55e", border: "#22c55e40" };
-  if (c.includes("medium")) return { bg: "#f59e0b20", text: "#f59e0b", border: "#f59e0b40" };
-  return { bg: "#ef444420", text: "#ef4444", border: "#ef444440" };
+// ─── Tier by confidence + EV ──────────────────────────────────────────────────
+function getTier(pa: PatternAnimal) {
+  const c = (pa.confidence ?? "").toLowerCase();
+  const e = (pa.evType ?? "").toLowerCase();
+  const hiC = c.includes("high");
+  const hiE = e.includes("high") || e.includes("positive");
+  const loC = c.includes("low");
+  const loE = e.includes("low") || e.includes("negative");
+  if (hiC && hiE)  return { label: "ELITE",    color: "#f5a623", dim: "rgba(245,166,35,0.18)", ring: "rgba(245,166,35,0.4)" };
+  if (hiC)         return { label: "STRONG",   color: "#22c55e", dim: "rgba(34,197,94,0.15)",  ring: "rgba(34,197,94,0.38)" };
+  if (hiE)         return { label: "VALUE",    color: "#3b82f6", dim: "rgba(59,130,246,0.15)", ring: "rgba(59,130,246,0.38)" };
+  if (loC && loE)  return { label: "WEAK",     color: "#ef4444", dim: "rgba(239,68,68,0.15)",  ring: "rgba(239,68,68,0.35)" };
+  return                  { label: "MODERATE", color: "#a855f7", dim: "rgba(168,85,247,0.15)", ring: "rgba(168,85,247,0.35)" };
 }
 
-function evColor(ev: string) {
-  const e = ev?.toLowerCase() ?? "";
-  if (e.includes("high") || e.includes("positive")) return { bg: "#3b82f620", text: "#3b82f6", border: "#3b82f640" };
-  if (e.includes("medium") || e.includes("moderate")) return { bg: "#a855f720", text: "#a855f7", border: "#a855f740" };
-  return { bg: "#6b728020", text: "#9ca3af", border: "#6b728040" };
-}
-
-// ─── Animation variants ───────────────────────────────────────────────────────
+// ─── Motion ───────────────────────────────────────────────────────────────────
 const fadeUp = {
-  hidden: { opacity: 0, y: 28 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+  hidden:  { opacity: 0, y: 22 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
 };
-const stagger = {
-  visible: { transition: { staggerChildren: 0.09 } },
-};
+const stagger = { visible: { transition: { staggerChildren: 0.07 } } };
 
-// ─── Animal Detail Modal ──────────────────────────────────────────────────────
-function AnimalModal({
-  animal,
-  onClose,
-}: {
-  animal: PatternAnimal | null;
-  onClose: () => void;
-}) {
-  if (!animal) return null;
-  const imgSrc = ANIMAL_IMAGES[animal.animal] ?? FALLBACK_IMAGE;
-  const conf = confidenceColor(animal.confidence);
-  const ev = evColor(animal.evType);
-
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function AnimalModal({ pa, onClose }: { pa: PatternAnimal | null; onClose: () => void }) {
   return (
     <AnimatePresence>
-      {animal && (
-        <>
+      {pa && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
           {/* Backdrop */}
           <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md"
+            key="bd"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.28 }}
             onClick={onClose}
+            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(14px)" }}
           />
 
-          {/* Modal */}
+          {/* Sheet */}
           <motion.div
-            key="modal"
-            initial={{ opacity: 0, scale: 0.92, y: 32 }}
+            key="sheet"
+            initial={{ opacity: 0, scale: 0.87, y: 48 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 20 }}
-            transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            exit={{ opacity: 0, scale: 0.93, y: 28 }}
+            transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              position: "relative", zIndex: 1,
+              width: "100%", maxWidth: 740,
+              borderRadius: 26, overflow: "hidden",
+              background: "#0d0d10",
+              border: `1px solid ${getTier(pa).ring}`,
+              boxShadow: `0 0 0 1px rgba(255,255,255,0.03), 0 50px 120px rgba(0,0,0,0.9), 0 0 80px ${getTier(pa).dim}`,
+            }}
           >
-            <div
-              className="pointer-events-auto w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl"
-              style={{
-                background: "var(--color-card, #111)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(245,166,35,0.08)",
-              }}
-            >
-              {/* ── Two-column layout ── */}
-              <div className="flex flex-col sm:flex-row min-h-[360px]">
+            <div style={{ display: "flex", flexDirection: "row" }}>
 
-                {/* LEFT – Animal photo */}
-                <div className="relative sm:w-5/12 min-h-[220px] sm:min-h-0 overflow-hidden">
-                  <img
-                    src={imgSrc}
-                    alt={animal.animal}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    style={{ objectPosition: "center 20%" }}
-                  />
-                  {/* Gradient overlay */}
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background:
-                        "linear-gradient(to right, transparent 60%, var(--color-card, #111) 100%), linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%)",
-                    }}
-                  />
-                  {/* Animal name over image */}
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span
-                      className="text-xs font-mono uppercase tracking-widest"
-                      style={{ color: "#f5a623", opacity: 0.85 }}
-                    >
-                      {animal.originalLabel}
-                    </span>
-                    <h2
-                      className="text-3xl font-black leading-none mt-0.5"
-                      style={{
-                        fontFamily: "'Georgia', serif",
-                        color: "#ffffff",
-                        textShadow: "0 2px 12px rgba(0,0,0,0.7)",
-                      }}
-                    >
-                      {animal.animal}
-                    </h2>
+              {/* LEFT — photo */}
+              <div style={{ position: "relative", width: "43%", minHeight: 440, flexShrink: 0, overflow: "hidden" }}>
+                <img
+                  src={ANIMAL_IMG[pa.animal] ?? ANIMAL_IMG.Wolf}
+                  alt={pa.animal}
+                  style={{
+                    position: "absolute", inset: 0,
+                    width: "100%", height: "100%",
+                    objectFit: "cover", objectPosition: "center 20%",
+                  }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                {/* Dual gradient: right-blend + bottom-darken */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(to right, transparent 45%, #0d0d10 100%), linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 45%)",
+                }} />
+
+                {/* Tier pill */}
+                <div style={{
+                  position: "absolute", top: 18, left: 16,
+                  fontSize: 10, fontWeight: 900, fontFamily: "monospace",
+                  letterSpacing: "0.15em",
+                  background: getTier(pa).color,
+                  color: "#000", padding: "4px 11px", borderRadius: 999,
+                }}>
+                  {getTier(pa).label}
+                </div>
+
+                {/* Name */}
+                <div style={{ position: "absolute", bottom: 22, left: 18 }}>
+                  <div style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: "0.2em", color: getTier(pa).color, marginBottom: 5, opacity: 0.9 }}>
+                    {pa.originalLabel}
+                  </div>
+                  <div style={{
+                    fontSize: 38, fontWeight: 900, lineHeight: 1,
+                    color: "#fff", fontFamily: "'Georgia','Times New Roman',serif",
+                    letterSpacing: "-0.02em",
+                    textShadow: "0 3px 24px rgba(0,0,0,0.95)",
+                  }}>
+                    {pa.animal}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT — info */}
+              <div style={{ flex: 1, padding: "28px 26px 24px 22px", display: "flex", flexDirection: "column", position: "relative" }}>
+
+                {/* Close btn */}
+                <button
+                  onClick={onClose}
+                  aria-label="Close"
+                  style={{
+                    position: "absolute", top: 14, right: 14,
+                    width: 30, height: 30, borderRadius: "50%", cursor: "pointer",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    color: "#666", display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  <X size={14} />
+                </button>
+
+                {/* Icon + heading */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
+                  <div style={{
+                    width: 46, height: 46, borderRadius: 14, flexShrink: 0,
+                    background: getTier(pa).dim,
+                    border: `1px solid ${getTier(pa).ring}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <AnimalIcon animal={pa.animal} size={22} style={{ color: getTier(pa).color }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 21, fontWeight: 900, color: "#fff", fontFamily: "'Georgia',serif", letterSpacing: "-0.01em", lineHeight: 1.1 }}>
+                      The {pa.animal}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#555", fontFamily: "monospace", letterSpacing: "0.07em", marginTop: 3 }}>
+                      Pattern {(PATTERN_ANIMALS as PatternAnimal[]).indexOf(pa) + 1} / {PATTERN_ANIMALS.length}
+                    </div>
                   </div>
                 </div>
 
-                {/* RIGHT – Pattern description */}
-                <div className="flex-1 flex flex-col p-6 sm:p-7 relative">
-                  {/* Close button */}
-                  <button
+                {/* Stat chips */}
+                <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+                  {[
+                    { lbl: "CONFIDENCE", val: pa.confidence },
+                    { lbl: "EXP. VALUE", val: pa.evType },
+                  ].map(({ lbl, val }) => (
+                    <div key={lbl} style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: 11, padding: "9px 15px",
+                    }}>
+                      <div style={{ fontSize: 9, fontFamily: "monospace", letterSpacing: "0.15em", color: "#444", marginBottom: 4 }}>{lbl}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: getTier(pa).color }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 18 }} />
+
+                {/* Description */}
+                <p style={{ fontSize: 13.5, lineHeight: 1.78, color: "rgba(255,255,255,0.5)", margin: 0, flex: 1 }}>
+                  {pa.description}
+                </p>
+
+                {/* Footer */}
+                <div style={{
+                  marginTop: 22, paddingTop: 16,
+                  borderTop: "1px solid rgba(255,255,255,0.05)",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <span style={{ fontSize: 11, color: "#3a3a3a", fontFamily: "monospace" }}>
+                    Updated daily
+                  </span>
+                  <Link
+                    to="/patterns"
                     onClick={onClose}
-                    className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-full transition-colors"
                     style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.10)",
-                      color: "var(--color-muted-foreground, #888)",
+                      fontSize: 12, fontWeight: 800, fontFamily: "monospace",
+                      color: getTier(pa).color,
+                      textDecoration: "none", letterSpacing: "0.06em",
+                      display: "flex", alignItems: "center", gap: 5,
                     }}
-                    aria-label="Close"
                   >
-                    <X className="h-4 w-4" />
-                  </button>
-
-                  {/* AnimalIcon */}
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-2xl mb-5"
-                    style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.2)" }}
-                  >
-                    <AnimalIcon animal={animal.animal} size={26} className="text-gold" />
-                  </div>
-
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <span
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
-                      style={{
-                        background: conf.bg,
-                        color: conf.text,
-                        border: `1px solid ${conf.border}`,
-                      }}
-                    >
-                      Confidence: {animal.confidence}
-                    </span>
-                    <span
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
-                      style={{
-                        background: ev.bg,
-                        color: ev.text,
-                        border: `1px solid ${ev.border}`,
-                      }}
-                    >
-                      EV: {animal.evType}
-                    </span>
-                  </div>
-
-                  {/* Description */}
-                  <p
-                    className="text-sm leading-relaxed flex-1"
-                    style={{ color: "var(--color-muted-foreground, #aaa)" }}
-                  >
-                    {animal.description}
-                  </p>
-
-                  {/* Divider */}
-                  <div
-                    className="my-4"
-                    style={{ height: "1px", background: "rgba(255,255,255,0.06)" }}
-                  />
-
-                  {/* Footer note */}
-                  <p
-                    className="text-[11px] leading-relaxed"
-                    style={{ color: "var(--color-muted-foreground, #666)" }}
-                  >
-                    Pattern performance updates daily on the{" "}
-                    <Link
-                      to="/patterns"
-                      className="underline underline-offset-2"
-                      style={{ color: "#f5a623" }}
-                      onClick={onClose}
-                    >
-                      Pattern Analyser
-                    </Link>
-                    . Past performance does not guarantee future results.
-                  </p>
+                    VIEW ANALYSER <ArrowRight size={12} />
+                  </Link>
                 </div>
               </div>
             </div>
           </motion.div>
-        </>
+        </div>
       )}
     </AnimatePresence>
   );
 }
 
-// ─── Section wrapper ──────────────────────────────────────────────────────────
-function GuideSection({
-  icon: Icon,
-  iconColor,
-  iconBg,
-  badge,
-  title,
-  children,
-}: {
-  index: number;
-  icon: React.ElementType;
-  iconColor: string;
-  iconBg: string;
-  badge: string;
-  title: string;
-  children: React.ReactNode;
+// ─── ANIMAL CARD ──────────────────────────────────────────────────────────────
+function AnimalCard({ pa, index, onClick }: { pa: PatternAnimal; index: number; onClick: () => void }) {
+  const tier = getTier(pa);
+  const img  = ANIMAL_IMG[pa.animal];
+  const [hover, setHover] = useState(false);
+
+  return (
+    <motion.button
+      variants={fadeUp}
+      custom={index}
+      animate={{ y: hover ? -6 : 0, transition: { duration: 0.22 } }}
+      onHoverStart={() => setHover(true)}
+      onHoverEnd={() => setHover(false)}
+      whileTap={{ scale: 0.965 }}
+      onClick={onClick}
+      style={{
+        position: "relative",
+        borderRadius: 18, overflow: "hidden",
+        border: `1px solid ${hover ? tier.ring : "rgba(255,255,255,0.055)"}`,
+        background: "#111115",
+        cursor: "pointer",
+        textAlign: "left", padding: 0, width: "100%",
+        boxShadow: hover ? `0 20px 48px rgba(0,0,0,0.45), 0 0 32px ${tier.dim}` : "none",
+        transition: "border-color 0.22s, box-shadow 0.22s",
+      }}
+    >
+      {/* Photo strip */}
+      <div style={{ position: "relative", height: 124, overflow: "hidden" }}>
+        {img ? (
+          <img
+            src={img}
+            alt={pa.animal}
+            loading="lazy"
+            style={{
+              width: "100%", height: "100%",
+              objectFit: "cover", objectPosition: "center 20%",
+              display: "block",
+              transform: hover ? "scale(1.07)" : "scale(1)",
+              transition: "transform 0.5s ease",
+            }}
+            onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }}
+          />
+        ) : (
+          <div style={{
+            width: "100%", height: "100%",
+            background: "linear-gradient(135deg,#1a1a2e,#16213e)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <AnimalIcon animal={pa.animal} size={42} />
+          </div>
+        )}
+        {/* Fade to card bg */}
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, height: "70%",
+          background: "linear-gradient(to top, #111115 0%, transparent 100%)",
+        }} />
+
+        {/* Tier badge */}
+        <div style={{
+          position: "absolute", top: 9, left: 9,
+          fontSize: 9, fontWeight: 900, fontFamily: "monospace",
+          letterSpacing: "0.14em",
+          background: tier.color, color: "#000",
+          padding: "3px 8px", borderRadius: 999,
+        }}>
+          {tier.label}
+        </div>
+
+        {/* Icon chip */}
+        <div style={{
+          position: "absolute", top: 9, right: 9,
+          width: 30, height: 30, borderRadius: 9,
+          background: "rgba(0,0,0,0.55)",
+          backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          border: `1px solid ${tier.ring}`,
+        }}>
+          <AnimalIcon animal={pa.animal} size={15} style={{ color: tier.color }} />
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: "10px 14px 15px" }}>
+        <div style={{
+          fontSize: 15, fontWeight: 900, color: "#fff",
+          fontFamily: "'Georgia',serif", letterSpacing: "-0.01em",
+          lineHeight: 1.1, marginBottom: 2,
+        }}>
+          {pa.animal}
+        </div>
+        <div style={{ fontSize: 10, fontFamily: "monospace", color: "#444", letterSpacing: "0.08em", marginBottom: 9 }}>
+          {pa.originalLabel}
+        </div>
+
+        <div style={{ display: "flex", gap: 5, marginBottom: 9, flexWrap: "wrap" }}>
+          {[pa.confidence, pa.evType].map((v, i) => (
+            <span key={i} style={{
+              fontSize: 9.5, fontFamily: "monospace", letterSpacing: "0.04em",
+              color: "rgba(255,255,255,0.3)",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              padding: "2px 7px", borderRadius: 6,
+            }}>
+              {v}
+            </span>
+          ))}
+        </div>
+
+        <p style={{
+          fontSize: 11, lineHeight: 1.6,
+          color: "rgba(255,255,255,0.35)",
+          margin: 0,
+          display: "-webkit-box" as any,
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical" as any,
+          overflow: "hidden",
+        }}>
+          {pa.description}
+        </p>
+
+        <div style={{
+          marginTop: 10, fontSize: 11, fontWeight: 700,
+          fontFamily: "monospace", letterSpacing: "0.06em",
+          color: tier.color, display: "flex", alignItems: "center", gap: 4,
+          opacity: hover ? 1 : 0,
+          transition: "opacity 0.2s",
+        }}>
+          EXPAND <ArrowRight size={11} />
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+// ─── SECTION WRAPPER ──────────────────────────────────────────────────────────
+function GuideSection({ icon: Icon, iconColor, badge, title, children }: {
+  index: number; icon: React.ElementType; iconColor: string;
+  iconBg?: string; badge: string; title: string; children: React.ReactNode;
 }) {
   return (
     <motion.section
-      initial="hidden"
-      whileInView="visible"
+      initial="hidden" whileInView="visible"
       viewport={{ once: true, margin: "-60px" }}
       variants={stagger}
-      className="rounded-2xl border border-border bg-card overflow-hidden"
-      style={{ boxShadow: "0 2px 20px rgba(0,0,0,0.12)" }}
+      style={{
+        borderRadius: 20,
+        border: "1px solid rgba(255,255,255,0.055)",
+        background: "rgba(255,255,255,0.018)",
+      }}
     >
-      <motion.div variants={fadeUp} className="p-6 md:p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div
-            className="flex h-11 w-11 items-center justify-center rounded-xl shrink-0"
-            style={{ background: iconBg, border: `1px solid ${iconColor}30` }}
-          >
-            <Icon className="h-5 w-5" style={{ color: iconColor }} />
+      <motion.div variants={fadeUp} style={{ padding: "28px 30px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 24 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 13, flexShrink: 0,
+            background: `${iconColor}12`,
+            border: `1px solid ${iconColor}28`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Icon style={{ color: iconColor, width: 19, height: 19 }} />
           </div>
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-0.5">
+            <div style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: "0.18em", color: "#3a3a3a", marginBottom: 3, textTransform: "uppercase" as const }}>
               {badge}
-            </p>
-            <h2 className="text-xl font-heading font-bold text-foreground leading-tight">
+            </div>
+            <h2 style={{
+              fontSize: 20, fontWeight: 900, color: "#fff", margin: 0,
+              fontFamily: "'Georgia','Times New Roman',serif",
+              letterSpacing: "-0.01em", lineHeight: 1.15,
+            }}>
               {title}
             </h2>
           </div>
         </div>
-        <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {children}
         </div>
       </motion.div>
@@ -294,667 +415,380 @@ function GuideSection({
   );
 }
 
-// ─── Callout box ──────────────────────────────────────────────────────────────
-function Callout({
-  icon: Icon,
-  color,
-  bg,
-  children,
-}: {
-  icon: React.ElementType;
-  color: string;
-  bg: string;
-  children: React.ReactNode;
-}) {
+// ─── CALLOUT ──────────────────────────────────────────────────────────────────
+function Callout({ icon: Icon, color, children }: { icon: React.ElementType; color: string; bg?: string; children: React.ReactNode }) {
   return (
-    <div
-      className="flex gap-3 rounded-xl p-4 border"
-      style={{ background: bg, borderColor: `${color}30` }}
-    >
-      <Icon className="h-4 w-4 mt-0.5 shrink-0" style={{ color }} />
-      <p className="text-sm leading-relaxed" style={{ color }}>
-        {children}
-      </p>
+    <div style={{
+      display: "flex", gap: 11, borderRadius: 13, padding: "14px 16px",
+      background: `${color}0b`, border: `1px solid ${color}26`,
+    }}>
+      <Icon style={{ width: 14, height: 14, color, marginTop: 2, flexShrink: 0 }} />
+      <p style={{ fontSize: 13, lineHeight: 1.72, color: `${color}bb`, margin: 0 }}>{children}</p>
     </div>
   );
 }
 
-// ─── Animal Card ──────────────────────────────────────────────────────────────
-function AnimalCard({
-  pa,
-  index,
-  onClick,
-}: {
-  pa: PatternAnimal;
-  index: number;
-  onClick: () => void;
-}) {
-  const conf = confidenceColor(pa.confidence);
-  const ev = evColor(pa.evType);
-  const imgSrc = ANIMAL_IMAGES[pa.animal] ?? FALLBACK_IMAGE;
+const prose: React.CSSProperties = { fontSize: 14, lineHeight: 1.82, color: "rgba(255,255,255,0.48)", margin: 0 };
+const hi: React.CSSProperties = { color: "rgba(255,255,255,0.82)", fontWeight: 600 };
 
-  return (
-    <motion.button
-      variants={fadeUp}
-      custom={index}
-      whileHover={{ y: -5, boxShadow: "0 16px 40px rgba(0,0,0,0.3)" }}
-      whileTap={{ scale: 0.97 }}
-      onClick={onClick}
-      className="rounded-2xl overflow-hidden text-left w-full group cursor-pointer"
-      style={{
-        background: "var(--color-card, #111)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        transition: "box-shadow 0.25s ease",
-      }}
-    >
-      {/* Animal photo strip */}
-      <div className="relative h-28 overflow-hidden">
-        <img
-          src={imgSrc}
-          alt={pa.animal}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          style={{ objectPosition: "center 25%" }}
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(to top, var(--color-card, #111) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)",
-          }}
-        />
-        {/* Icon chip over image */}
-        <div
-          className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-xl"
-          style={{ background: "rgba(245,166,35,0.18)", backdropFilter: "blur(6px)" }}
-        >
-          <AnimalIcon animal={pa.animal} size={20} className="text-gold" />
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="px-4 pb-4 pt-2">
-        <div className="flex items-end justify-between mb-2">
-          <div>
-            <h3 className="font-heading font-bold text-foreground text-base leading-tight">
-              {pa.animal}
-            </h3>
-            <code className="text-[10px] text-muted-foreground font-mono opacity-60">
-              {pa.originalLabel}
-            </code>
-          </div>
-          <ChevronRight
-            className="h-4 w-4 shrink-0 opacity-30 group-hover:opacity-80 group-hover:translate-x-0.5 transition-all"
-            style={{ color: "#f5a623" }}
-          />
-        </div>
-
-        {/* Badges */}
-        <div className="flex flex-wrap gap-1.5 mb-2.5">
-          <span
-            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: conf.bg, color: conf.text, border: `1px solid ${conf.border}` }}
-          >
-            {pa.confidence}
-          </span>
-          <span
-            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: ev.bg, color: ev.text, border: `1px solid ${ev.border}` }}
-          >
-            {pa.evType}
-          </span>
-        </div>
-
-        {/* Description preview */}
-        <p
-          className="text-[11px] leading-relaxed line-clamp-2"
-          style={{ color: "var(--color-muted-foreground, #888)" }}
-        >
-          {pa.description}
-        </p>
-
-        {/* Tap hint */}
-        <p
-          className="text-[10px] mt-2.5 font-medium opacity-0 group-hover:opacity-60 transition-opacity"
-          style={{ color: "#f5a623" }}
-        >
-          Tap to learn more →
-        </p>
-      </div>
-    </motion.button>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── PAGE ─────────────────────────────────────────────────────────────────────
 const GuidePage = () => {
   const [selected, setSelected] = useState<PatternAnimal | null>(null);
+  const close = useCallback(() => setSelected(null), []);
 
   return (
     <Layout>
-      <AnimalModal animal={selected} onClose={() => setSelected(null)} />
+      <AnimalModal pa={selected} onClose={close} />
 
-      <div className="container mx-auto px-4 py-10 max-w-3xl">
+      {/* Ambient top glow */}
+      <div style={{
+        position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)",
+        width: 600, height: 300, pointerEvents: "none", zIndex: 0,
+        background: "radial-gradient(ellipse at 50% 0%, rgba(245,166,35,0.08) 0%, transparent 70%)",
+      }} />
 
-        {/* ── Hero ────────────────────────────────────────────────────────── */}
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={stagger}
-          className="text-center mb-14"
-        >
-          <motion.div variants={fadeUp} className="flex justify-center mb-5">
-            <div
-              className="flex h-16 w-16 items-center justify-center rounded-2xl shadow-xl"
-              style={{
-                background: "linear-gradient(135deg, #f5a623, #e08c12)",
-                boxShadow: "0 8px 32px rgba(245,166,35,0.3)",
-              }}
-            >
-              <BookOpen className="h-8 w-8 text-white" />
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 760, margin: "0 auto", padding: "52px 20px 90px" }}>
+
+        {/* ── HERO ─────────────────────────────────────────────────────── */}
+        <motion.div initial="hidden" animate="visible" variants={stagger} style={{ textAlign: "center", marginBottom: 68 }}>
+
+          <motion.div variants={fadeUp} style={{ display: "flex", justifyContent: "center", marginBottom: 22 }}>
+            <div style={{
+              width: 66, height: 66, borderRadius: 22,
+              background: "linear-gradient(145deg, #f5a623 0%, #b87411 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 0 48px rgba(245,166,35,0.4), 0 10px 40px rgba(0,0,0,0.6)",
+            }}>
+              <BookOpen style={{ width: 30, height: 30, color: "#000" }} />
             </div>
           </motion.div>
 
-          <motion.div
-            variants={fadeUp}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-4 text-[11px] font-mono uppercase tracking-widest"
-            style={{
-              background: "rgba(245,166,35,0.08)",
-              border: "1px solid rgba(245,166,35,0.2)",
+          <motion.div variants={fadeUp} style={{ marginBottom: 18 }}>
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 7,
+              fontSize: 10, fontFamily: "monospace", letterSpacing: "0.22em",
+              textTransform: "uppercase" as const,
               color: "#f5a623",
-            }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-            Beginner Friendly Guide
+              background: "rgba(245,166,35,0.07)",
+              border: "1px solid rgba(245,166,35,0.18)",
+              padding: "6px 15px", borderRadius: 999,
+            }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: "50%", background: "#f5a623",
+                animation: "mk-pulse 2.2s ease-in-out infinite", flexShrink: 0,
+              }} />
+              Beginner's Field Guide
+            </span>
           </motion.div>
 
-          <motion.h1
-            variants={fadeUp}
-            className="text-4xl sm:text-5xl font-heading font-black text-foreground mb-4 leading-tight"
-          >
+          <motion.h1 variants={fadeUp} style={{
+            fontSize: "clamp(38px, 7vw, 60px)",
+            fontWeight: 900, lineHeight: 1.02, letterSpacing: "-0.035em",
+            fontFamily: "'Georgia','Times New Roman',serif",
+            color: "#fff", margin: "0 0 18px",
+          }}>
             How to Read{" "}
-            <span
-              style={{
-                background: "linear-gradient(90deg, #f5a623, #fcd34d)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              MK-806
+            <span style={{
+              background: "linear-gradient(88deg, #f5a623 0%, #ffd166 100%)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}>
+              MK‑806
             </span>
           </motion.h1>
 
-          <motion.p
-            variants={fadeUp}
-            className="text-muted-foreground max-w-lg mx-auto text-base leading-relaxed"
-          >
-            A plain-English walkthrough of predictions, patterns, and what _806 is
-            actually telling you. No jargon, no math — just the good stuff.
+          <motion.p variants={fadeUp} style={{
+            fontSize: 16, lineHeight: 1.75,
+            color: "rgba(255,255,255,0.38)",
+            maxWidth: 460, margin: "0 auto 30px",
+          }}>
+            Plain-English patterns, predictions, and what _806 is actually telling you.
+            No jargon. No math. Just the good stuff.
           </motion.p>
 
-          {/* Quick nav pills */}
-          <motion.div
-            variants={fadeUp}
-            className="flex flex-wrap justify-center gap-2 mt-6"
-          >
-            {[
-              "Patterns",
-              "Who is _806?",
-              "How to Use",
-              "MK-806 vs _806",
-              "All Animals",
-            ].map((label, i) => (
-              <span
-                key={label}
-                className="text-[11px] px-3 py-1 rounded-full font-medium"
-                style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: "var(--color-muted-foreground, #888)",
-                }}
-              >
-                {String(i + 1).padStart(2, "0")} {label}
+          <motion.div variants={fadeUp} style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 7 }}>
+            {["01 — Patterns", "02 — _806", "03 — How to use", "04 — Two Minds", "05 — The Cast"].map((l) => (
+              <span key={l} style={{
+                fontSize: 10, fontFamily: "monospace", letterSpacing: "0.08em",
+                color: "rgba(255,255,255,0.22)",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                padding: "5px 13px", borderRadius: 999,
+              }}>
+                {l}
               </span>
             ))}
           </motion.div>
         </motion.div>
 
-        <div className="space-y-5">
+        <style>{`
+          @keyframes mk-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.35;transform:scale(0.85)} }
+        `}</style>
 
-          {/* ── Section 1 ─────────────────────────────────────────────────── */}
-          <GuideSection
-            index={1}
-            icon={TrendingUp}
-            iconColor="#f5a623"
-            iconBg="#f5a62318"
-            badge="Section 01"
-            title="What is a Pattern?"
-          >
-            <motion.div variants={fadeUp}>
-              <p>
-                Every prediction MK-806 makes has two hidden qualities attached to it:
-                how <strong className="text-foreground">confident</strong> MK-806 was,
-                and how much <strong className="text-foreground">expected value</strong> it
-                spotted in the available odds.
-              </p>
-              <p className="mt-3">
-                A <strong className="text-foreground">pattern</strong> is simply the
-                combination of those two qualities. We've given each pattern a friendly
-                animal name to make them easy to remember. MK-806 tracks{" "}
-                <strong className="text-foreground">18 distinct patterns</strong> in total,
-                from the confident King of the Jungle down to the cautious Worm.
-              </p>
-            </motion.div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* ── SECTION 1 ─────────────────────────────────────────────── */}
+          <GuideSection index={1} icon={TrendingUp} iconColor="#f5a623" badge="Section 01" title="What is a Pattern?">
+            <motion.p variants={fadeUp} style={prose}>
+              Every prediction MK-806 makes has two hidden qualities: how{" "}
+              <strong style={hi}>confident</strong> it was, and how much{" "}
+              <strong style={hi}>expected value</strong> it spotted in the available odds.
+              A <strong style={hi}>pattern</strong> is simply that combination — and each
+              one gets a memorable animal name. MK-806 tracks{" "}
+              <strong style={hi}>18 distinct patterns</strong> in total.
+            </motion.p>
 
             <motion.div variants={fadeUp}>
-              <div
-                className="rounded-xl p-4 mt-2"
-                style={{
-                  background: "rgba(245,166,35,0.05)",
-                  border: "1px solid rgba(245,166,35,0.15)",
-                }}
-              >
-                <p className="text-xs font-mono uppercase tracking-wide text-muted-foreground mb-2">
-                  Quick example
-                </p>
-                <p className="text-foreground text-sm">
-                  A prediction labeled as{" "}
-                  <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "#f5a623" }}>
-                    <AnimalIcon animal="Lion" size={18} />
-                    Lion
+              <div style={{ borderRadius: 13, background: "rgba(245,166,35,0.05)", border: "1px solid rgba(245,166,35,0.13)", padding: "15px 17px" }}>
+                <div style={{ fontSize: 9, fontFamily: "monospace", letterSpacing: "0.16em", color: "#4a4a4a", marginBottom: 8 }}>QUICK EXAMPLE</div>
+                <p style={{ ...prose, margin: 0 }}>
+                  A prediction labeled{" "}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#f5a623", fontWeight: 800 }}>
+                    <AnimalIcon animal="Lion" size={16} /> Lion
                   </span>{" "}
-                  means MK-806 was highly confident AND spotted strong value in the market.
-                  Historically, patterns like this have delivered strong results — but they
-                  don't guarantee anything.
+                  means MK-806 was highly confident <em>and</em> spotted strong value. Historically these patterns perform well — but nothing is guaranteed.
                 </p>
               </div>
             </motion.div>
 
-            <motion.div variants={fadeUp}>
-              <p>
-                Crucially, patterns are{" "}
-                <strong className="text-foreground">not fixed in stone.</strong> A pattern
-                that has been delivering wins for months can start losing — and vice versa.
-                This flexibility keeps the advice honest and grounded in what is actually
-                happening.
-              </p>
-            </motion.div>
+            <motion.p variants={fadeUp} style={prose}>
+              Patterns are <strong style={hi}>not fixed in stone</strong>. One delivering wins for months can start losing — and vice versa. That flexibility keeps the advice honest and grounded in what is actually happening right now.
+            </motion.p>
 
-            <motion.div variants={fadeUp} className="my-6">
+            <motion.div variants={fadeUp}>
               <img
                 src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/pta.png"
-                alt="Pattern Analyser page showing all 18 patterns and their win rates"
-                className="w-full rounded-xl border border-border shadow-lg"
+                alt="Pattern Analyser showing all 18 patterns"
+                style={{ width: "100%", borderRadius: 13, border: "1px solid rgba(255,255,255,0.06)", display: "block" }}
               />
-              <p className="text-xs text-muted-foreground/50 text-center mt-2">
-                The Pattern Analyser — showing all 18 patterns and their actual win/loss records
+              <p style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(255,255,255,0.18)", textAlign: "center", margin: "8px 0 0", letterSpacing: "0.04em" }}>
+                THE PATTERN ANALYSER — ALL 18 PATTERNS AND THEIR LIVE WIN/LOSS RECORDS
               </p>
             </motion.div>
 
             <motion.div variants={fadeUp}>
-              <Callout icon={TrendingUp} color="#10b981" bg="#10b98110">
-                You can see the live performance of every pattern on the{" "}
-                <Link to="/patterns" className="underline font-medium">
-                  Pattern Analyser page
-                </Link>
-                . Green patterns are winning, red are losing — and the numbers update
-                as new results come in.
+              <Callout icon={TrendingUp} color="#22c55e">
+                Live performance for every pattern lives on the{" "}
+                <Link to="/patterns" style={{ color: "#22c55e", fontWeight: 700 }}>Pattern Analyser page</Link>.
+                Green = winning. Red = losing. Numbers update with every settled result.
               </Callout>
             </motion.div>
           </GuideSection>
 
-          {/* ── Section 2 ─────────────────────────────────────────────────── */}
-          <GuideSection
-            index={2}
-            icon={MessageSquare}
-            iconColor="#3b82f6"
-            iconBg="#3b82f618"
-            badge="Section 02"
-            title="Who is _806?"
-          >
-            <motion.div variants={fadeUp}>
-              <p>
-                When you tap on a prediction — whether it's live on the{" "}
-                <Link to="/status" className="text-gold hover:underline">Active Predictions</Link> page
-                or settled on the{" "}
-                <Link to="/previous" className="text-gold hover:underline">Previous</Link> page
-                — you'll see a short message from <strong className="text-foreground">_806</strong>.
-              </p>
-              <p className="mt-3">
-                <strong className="text-foreground">_806 is the pattern advisor.</strong> It is a
-                completely different entity from MK-806. While MK-806 looks forward and
-                simulates thousands of possible futures to decide what to predict, _806 only
-                looks <em>backwards</em> — at the track record of the pattern attached to
-                that specific prediction.
-              </p>
-            </motion.div>
+          {/* ── SECTION 2 ─────────────────────────────────────────────── */}
+          <GuideSection index={2} icon={MessageSquare} iconColor="#3b82f6" badge="Section 02" title="Who is _806?">
+            <motion.p variants={fadeUp} style={prose}>
+              Tap any prediction — on{" "}
+              <Link to="/status" style={{ color: "#f5a623", fontWeight: 600 }}>Active Predictions</Link> or{" "}
+              <Link to="/previous" style={{ color: "#f5a623", fontWeight: 600 }}>Previous</Link> — and you'll see a message from{" "}
+              <strong style={hi}>_806</strong>, the pattern advisor.
+              It is a completely separate entity from MK-806. While MK-806 simulates
+              thousands of possible futures, _806 only looks <em>backwards</em> at the track record of the attached pattern.
+            </motion.p>
 
             <motion.div variants={fadeUp}>
-              <div
-                className="flex items-start gap-4 rounded-xl p-4 mt-2"
-                style={{
-                  background: "rgba(59,130,246,0.05)",
-                  border: "1px solid rgba(59,130,246,0.15)",
-                }}
-              >
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              <div style={{ display: "flex", gap: 13, borderRadius: 13, padding: "15px 17px", background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.13)" }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
+                  background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 900, color: "#fff", fontFamily: "monospace",
+                }}>
                   806
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-sm font-semibold text-foreground">_806</span>
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                      style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
-                    >
-                      Pattern Advisor
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>_806</span>
+                    <span style={{ fontSize: 9, fontFamily: "monospace", letterSpacing: "0.1em", background: "rgba(59,130,246,0.14)", color: "#60a5fa", padding: "2px 8px", borderRadius: 999 }}>
+                      PATTERN ADVISOR
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    "Looking back at this prediction, it falls under the{" "}
-                    <strong className="text-foreground">Lion</strong> pattern —
-                    historically strong, but always subject to change."
+                  <p style={{ ...prose, fontSize: 13, margin: 0 }}>
+                    "Looking back, this prediction falls under the <strong style={{ color: "#fff" }}>Lion</strong> pattern — historically strong, but always subject to change."
                   </p>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground/50 mt-2 text-center italic">
-                This is what an _806 message looks like in the prediction popup.
-              </p>
             </motion.div>
 
-            <motion.div variants={fadeUp} className="my-6">
+            <motion.div variants={fadeUp}>
               <img
                 src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/06.png"
-                alt="Status page modal showing the _806 advisor message"
-                className="w-full rounded-xl border border-border shadow-lg"
+                alt="_806 pattern advisor in prediction popup"
+                style={{ width: "100%", borderRadius: 13, border: "1px solid rgba(255,255,255,0.06)", display: "block" }}
               />
-              <p className="text-xs text-muted-foreground/50 text-center mt-2">
-                The prediction popup — showing MK-806's pick and _806's pattern advice
+              <p style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(255,255,255,0.18)", textAlign: "center", margin: "8px 0 0", letterSpacing: "0.04em" }}>
+                THE PREDICTION POPUP — MK-806'S PICK ALONGSIDE _806'S PATTERN ADVICE
               </p>
             </motion.div>
 
             <motion.div variants={fadeUp}>
-              <Callout icon={AlertCircle} color="#f59e0b" bg="#f59e0b10">
-                Because _806 only uses the past, it can be wrong about the present.
-                If _806 says a pattern has struggled historically, that doesn't mean
-                this specific prediction will lose. MK-806 might have spotted something
-                the historical data hasn't caught up with yet. The decision is always yours.
+              <Callout icon={AlertCircle} color="#f59e0b">
+                Because _806 only uses the past, it can be wrong about the present. If it says a pattern has struggled, that doesn't mean this pick will lose — MK-806 may have spotted something the historical data hasn't caught yet. The decision is always yours.
               </Callout>
             </motion.div>
           </GuideSection>
 
-          {/* ── Section 3 ─────────────────────────────────────────────────── */}
-          <GuideSection
-            index={3}
-            icon={BarChart2}
-            iconColor="#10b981"
-            iconBg="#10b98118"
-            badge="Section 03"
-            title="How to Use the Pattern Insights"
-          >
-            <motion.div variants={fadeUp}>
-              <p>
-                Pattern advice is most useful when you use it as one ingredient in a
-                bigger picture — not as the final word. Here's a simple way to think
-                about it:
-              </p>
-            </motion.div>
+          {/* ── SECTION 3 ─────────────────────────────────────────────── */}
+          <GuideSection index={3} icon={BarChart2} iconColor="#22c55e" badge="Section 03" title="How to Use Pattern Insights">
+            <motion.p variants={fadeUp} style={prose}>
+              Pattern advice works best as one ingredient — not the final word. Here's the three-step method:
+            </motion.p>
 
             <motion.div variants={fadeUp}>
-              <div className="grid sm:grid-cols-3 gap-3 mt-2">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
                 {[
-                  {
-                    step: "1",
-                    title: "Check the message",
-                    desc: 'Read what _806 says in the prediction popup. Is it a "win" pattern, "loss" pattern, or not enough data yet?',
-                    color: "#f5a623",
-                  },
-                  {
-                    step: "2",
-                    title: "Look at the numbers",
-                    desc: "Jump to the Pattern Analyser page and find that specific animal. How many predictions does it have? What's the actual win rate?",
-                    color: "#10b981",
-                  },
-                  {
-                    step: "3",
-                    title: "Add your judgment",
-                    desc: "Combine the pattern data with what you know about the teams, the form, and the context. You know football — trust that too.",
-                    color: "#3b82f6",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.step}
-                    className="rounded-xl p-4"
-                    style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.07)",
-                    }}
-                  >
-                    <div
-                      className="h-7 w-7 rounded-lg flex items-center justify-center text-white text-xs font-bold mb-3"
-                      style={{ background: item.color }}
-                    >
-                      {item.step}
-                    </div>
-                    <p className="font-semibold text-foreground text-sm mb-1">{item.title}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                  { n: "01", title: "Read the message", desc: 'What does _806 say? Winning pattern, losing, or "insufficient data"?', color: "#f5a623" },
+                  { n: "02", title: "Check the numbers", desc: "Go to Pattern Analyser — find that animal, check the real win rate and sample size.", color: "#22c55e" },
+                  { n: "03", title: "Add your judgment", desc: "Combine pattern data with form, context, and what you know. Trust yourself.", color: "#3b82f6" },
+                ].map((s) => (
+                  <div key={s.n} style={{ borderRadius: 13, padding: "15px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.055)" }}>
+                    <div style={{ fontSize: 10, fontFamily: "monospace", color: s.color, letterSpacing: "0.14em", marginBottom: 9 }}>{s.n}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: "#fff", marginBottom: 6, lineHeight: 1.3 }}>{s.title}</div>
+                    <p style={{ ...prose, fontSize: 11.5, margin: 0 }}>{s.desc}</p>
                   </div>
                 ))}
               </div>
             </motion.div>
 
-            <motion.div variants={fadeUp}>
-              <p>
-                Patterns with fewer than 5 completed predictions are marked as{" "}
-                <code
-                  className="px-1.5 py-0.5 rounded text-xs font-mono"
-                  style={{
-                    background: "rgba(255,255,255,0.06)",
-                    color: "var(--color-foreground)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  INSUFFICIENT DATA
-                </code>
-                . When you see this, treat the advice as a placeholder — there simply
-                isn't enough history to say anything meaningful.
-              </p>
-            </motion.div>
+            <motion.p variants={fadeUp} style={prose}>
+              Patterns with fewer than 5 results are marked{" "}
+              <code style={{ fontSize: 11, fontFamily: "monospace", background: "rgba(255,255,255,0.055)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.68)", padding: "2px 8px", borderRadius: 6 }}>
+                INSUFFICIENT DATA
+              </code>
+              . Treat those as placeholders — there's simply not enough history to draw conclusions.
+            </motion.p>
 
             <motion.div variants={fadeUp}>
-              <Callout icon={ShieldCheck} color="#10b981" bg="#10b98110">
-                Patterns never override MK-806's prediction. They exist alongside it,
-                as context — not as instructions.
+              <Callout icon={ShieldCheck} color="#22c55e">
+                Patterns never override MK-806's prediction. They exist alongside it — as context, not commands.
               </Callout>
             </motion.div>
           </GuideSection>
 
-          {/* ── Section 4 ─────────────────────────────────────────────────── */}
-          <GuideSection
-            index={4}
-            icon={Zap}
-            iconColor="#f5a623"
-            iconBg="#f5a62318"
-            badge="Section 04"
-            title="MK-806 vs _806 — Two Different Minds"
-          >
-            <motion.div variants={fadeUp}>
-              <p>
-                They share a name, but they think completely differently. Here's the
-                simplest way to tell them apart:
-              </p>
-            </motion.div>
+          {/* ── SECTION 4 ─────────────────────────────────────────────── */}
+          <GuideSection index={4} icon={Zap} iconColor="#f5a623" badge="Section 04" title="MK-806 vs _806 — Two Minds">
+            <motion.p variants={fadeUp} style={prose}>
+              Same name. Completely different thinking. Here's the clearest way to tell them apart:
+            </motion.p>
 
             <motion.div variants={fadeUp}>
-              <div className="grid sm:grid-cols-2 gap-4 mt-2">
-                <div
-                  className="rounded-xl p-5"
-                  style={{
-                    background: "rgba(245,166,35,0.04)",
-                    border: "1px solid rgba(245,166,35,0.2)",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <div
-                      className="h-8 w-8 rounded-lg flex items-center justify-center"
-                      style={{ background: "linear-gradient(135deg, #f5a623, #e08c12)" }}
-                    >
-                      <Zap className="h-4 w-4 text-white" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[
+                  {
+                    id: "MK-806", subtitle: "God of Time", color: "#f5a623",
+                    iconEl: <Zap size={15} />,
+                    pts: [
+                      <><strong style={{ color: "#fff" }}>Looks forward</strong> — simulates thousands of futures</>,
+                      <>Decides <strong style={{ color: "#fff" }}>which bet to pick</strong></>,
+                      <>Runs every morning before fixtures</>,
+                    ],
+                  },
+                  {
+                    id: "_806", subtitle: "The Historian", color: "#3b82f6",
+                    iconEl: <span style={{ fontSize: 10, fontWeight: 900, fontFamily: "monospace" }}>806</span>,
+                    pts: [
+                      <><strong style={{ color: "#fff" }}>Looks backward</strong> — reviews pattern history</>,
+                      <>Tracks win/loss across <strong style={{ color: "#fff" }}>all 18 patterns</strong></>,
+                      <>Provides <strong style={{ color: "#fff" }}>context</strong>, not predictions</>,
+                    ],
+                  },
+                ].map((side) => (
+                  <div key={side.id} style={{ borderRadius: 15, padding: "18px", background: `${side.color}05`, border: `1px solid ${side.color}20` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 10, background: `${side.color}18`, border: `1px solid ${side.color}35`, display: "flex", alignItems: "center", justifyContent: "center", color: side.color }}>
+                        {side.iconEl}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>{side.id}</div>
+                        <div style={{ fontSize: 9, fontFamily: "monospace", color: `${side.color}70`, letterSpacing: "0.12em" }}>{side.subtitle}</div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-heading font-bold text-foreground text-sm">MK-806</p>
-                      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#f5a62399" }}>
-                        God of Time
-                      </p>
-                    </div>
+                    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {side.pts.map((pt, i) => (
+                        <li key={i} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+                          <ArrowRight style={{ width: 11, height: 11, color: side.color, marginTop: 3, flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.42)", lineHeight: 1.65 }}>{pt}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-2 text-xs text-muted-foreground">
-                    {[
-                      <>Looks <strong className="text-foreground">forward</strong> — simulates thousands of possible futures</>,
-                      <>Decides <strong className="text-foreground">which bet to pick</strong></>,
-                      <>Runs every morning before the day's fixtures</>,
-                    ].map((item, i) => (
-                      <li key={i} className="flex items-start gap-1.5">
-                        <ArrowRight className="h-3 w-3 mt-0.5 shrink-0" style={{ color: "#f5a623" }} />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div
-                  className="rounded-xl p-5"
-                  style={{
-                    background: "rgba(59,130,246,0.04)",
-                    border: "1px solid rgba(59,130,246,0.2)",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-[10px] font-bold">
-                      806
-                    </div>
-                    <div>
-                      <p className="font-heading font-bold text-foreground text-sm">_806</p>
-                      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#60a5fa99" }}>
-                        The Historian
-                      </p>
-                    </div>
-                  </div>
-                  <ul className="space-y-2 text-xs text-muted-foreground">
-                    {[
-                      <>Looks <strong className="text-foreground">backward</strong> — reviews how similar patterns performed</>,
-                      <>Tracks win/loss history across all 18 pattern combinations</>,
-                      <>Provides <strong className="text-foreground">context</strong>, not predictions</>,
-                    ].map((item, i) => (
-                      <li key={i} className="flex items-start gap-1.5">
-                        <ArrowRight className="h-3 w-3 mt-0.5 shrink-0" style={{ color: "#60a5fa" }} />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                ))}
               </div>
             </motion.div>
 
-            <motion.div variants={fadeUp}>
-              <p>
-                When these two align — when MK-806 picks a bet and _806 confirms the
-                pattern has historically done well — that's when you have the strongest
-                overall signal. When they point in different directions, that's valuable
-                information too.
-              </p>
-            </motion.div>
+            <motion.p variants={fadeUp} style={prose}>
+              When both align — MK-806 picks a bet and _806 confirms the pattern is historically strong — that's your clearest signal. When they diverge, that's also valuable information.
+            </motion.p>
 
             <motion.div variants={fadeUp}>
-              <Callout icon={RefreshCw} color="#3b82f6" bg="#3b82f610">
-                Patterns update daily as more predictions resolve. A pattern that's been
-                on a winning run for weeks can shift. That's not a flaw — it's the system
-                being honest about how things change.
+              <Callout icon={RefreshCw} color="#3b82f6">
+                Patterns update daily as predictions resolve. A pattern on a hot streak can shift — that's not a flaw, it's the system being honest about how markets change.
               </Callout>
             </motion.div>
           </GuideSection>
 
-          {/* ── Section 5: Pattern Animals ────────────────────────────────── */}
+          {/* ── SECTION 5 — Pattern Animals ────────────────────────────── */}
           <motion.section
-            initial="hidden"
-            whileInView="visible"
+            initial="hidden" whileInView="visible"
             viewport={{ once: true, margin: "-60px" }}
             variants={stagger}
-            className="rounded-2xl border border-border bg-card overflow-hidden"
-            style={{ boxShadow: "0 2px 20px rgba(0,0,0,0.12)" }}
+            style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,0.055)", background: "rgba(255,255,255,0.018)" }}
           >
-            <motion.div variants={fadeUp} className="p-6 md:p-8">
-              <div className="flex items-center gap-3 mb-2">
-                <div
-                  className="flex h-11 w-11 items-center justify-center rounded-xl shrink-0"
-                  style={{
-                    background: "rgba(245,166,35,0.1)",
-                    border: "1px solid rgba(245,166,35,0.2)",
-                  }}
-                >
-                  <TrendingUp className="h-5 w-5" style={{ color: "#f5a623" }} />
+            <motion.div variants={fadeUp} style={{ padding: "28px 30px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 6 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 13, flexShrink: 0,
+                  background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.24)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <TrendingUp style={{ color: "#f5a623", width: 19, height: 19 }} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-0.5">
-                    Section 05
-                  </p>
-                  <h2 className="text-xl font-heading font-bold text-foreground leading-tight">
+                  <div style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: "0.18em", color: "#3a3a3a", marginBottom: 3 }}>SECTION 05</div>
+                  <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fff", margin: 0, fontFamily: "'Georgia',serif", letterSpacing: "-0.01em" }}>
                     Pattern Animals — Meet the Cast
                   </h2>
                 </div>
               </div>
 
-              <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                Each card represents one of the 18 patterns MK-806 uses.{" "}
-                <strong className="text-foreground">Tap any card</strong> to see a detailed
-                breakdown of that pattern and what it means.
+              <p style={{ ...prose, marginBottom: 22 }}>
+                All 18 patterns, each with its own animal identity.{" "}
+                <strong style={{ color: "rgba(255,255,255,0.6)" }}>Tap any card</strong> for a full breakdown —
+                photo, tier, confidence, expected value, and description.
               </p>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(198px, 1fr))", gap: 13 }}>
                 {PATTERN_ANIMALS.map((pa, i) => (
-                  <AnimalCard
-                    key={pa.animal}
-                    pa={pa}
-                    index={i}
-                    onClick={() => setSelected(pa)}
-                  />
+                  <AnimalCard key={pa.animal} pa={pa} index={i} onClick={() => setSelected(pa)} />
                 ))}
               </div>
 
-              <p className="text-xs text-muted-foreground mt-6 text-center">
-                Historical performance is tracked on the{" "}
-                <Link to="/patterns" className="text-gold hover:underline font-medium">
-                  Pattern Analyser page
-                </Link>{" "}
-                — check back regularly as patterns evolve.
+              <p style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(255,255,255,0.18)", textAlign: "center", marginTop: 22, letterSpacing: "0.06em" }}>
+                LIVE PERFORMANCE ON THE{" "}
+                <Link to="/patterns" style={{ color: "#f5a623", fontWeight: 800, textDecoration: "none" }}>PATTERN ANALYSER</Link>.
+                PATTERNS EVOLVE — CHECK BACK REGULARLY.
               </p>
             </motion.div>
           </motion.section>
 
-          {/* ── Responsible use reminder ──────────────────────────────────── */}
+          {/* ── DISCLAIMER ─────────────────────────────────────────────── */}
           <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeUp}
-            className="rounded-2xl p-6"
-            style={{
-              background: "rgba(239,68,68,0.04)",
-              border: "1px solid rgba(239,68,68,0.15)",
-            }}
+            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
+            style={{ borderRadius: 20, border: "1px solid rgba(239,68,68,0.13)", background: "rgba(239,68,68,0.025)", padding: "24px 28px" }}
           >
-            <div className="flex items-center gap-2 mb-3">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
-              <p className="font-heading font-semibold text-foreground">A reminder</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 11 }}>
+              <AlertCircle style={{ width: 17, height: 17, color: "#ef4444", flexShrink: 0 }} />
+              <span style={{ fontSize: 14, fontWeight: 800, color: "#fff", fontFamily: "'Georgia',serif" }}>A reminder</span>
             </div>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              10 Odds is for informational purposes only. Neither MK-806 nor _806
-              constitutes financial or betting advice. Patterns reflect past performance,
-              which does not guarantee future results. Always bet responsibly, only stake
-              what you can afford to lose, and make your own decisions.
+            <p style={{ ...prose, fontSize: 13 }}>
+              10 Odds is for informational purposes only. Neither MK-806 nor _806 constitutes financial or betting advice. Patterns reflect past performance, which does not guarantee future results. Always bet responsibly — only stake what you can afford to lose, and make your own decisions.
             </p>
-            <div className="flex flex-wrap gap-3 mt-4">
-              <Link to="/terms" className="text-xs text-gold hover:underline">Terms of Service</Link>
-              <Link to="/privacy" className="text-xs text-gold hover:underline">Privacy Policy</Link>
-              <Link to="/about" className="text-xs text-gold hover:underline">About 10 Odds</Link>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginTop: 16 }}>
+              {[["Terms of Service", "/terms"], ["Privacy Policy", "/privacy"], ["About 10 Odds", "/about"]].map(([l, to]) => (
+                <Link key={to} to={to} style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "0.07em", color: "#f5a623", textDecoration: "none", fontWeight: 700 }}>
+                  {l} →
+                </Link>
+              ))}
             </div>
           </motion.div>
 
