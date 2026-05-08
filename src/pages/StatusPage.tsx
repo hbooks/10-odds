@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
+import AnimalIcon from "@/components/AnimalIcon";
+import { getAnimalByLabel } from "@/lib/patternAnimals";
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
 const supabase = createClient(
@@ -24,7 +26,6 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY as string,
 );
 
-// ─── Edge function URL ────────────────────────────────────────────────────────
 const FUNCTIONS_BASE =
   (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string) ??
   `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
@@ -88,11 +89,11 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
 };
 
 // ─── Pattern type config ──────────────────────────────────────────────────────
-const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; label: string }> = {
-  WIN:               { icon: TrendingUp,   color: "text-emerald-400", label: "WIN Pattern"       },
-  LOSS:              { icon: TrendingDown,  color: "text-rose-400",    label: "LOSS Pattern"      },
-  NEUTRAL:           { icon: Minus,         color: "text-amber-400",   label: "NEUTRAL Pattern"   },
-  INSUFFICIENT_DATA: { icon: HelpCircle,    color: "text-muted-foreground", label: "NEW Pattern"  },
+const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; label: string; barColor: string }> = {
+  WIN:               { icon: TrendingUp,   color: "text-emerald-400", label: "WIN Pattern",     barColor: "bg-emerald-400" },
+  LOSS:              { icon: TrendingDown,  color: "text-rose-400",    label: "LOSS Pattern",    barColor: "bg-rose-400"    },
+  NEUTRAL:           { icon: Minus,         color: "text-amber-400",   label: "NEUTRAL Pattern", barColor: "bg-amber-400"   },
+  INSUFFICIENT_DATA: { icon: HelpCircle,    color: "text-muted-foreground", label: "NEW Pattern", barColor: "bg-muted-foreground" },
 };
 
 // ─── Advisor bar ──────────────────────────────────────────────────────────────
@@ -139,9 +140,10 @@ function AdvisorBar({ confidenceScore, selection }: { confidenceScore: number; s
 
   if (!advice) return null;
 
-  const ui   = PATTERN_UI[advice.pattern_type] ?? PATTERN_UI.INSUFFICIENT_DATA;
-  const Icon = ui.icon;
-  const stats = advice.total_predictions >= 5
+  const ui      = PATTERN_UI[advice.pattern_type] ?? PATTERN_UI.INSUFFICIENT_DATA;
+  const Icon    = ui.icon;
+  const animal  = getAnimalByLabel(advice.pattern_label);
+  const stats   = advice.total_predictions >= 5
     ? `${advice.total_predictions} predictions · ${advice.win_rate.toFixed(1)}% win rate`
     : `${advice.total_predictions} prediction${advice.total_predictions !== 1 ? "s" : ""} so far`;
 
@@ -152,11 +154,22 @@ function AdvisorBar({ confidenceScore, selection }: { confidenceScore: number; s
       transition={{ duration: 0.35 }}
       className="mt-4 rounded-xl bg-black/40 border border-white/10 overflow-hidden"
     >
+      {/* ── Header strip with animal name + pattern type ── */}
       <div className={`px-4 py-1.5 flex items-center gap-2 text-xs font-medium ${ui.color} bg-black/20`}>
         <Icon className="h-3 w-3" />
-        <span className="font-mono">{advice.pattern_label}</span>
+        {animal ? (
+          <span className="flex items-center gap-1.5">
+            <AnimalIcon animal={animal.animal} size={14} className={ui.color} />
+            <span className="font-semibold">{animal.animal}</span>
+            <span className="opacity-50 font-mono text-[10px]">({advice.pattern_label})</span>
+          </span>
+        ) : (
+          <span className="font-mono">{advice.pattern_label}</span>
+        )}
         <span className="ml-auto opacity-60">{stats}</span>
       </div>
+
+      {/* ── Body ── */}
       <div className="px-4 py-3 flex items-start gap-3">
         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#4A5BA8] to-[#33468D] flex items-center justify-center text-white text-xs font-bold select-none shrink-0">
           806
@@ -323,36 +336,26 @@ function groupPredictionsByDay(predictions: Prediction[]) {
 
   predictions.forEach((p) => {
     const matchDay = toKenyaDateStr(p.matches.utc_date);
-    if (matchDay === todayStr)        today.push(p);
+    if (matchDay === todayStr)         today.push(p);
     else if (matchDay === tomorrowStr) tomorrow.push(p);
     else if (matchDay === dayAfterStr) dayAfter.push(p);
   });
 
   const groups: { label: string; predictions: Prediction[] }[] = [];
-  if (today.length > 0)    groups.push({ label: "Today",            predictions: today });
-  if (tomorrow.length > 0) groups.push({ label: "Tomorrow",         predictions: tomorrow });
+  if (today.length > 0)    groups.push({ label: "Today",              predictions: today });
+  if (tomorrow.length > 0) groups.push({ label: "Tomorrow",           predictions: tomorrow });
   if (dayAfter.length > 0) groups.push({ label: "Day After Tomorrow", predictions: dayAfter });
   return groups;
 }
 
 // ─── Prediction row ───────────────────────────────────────────────────────────
-// Extracted so the table body only ever contains clean <tr> data rows.
-function PredictionRow({
-  p,
-  onClick,
-}: {
-  p: Prediction;
-  onClick: () => void;
-}) {
+function PredictionRow({ p, onClick }: { p: Prediction; onClick: () => void }) {
   const match   = p.matches;
   const fixture = `${match.home_team.tla || match.home_team.name} vs ${match.away_team.tla || match.away_team.name}`;
   const isLive  = match.status === "IN_PLAY" || match.status === "PAUSED";
 
   return (
-    <tr
-      className="hover:bg-muted/30 transition-colors cursor-pointer"
-      onClick={onClick}
-    >
+    <tr className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={onClick}>
       <td className="px-4 py-3.5">
         <div className="font-medium leading-tight">{fixture}</div>
         <div className="text-xs text-muted-foreground mt-0.5">{match.competition.name}</div>
@@ -366,10 +369,7 @@ function PredictionRow({
       <td className="px-4 py-3.5 hidden sm:table-cell">
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-16 rounded-full bg-muted/60 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gold"
-              style={{ width: `${p.confidence_score * 100}%` }}
-            />
+            <div className="h-full rounded-full bg-gold" style={{ width: `${p.confidence_score * 100}%` }} />
           </div>
           <span className="text-xs tabular-nums">{Math.round(p.confidence_score * 100)}%</span>
         </div>
@@ -388,21 +388,18 @@ function PredictionRow({
 }
 
 function PredictionGroup({
-  group,
-  index,
-  onSelect,
+  group, index, onSelect,
 }: {
   group: { label: string; predictions: Prediction[] };
   index: number;
   onSelect: (p: Prediction) => void;
 }) {
-  // Label badges per group
   const badgeStyle =
     index === 0
-      ? "bg-gold/15 text-gold border border-gold/30"           // Today  → gold
+      ? "bg-gold/15 text-gold border border-gold/30"
       : index === 1
-      ? "bg-[#4A5BA8]/15 text-[#4A5BA8] border border-[#4A5BA8]/30" // Tomorrow → brand blue
-      : "bg-muted/60 text-muted-foreground border border-border";  // Day after → neutral
+      ? "bg-[#4A5BA8]/15 text-[#4A5BA8] border border-[#4A5BA8]/30"
+      : "bg-muted/60 text-muted-foreground border border-border";
 
   return (
     <motion.div
@@ -410,7 +407,6 @@ function PredictionGroup({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* ── Group label — lives OUTSIDE and ABOVE the table card ── */}
       <div className="flex items-center gap-3 mb-2 px-1">
         <span className={`text-xs font-semibold px-3 py-1 rounded-full ${badgeStyle}`}>
           {group.label}
@@ -418,11 +414,9 @@ function PredictionGroup({
         <span className="text-xs text-muted-foreground/60">
           {group.predictions.length} prediction{group.predictions.length !== 1 ? "s" : ""}
         </span>
-        {/* Right rule line */}
         <div className="flex-1 h-px bg-border" />
       </div>
 
-      {/* ── Group table — self-contained card, no separator rows inside ── */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -437,11 +431,7 @@ function PredictionGroup({
             </thead>
             <tbody className="divide-y divide-border">
               {group.predictions.map((p) => (
-                <PredictionRow
-                  key={p.id}
-                  p={p}
-                  onClick={() => onSelect(p)}
-                />
+                <PredictionRow key={p.id} p={p} onClick={() => onSelect(p)} />
               ))}
             </tbody>
           </table>
@@ -453,11 +443,11 @@ function PredictionGroup({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StatusPage = () => {
-  const [predictions,       setPredictions]       = useState<Prediction[]>([]);
-  const [loading,           setLoading]           = useState(true);
-  const [error,             setError]             = useState<string | null>(null);
+  const [predictions,        setPredictions]        = useState<Prediction[]>([]);
+  const [loading,            setLoading]            = useState(true);
+  const [error,              setError]              = useState<string | null>(null);
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
-  const [showGuideBanner,   setShowGuideBanner]   = useState(true);
+  const [showGuideBanner,    setShowGuideBanner]    = useState(true);
 
   const fetchActivePredictions = useCallback(async () => {
     setLoading(true);
@@ -466,18 +456,10 @@ const StatusPage = () => {
       const { data, error: err } = await supabase
         .from("predictions")
         .select(`
-          id,
-          match_id,
-          bet_type,
-          selection,
-          predicted_odds,
-          confidence_score,
-          reasoning,
-          status,
-          created_at,
+          id, match_id, bet_type, selection, predicted_odds, confidence_score,
+          reasoning, status, created_at,
           matches (
-            utc_date,
-            status,
+            utc_date, status,
             home_team:teams!matches_home_team_id_fkey ( name, tla, crest_url ),
             away_team:teams!matches_away_team_id_fkey ( name, tla, crest_url ),
             competition:competitions ( name )
@@ -502,8 +484,6 @@ const StatusPage = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-
-        {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-3xl font-heading font-bold">Active Predictions</h1>
           <button
@@ -518,7 +498,6 @@ const StatusPage = () => {
           Live status of MK-806's current picks. Tap a row to see full analysis.
         </p>
 
-        {/* ── Guide banner ─────────────────────────────────────────────────── */}
         <AnimatePresence>
           {showGuideBanner && (
             <motion.div
@@ -554,36 +533,26 @@ const StatusPage = () => {
           )}
         </AnimatePresence>
 
-        {/* ── Loading ──────────────────────────────────────────────────────── */}
         {loading && (
           <div className="flex justify-center py-20">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {/* ── Error ────────────────────────────────────────────────────────── */}
         {!loading && error && (
           <div className="flex flex-col items-center gap-4 py-16 text-center">
             <AlertCircle className="h-10 w-10 text-muted-foreground" />
             <p className="text-muted-foreground">{error}</p>
-            <button onClick={fetchActivePredictions} className="text-sm text-gold hover:underline">
-              Try again
-            </button>
+            <button onClick={fetchActivePredictions} className="text-sm text-gold hover:underline">Try again</button>
           </div>
         )}
 
-        {/* ── Empty ────────────────────────────────────────────────────────── */}
         {!loading && !error && predictions.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <p>No active predictions at the moment.</p>
           </div>
         )}
 
-        {/* ── Grouped prediction tables ─────────────────────────────────────
-            Each group is a completely independent card with its own header.
-            The label sits above the card, separated by whitespace — never
-            inside the table — so there is no border confusion.
-        ────────────────────────────────────────────────────────────────── */}
         {!loading && !error && groupedPredictions.length > 0 && (
           <div className="space-y-6">
             {groupedPredictions.map((group, i) => (
@@ -597,7 +566,6 @@ const StatusPage = () => {
           </div>
         )}
 
-        {/* ── Modal ────────────────────────────────────────────────────────── */}
         <PredictionModal
           prediction={selectedPrediction}
           onClose={() => setSelectedPrediction(null)}
