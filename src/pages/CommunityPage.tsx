@@ -598,7 +598,11 @@ const MemberCard = ({ m, index }: { m: Member; index: number }) => {
           boxShadow: `0 0 0 2px ${accent}60`,
         }}
       >
-        <CrestImage url={m.avatar} alt="" size="md" className="w-10 h-10 drop-shadow-md" />
+        <CrestImage
+          url={m.avatar}
+          alt=""
+          className="!w-10 !h-10 drop-shadow-md"
+        />
       </div>
 
       <p className="text-xs font-bold text-center text-white/90 leading-tight break-all">
