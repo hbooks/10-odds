@@ -33,7 +33,7 @@ export const PATTERN_ANIMALS: PatternAnimal[] = [
   },
   {
     animal: "Bull",
-    originalLabel: "HConf & H(-) EV",
+    originalLabel: "HConf & H(-)EV",
     confidence: "High",
     evType: "High Negative",
     description:
