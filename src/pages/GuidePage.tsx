@@ -1,5 +1,4 @@
-import React from "react";
-import { motion, AnimatePresence, type Variants } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useState, useCallback } from "react";
 import {
@@ -12,6 +11,7 @@ import AnimalIcon from "@/components/AnimalIcon";
 
 type PatternAnimal = (typeof PATTERN_ANIMALS)[number];
 
+// ─── Animal images (same high‑quality set) ────────────────────────────────────
 const ANIMAL_IMG: Record<string, string> = {
   Lion:     "https://images.pexels.com/photos/36714661/pexels-photo-36714661.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&fit=crop",
   Eagle:    "https://images.pexels.com/photos/29186242/pexels-photo-29186242.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&fit=crop",
@@ -33,6 +33,7 @@ const ANIMAL_IMG: Record<string, string> = {
   Worm:     "https://cdn.pixabay.com/photo/2019/06/08/22/46/fishing-4261191_1280.jpg?auto=compress&cs=tinysrgb&w=600&h=600&fit=crop",
 };
 
+// ─── Tier classification ──────────────────────────────────────────────────────
 function getTier(pa: PatternAnimal) {
   const c = (pa.confidence ?? "").toLowerCase();
   const e = (pa.evType ?? "").toLowerCase();
@@ -47,123 +48,111 @@ function getTier(pa: PatternAnimal) {
   return                  { label: "MODERATE",color: "#a855f7", dim: "rgba(168,85,247,0.12)",  ring: "rgba(168,85,247,0.3)" };
 }
 
-const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
-
-const fadeUp: Variants = {
+const EASE: number[] = [0.16, 1, 0.3, 1];
+const fadeUp = {
   hidden:  { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
 };
-const stagger: Variants = { visible: { transition: { staggerChildren: 0.08 } } };
+const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
 
-// ─── Animal modal ─────────────────────────────────────────────────────────────
+// ─── Modal ────────────────────────────────────────────────────────────────────
 function AnimalModal({ pa, onClose }: { pa: PatternAnimal | null; onClose: () => void }) {
+  if (!pa) return null;
+  const tier = getTier(pa);
+
   return (
     <AnimatePresence>
-      {pa && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/92 backdrop-blur-xl"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.88, y: 40 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.93, y: 24 }}
-            transition={{ duration: 0.4, ease: EASE }}
-            className="relative z-10 w-full max-w-[760px] rounded-3xl overflow-hidden flex flex-col md:flex-row"
-            style={{
-              background: "#0a0a0d",
-              border: `1px solid ${getTier(pa).ring}`,
-              boxShadow: `0 0 0 1px rgba(255,255,255,0.04), 0 40px 80px rgba(0,0,0,0.7), 0 0 80px ${getTier(pa).dim}`,
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Photo side */}
-            <div className="relative w-full md:w-5/12 min-h-[260px] md:min-h-[460px] overflow-hidden bg-gray-950">
-              <img
-                src={ANIMAL_IMG[pa.animal] ?? ANIMAL_IMG.Fox}
-                alt={pa.animal}
-                className="absolute inset-0 w-full h-full object-cover object-center"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-              <div className="absolute inset-0" style={{ background: "linear-gradient(to right, transparent 45%, #0a0a0d 100%), linear-gradient(to top, #0a0a0d 0%, transparent 50%)" }} />
-
-              {/* Tier pill */}
-              <div className="absolute top-4 left-4 flex items-center gap-1.5">
-                <span className="px-2.5 py-1 rounded-full text-[9px] font-black font-mono tracking-[0.15em] text-black" style={{ background: getTier(pa).color }}>
-                  {getTier(pa).label}
-                </span>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-black/92 backdrop-blur-xl"
+        />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.88, y: 40 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.93, y: 24 }}
+          transition={{ duration: 0.4, ease: EASE }}
+          className="relative z-10 w-full max-w-[760px] rounded-3xl overflow-hidden flex flex-col md:flex-row"
+          style={{
+            background: "#0a0a0d",
+            border: `1px solid ${tier.ring}`,
+            boxShadow: `0 0 0 1px rgba(255,255,255,0.04), 0 40px 80px rgba(0,0,0,0.7), 0 0 80px ${tier.dim}`,
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Left photo */}
+          <div className="relative w-full md:w-5/12 min-h-[260px] md:min-h-[460px] overflow-hidden bg-gray-950">
+            <img
+              src={ANIMAL_IMG[pa.animal] ?? ANIMAL_IMG.Fox}
+              alt={pa.animal}
+              className="absolute inset-0 w-full h-full object-cover object-center"
+              onError={(e) => (e.currentTarget.style.display = "none")}
+            />
+            <div className="absolute inset-0" style={{ background: "linear-gradient(to right, transparent 45%, #0a0a0d 100%), linear-gradient(to top, #0a0a0d 0%, transparent 50%)" }} />
+            <div className="absolute top-4 left-4">
+              <span className="px-2.5 py-1 rounded-full text-[9px] font-black font-mono tracking-[0.15em] text-black" style={{ background: tier.color }}>
+                {tier.label}
+              </span>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 p-5">
+              <p className="text-[9px] font-mono tracking-[0.2em] uppercase mb-1" style={{ color: tier.color }}>{pa.originalLabel}</p>
+              <h2 className="text-[2.2rem] font-black text-white leading-none" style={{ fontFamily: "Georgia, serif", textShadow: "0 2px 20px rgba(0,0,0,0.8)" }}>
+                The {pa.animal}
+              </h2>
+            </div>
+          </div>
+          {/* Right info */}
+          <div className="relative flex-1 p-6 md:p-7 flex flex-col bg-[#0a0a0d]">
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full border flex items-center justify-center text-gray-500 hover:text-white transition-all hover:border-white/30"
+              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.1)" }}
+            >
+              <X size={14} />
+            </button>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center border" style={{ background: tier.dim, borderColor: tier.ring }}>
+                <AnimalIcon animal={pa.animal} size={20} style={{ color: tier.color }} />
               </div>
-
-              {/* Animal name overlay */}
-              <div className="absolute bottom-0 left-0 right-0 p-5">
-                <p className="text-[9px] font-mono tracking-[0.2em] uppercase mb-1" style={{ color: getTier(pa).color }}>{pa.originalLabel}</p>
-                <h2 className="text-[2.2rem] font-black text-white leading-none" style={{ fontFamily: "Georgia, serif", textShadow: "0 2px 20px rgba(0,0,0,0.8)" }}>
-                  The {pa.animal}
-                </h2>
+              <div>
+                <p className="text-base font-black text-white" style={{ fontFamily: "Georgia, serif" }}>The {pa.animal}</p>
+                <p className="text-[10px] font-mono text-gray-600 mt-0.5">Pattern {PATTERN_ANIMALS.indexOf(pa) + 1} of {PATTERN_ANIMALS.length}</p>
               </div>
             </div>
-
-            {/* Info side */}
-            <div className="relative flex-1 p-6 md:p-7 flex flex-col bg-[#0a0a0d]">
-              <button
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {[
+                { label: "CONFIDENCE", value: pa.confidence },
+                { label: "EXP. VALUE", value: pa.evType },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl p-3 border" style={{ background: `${tier.color}08`, borderColor: `${tier.color}22` }}>
+                  <p className="text-[9px] font-mono tracking-widest text-gray-600 mb-1">{s.label}</p>
+                  <p className="text-sm font-bold" style={{ color: tier.color }}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="h-px mb-4" style={{ background: "rgba(255,255,255,0.05)" }} />
+            <p className="text-sm leading-relaxed text-gray-400 flex-1">{pa.description}</p>
+            <div className="mt-5 pt-4 flex items-center justify-between" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <span className="text-[9px] font-mono tracking-widest text-gray-700">UPDATED DAILY</span>
+              <Link
+                to="/patterns"
                 onClick={onClose}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full border flex items-center justify-center text-gray-500 hover:text-white transition-all hover:border-white/30"
-                style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.1)" }}
+                className="text-[11px] font-bold font-mono tracking-wide flex items-center gap-1.5 hover:opacity-70 transition-opacity"
+                style={{ color: tier.color }}
               >
-                <X size={14} />
-              </button>
-
-              {/* Header */}
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center border" style={{ background: getTier(pa).dim, borderColor: getTier(pa).ring }}>
-                  <AnimalIcon animal={pa.animal} size={20} style={{ color: getTier(pa).color }} />
-                </div>
-                <div>
-                  <p className="text-base font-black text-white" style={{ fontFamily: "Georgia, serif" }}>The {pa.animal}</p>
-                  <p className="text-[10px] font-mono text-gray-600 mt-0.5">Pattern {PATTERN_ANIMALS.indexOf(pa) + 1} of {PATTERN_ANIMALS.length}</p>
-                </div>
-              </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {[
-                  { label: "CONFIDENCE", value: pa.confidence },
-                  { label: "EXP. VALUE", value: pa.evType },
-                ].map(s => (
-                  <div key={s.label} className="rounded-xl p-3 border" style={{ background: `${getTier(pa).color}08`, borderColor: `${getTier(pa).color}22` }}>
-                    <p className="text-[9px] font-mono tracking-widest text-gray-600 mb-1">{s.label}</p>
-                    <p className="text-sm font-bold" style={{ color: getTier(pa).color }}>{s.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="h-px mb-4" style={{ background: "rgba(255,255,255,0.05)" }} />
-
-              <p className="text-sm leading-relaxed text-gray-400 flex-1">{pa.description}</p>
-
-              <div className="mt-5 pt-4 flex items-center justify-between" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                <span className="text-[9px] font-mono tracking-widest text-gray-700">UPDATED DAILY</span>
-                <Link
-                  to="/patterns"
-                  onClick={onClose}
-                  className="text-[11px] font-bold font-mono tracking-wide flex items-center gap-1.5 hover:opacity-70 transition-opacity"
-                  style={{ color: getTier(pa).color }}
-                >
-                  VIEW ANALYSER <ArrowRight size={11} />
-                </Link>
-              </div>
+                VIEW ANALYSER <ArrowRight size={11} />
+              </Link>
             </div>
-          </motion.div>
-        </div>
-      )}
+          </div>
+        </motion.div>
+      </div>
     </AnimatePresence>
   );
 }
 
-// ─── Animal card ──────────────────────────────────────────────────────────────
+// ─── Animal card (exactly the same design as before but with refined shadows) ──
 function AnimalCard({ pa, index, onClick }: { pa: PatternAnimal; index: number; onClick: () => void }) {
   const tier = getTier(pa);
   const img  = ANIMAL_IMG[pa.animal];
@@ -225,7 +214,7 @@ function AnimalCard({ pa, index, onClick }: { pa: PatternAnimal; index: number; 
   );
 }
 
-// ─── Section wrapper ──────────────────────────────────────────────────────────
+// ─── Section wrapper with decorative left bar + watermark ─────────────────────
 function GuideSection({
   num, icon: Icon, iconColor, badge, title, children,
 }: {
@@ -245,10 +234,9 @@ function GuideSection({
         boxShadow: "0 4px 40px rgba(0,0,0,0.3)",
       }}
     >
-      {/* Decorative accent bar on left */}
+      {/* Left accent bar */}
       <div className="absolute left-0 top-8 bottom-8 w-[3px] rounded-full" style={{ background: `linear-gradient(to bottom, transparent, ${iconColor}, transparent)` }} />
-
-      {/* Section number watermark */}
+      {/* Watermark number */}
       <div
         className="absolute top-4 right-6 text-[5rem] font-black font-mono leading-none select-none pointer-events-none"
         style={{ color: "rgba(255,255,255,0.02)" }}
@@ -257,7 +245,6 @@ function GuideSection({
       </div>
 
       <div className="p-6 md:p-8">
-        {/* Section header */}
         <motion.div variants={fadeUp} className="flex items-center gap-4 mb-7">
           <div
             className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
@@ -322,15 +309,7 @@ const GuidePage = () => {
     <Layout>
       <AnimalModal pa={selected} onClose={close} />
 
-      {/* Global page style injected inline */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap');
-        .guide-body { font-family: 'DM Sans', sans-serif; }
-        .guide-display { font-family: 'Playfair Display', Georgia, serif; }
-      `}</style>
-
-      <div className="guide-body relative min-h-screen" style={{ background: "#080810" }}>
-
+      <div className="relative min-h-screen" style={{ background: "#080810" }}>
         {/* Subtle radial glow at top */}
         <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] opacity-30" style={{ background: "radial-gradient(ellipse at center top, rgba(245,166,35,0.12) 0%, transparent 70%)" }} />
 
@@ -338,33 +317,25 @@ const GuidePage = () => {
 
           {/* ── HERO ─────────────────────────────────────────────────────────── */}
           <motion.div initial="hidden" animate="visible" variants={stagger} className="mb-14">
-
-            {/* Live badge */}
             <motion.div variants={fadeUp} className="flex justify-center mb-6">
               <span className="inline-flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] uppercase text-amber-400 bg-amber-400/8 border border-amber-400/20 px-4 py-2 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                 Beginner's Field Guide
               </span>
             </motion.div>
-
-            {/* Title */}
             <motion.h1
               variants={fadeUp}
-              className="guide-display text-center text-4xl md:text-6xl font-black text-white leading-[1.05] tracking-tight mb-5"
+              className="text-center text-4xl md:text-6xl font-black text-white leading-[1.05] tracking-tight mb-5"
+              style={{ fontFamily: "Georgia, serif" }}
             >
               How to Read{" "}
-              <span className="relative inline-block">
-                <span style={{ background: "linear-gradient(135deg, #f5a623 0%, #fde68a 50%, #f59e0b 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  MK-806
-                </span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500">
+                MK-806
               </span>
             </motion.h1>
-
             <motion.p variants={fadeUp} className="text-center text-base md:text-lg text-gray-500 max-w-xl mx-auto mb-8 leading-relaxed">
-              Plain-English patterns, predictions, and what <strong className="text-gray-300 font-semibold">_806</strong> is actually telling you. No jargon. No maths. Just the good stuff.
+              Plain‑English patterns, predictions, and what <strong className="text-gray-300 font-semibold">_806</strong> is actually telling you. No jargon. No maths. Just the good stuff.
             </motion.p>
-
-            {/* TOC pills */}
             <motion.div variants={fadeUp} className="flex flex-wrap justify-center gap-2">
               {[
                 "01 — What is a Pattern",
@@ -374,8 +345,6 @@ const GuidePage = () => {
                 "05 — The Cast",
               ].map(l => <TocPill key={l} label={l} />)}
             </motion.div>
-
-            {/* Divider */}
             <motion.div variants={fadeUp} className="mt-10 flex items-center gap-4">
               <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.08))" }} />
               <span className="text-[9px] font-mono tracking-widest text-gray-700">START READING</span>
@@ -389,10 +358,9 @@ const GuidePage = () => {
             {/* SECTION 01 */}
             <GuideSection num="01" icon={TrendingUp} iconColor="#f5a623" badge="Section 01" title="What is a Pattern?">
               <motion.p variants={fadeUp} className="text-sm leading-relaxed text-gray-400">
-                Every prediction MK-806 makes carries two hidden qualities: how <strong className="text-white/85 font-semibold">confident</strong> it was, and how much <strong className="text-white/85 font-semibold">expected value</strong> it spotted in the odds. A <strong className="text-white/85 font-semibold">pattern</strong> is simply that combination — and each one gets a memorable animal name. MK-806 tracks <strong className="text-white/85 font-semibold">18 distinct patterns</strong> in total.
+                Every prediction MK‑806 makes carries two hidden qualities: how <strong className="text-white/85 font-semibold">confident</strong> it was, and how much <strong className="text-white/85 font-semibold">expected value</strong> it spotted in the odds. A <strong className="text-white/85 font-semibold">pattern</strong> is simply that combination — and each one gets a memorable animal name. MK‑806 tracks <strong className="text-white/85 font-semibold">18 distinct patterns</strong> in total.
               </motion.p>
 
-              {/* Example block */}
               <motion.div variants={fadeUp}>
                 <div className="rounded-2xl p-5" style={{ background: "rgba(245,166,35,0.05)", border: "1px solid rgba(245,166,35,0.14)" }}>
                   <p className="text-[9px] font-mono tracking-[0.18em] text-amber-600/70 mb-3">QUICK EXAMPLE</p>
@@ -401,7 +369,7 @@ const GuidePage = () => {
                       <AnimalIcon animal="Lion" size={18} style={{ color: "#f5a623" }} />
                     </div>
                     <p className="text-sm leading-relaxed text-gray-400">
-                      A prediction labeled <strong className="text-amber-400">Lion</strong> means MK-806 was highly confident <em>and</em> spotted strong value. Historically these patterns perform well — but nothing is guaranteed.
+                      A prediction labeled <strong className="text-amber-400">Lion</strong> means MK‑806 was highly confident <em>and</em> spotted strong value. Historically these patterns perform well — but nothing is guaranteed.
                     </p>
                   </div>
                 </div>
@@ -415,8 +383,7 @@ const GuidePage = () => {
                 <img
                   src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/pta.png"
                   alt="Pattern Analyser"
-                  className="w-full rounded-2xl"
-                  style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                  className="w-full rounded-2xl border border-white/10"
                 />
                 <p className="text-[9px] font-mono text-gray-700 text-center mt-2.5 tracking-widest">THE PATTERN ANALYSER — ALL 18 PATTERNS AND THEIR LIVE WIN/LOSS RECORDS</p>
               </motion.div>
@@ -434,12 +401,11 @@ const GuidePage = () => {
               <motion.p variants={fadeUp} className="text-sm leading-relaxed text-gray-400">
                 Tap any prediction — on{" "}
                 <Link to="/status" className="text-amber-400 font-semibold underline">Active Predictions</Link> or{" "}
-                <Link to="/previous" className="text-amber-400 font-semibold underline">Previous</Link> — and you'll see a message from <strong className="text-white/85 font-semibold">_806</strong>, the pattern advisor. It is a completely separate entity from MK-806. While MK-806 simulates thousands of possible futures, _806 only looks <em>backwards</em> at the track record of the attached pattern.
+                <Link to="/previous" className="text-amber-400 font-semibold underline">Previous</Link> — and you'll see a message from <strong className="text-white/85 font-semibold">_806</strong>, the pattern advisor. It is a completely separate entity from MK‑806. While MK‑806 simulates thousands of possible futures, _806 only looks <em>backwards</em> at the track record of the attached pattern.
               </motion.p>
 
-              {/* _806 message mockup */}
               <motion.div variants={fadeUp}>
-                <div className="rounded-2xl p-5" style={{ background: "rgba(223, 230, 240, 0.36)", border: "1px solid rgba(59,130,246,0.15)" }}>
+                <div className="rounded-2xl p-5" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
                   <div className="flex gap-3">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-black font-mono shrink-0" style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                       806
@@ -461,15 +427,14 @@ const GuidePage = () => {
                 <img
                   src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/06.png"
                   alt="_806 popup"
-                  className="w-full rounded-2xl"
-                  style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                  className="w-full rounded-2xl border border-white/10"
                 />
-                <p className="text-[9px] font-mono text-gray-700 text-center mt-2.5 tracking-widest">THE PREDICTION POPUP — MK-806'S PICK ALONGSIDE _806'S PATTERN ADVICE</p>
+                <p className="text-[9px] font-mono text-gray-700 text-center mt-2.5 tracking-widest">THE PREDICTION POPUP — MK‑806'S PICK ALONGSIDE _806'S PATTERN ADVICE</p>
               </motion.div>
 
               <motion.div variants={fadeUp}>
                 <Callout icon={AlertCircle} color="#f59e0b">
-                  Because _806 only uses the past, it can be wrong about the present. If it says a pattern has struggled, that doesn't mean this pick will lose — MK-806 may have spotted something the historical data hasn't caught yet. The decision is always yours.
+                  Because _806 only uses the past, it can be wrong about the present. If it says a pattern has struggled, that doesn't mean this pick will lose — MK‑806 may have spotted something the historical data hasn't caught yet. The decision is always yours.
                 </Callout>
               </motion.div>
             </GuideSection>
@@ -477,7 +442,7 @@ const GuidePage = () => {
             {/* SECTION 03 */}
             <GuideSection num="03" icon={BarChart2} iconColor="#22c55e" badge="Section 03" title="How to Use Pattern Insights">
               <motion.p variants={fadeUp} className="text-sm leading-relaxed text-gray-400">
-                Pattern advice works best as one ingredient — not the final word. Here's the three-step method:
+                Pattern advice works best as one ingredient — not the final word. Here's the three‑step method:
               </motion.p>
 
               <motion.div variants={fadeUp}>
@@ -490,7 +455,7 @@ const GuidePage = () => {
 
               <motion.p variants={fadeUp} className="text-sm leading-relaxed text-gray-400">
                 Patterns with fewer than 5 results are marked{" "}
-                <code className="text-xs font-mono px-1.5 py-0.5 rounded-lg text-gray-300" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <code className="text-xs font-mono px-1.5 py-0.5 rounded-lg text-gray-300 bg-white/10 border border-white/10">
                   INSUFFICIENT DATA
                 </code>
                 . Treat those as placeholders — there's simply not enough history to draw conclusions.
@@ -498,13 +463,13 @@ const GuidePage = () => {
 
               <motion.div variants={fadeUp}>
                 <Callout icon={ShieldCheck} color="#22c55e">
-                  Patterns never override MK-806's prediction. They exist alongside it — as context, not commands.
+                  Patterns never override MK‑806's prediction. They exist alongside it — as context, not commands.
                 </Callout>
               </motion.div>
             </GuideSection>
 
             {/* SECTION 04 */}
-            <GuideSection num="04" icon={Zap} iconColor="#f5a623" badge="Section 04" title="MK-806 vs _806 — Two Minds">
+            <GuideSection num="04" icon={Zap} iconColor="#f5a623" badge="Section 04" title="MK‑806 vs _806 — Two Minds">
               <motion.p variants={fadeUp} className="text-sm leading-relaxed text-gray-400">
                 Same name. Completely different thinking. Here's the clearest way to tell them apart:
               </motion.p>
@@ -513,7 +478,7 @@ const GuidePage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     {
-                      id: "MK-806", subtitle: "God of Time", color: "#f5a623",
+                      id: "MK‑806", subtitle: "God of Time", color: "#f5a623",
                       icon: <Zap size={15} />,
                       pts: [
                         <><strong className="text-white">Looks forward</strong> — simulates thousands of futures</>,
@@ -559,7 +524,7 @@ const GuidePage = () => {
               </motion.div>
 
               <motion.p variants={fadeUp} className="text-sm leading-relaxed text-gray-400">
-                When both align — MK-806 picks a bet and _806 confirms the pattern is historically strong — that's your clearest signal. When they diverge, that's also valuable information.
+                When both align — MK‑806 picks a bet and _806 confirms the pattern is historically strong — that's your clearest signal. When they diverge, that's also valuable information.
               </motion.p>
 
               <motion.div variants={fadeUp}>
@@ -581,9 +546,7 @@ const GuidePage = () => {
                 border: "1px solid rgba(255,255,255,0.06)",
               }}
             >
-              {/* Left accent bar */}
               <div className="absolute left-0 top-8 bottom-8 w-[3px] rounded-full" style={{ background: "linear-gradient(to bottom, transparent, #f5a623, transparent)" }} />
-              {/* Watermark */}
               <div className="absolute top-4 right-6 text-[5rem] font-black font-mono leading-none select-none pointer-events-none" style={{ color: "rgba(255,255,255,0.02)" }}>05</div>
 
               <div className="p-6 md:p-8">
@@ -593,7 +556,7 @@ const GuidePage = () => {
                   </div>
                   <div>
                     <p className="text-[9px] font-mono tracking-[0.22em] uppercase mb-1.5 text-amber-500">Section 05</p>
-                    <h2 className="guide-display text-lg md:text-xl font-black text-white leading-tight">Pattern Animals — Meet the Cast</h2>
+                    <h2 className="text-lg md:text-xl font-black text-white leading-tight" style={{ fontFamily: "Georgia, serif" }}>Pattern Animals — Meet the Cast</h2>
                   </div>
                 </motion.div>
 
@@ -633,7 +596,7 @@ const GuidePage = () => {
                 <span className="text-sm font-bold text-white" style={{ fontFamily: "Georgia, serif" }}>A reminder</span>
               </div>
               <p className="text-sm leading-relaxed text-gray-500">
-                10 Odds is for informational purposes only. Neither MK-806 nor _806 constitutes financial or betting advice. Patterns reflect past performance, which does not guarantee future results. Always bet responsibly — only stake what you can afford to lose, and make your own decisions.
+                10 Odds is for informational purposes only. Neither MK‑806 nor _806 constitutes financial or betting advice. Patterns reflect past performance, which does not guarantee future results. Always bet responsibly — only stake what you can afford to lose, and make your own decisions.
               </p>
               <div className="flex flex-wrap gap-4 mt-4 pt-4" style={{ borderTop: "1px solid rgba(239,68,68,0.1)" }}>
                 {[["Terms of Service", "/terms"], ["Privacy Policy", "/privacy"], ["About 10 Odds", "/about"]].map(([l, to]) => (
