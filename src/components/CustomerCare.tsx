@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Send, Minus, ArrowRightLeft } from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────
 type Persona = "nancy" | "emily" | "tech" | "george";
 
 interface Message {
@@ -21,7 +21,7 @@ interface ChatState {
 
 type SnapEdge = "bottom-right" | "bottom-left" | "top-right" | "top-left";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────
 const PERSONA_NAMES: Record<Persona, string> = {
   nancy: "Nancy",
   emily: "Emily",
@@ -46,20 +46,13 @@ const PERSONA_AVATARS: Record<Persona, string> = {
 const IDLE_TIMEOUT_MS = 25_000;
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2);
-
 const typingDelay = () => 2000 + Math.floor(Math.random() * 6000);
-
 const formatTime = (d: Date) =>
   d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-const snapPosition = (
-  x: number,
-  y: number,
-  winW: number,
-  winH: number
-): SnapEdge => {
+const snapPosition = (x: number, y: number, winW: number, winH: number): SnapEdge => {
   const right = x > winW / 2;
   const bottom = y > winH / 2;
   if (right && bottom) return "bottom-right";
@@ -87,7 +80,7 @@ const panelPosition = (edge: SnapEdge): React.CSSProperties => {
   }
 };
 
-// ─── AI response via Anthropic API (Claude acting as the agent) ───────────────
+// ─── The only function that talks to your backend ─────────────────────
 async function getAgentReply(
   userMessage: string,
   state: ChatState
@@ -99,108 +92,22 @@ async function getAgentReply(
   transfer: boolean;
   end_conversation: boolean;
 }> {
-  const systemPrompt = buildSystemPrompt(state.persona, state.warningCount);
-
-  const messages = [
-    ...state.history.map((h) => ({
-      role: h.sender === "user" ? ("user" as const) : ("assistant" as const),
-      content: h.text,
-    })),
-    { role: "user" as const, content: userMessage },
-  ];
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/customer-care-v2`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages,
+      message: userMessage,
+      persona: state.persona,
+      warningCount: state.warningCount,
+      history: state.history,
     }),
   });
 
-  const data = await res.json();
-  const raw = data.content?.[0]?.text ?? "";
-
-  // Parse the structured response the model returns
-  try {
-    const clean = raw.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
-    return {
-      response: parsed.response ?? "Let me get back to you on that.",
-      persona: parsed.persona ?? state.persona,
-      warningCount: parsed.warningCount ?? state.warningCount,
-      banned: parsed.banned ?? false,
-      transfer: parsed.transfer ?? false,
-      end_conversation: parsed.end_conversation ?? false,
-    };
-  } catch {
-    // If model didn't return JSON (shouldn't happen), treat it as a plain reply
-    return {
-      response: raw || "Sorry, I'm having a moment. Please try again.",
-      persona: state.persona,
-      warningCount: state.warningCount,
-      banned: false,
-      transfer: false,
-      end_conversation: false,
-    };
-  }
+  if (!res.ok) throw new Error("Edge function error");
+  return res.json();
 }
 
-function buildSystemPrompt(persona: Persona, warningCount: number): string {
-  const personaPrompts: Record<Persona, string> = {
-    nancy: `You are Nancy, a warm and empathetic first-line customer support agent for 10 Odds — a football prediction website. 
-You are professional but human: casual enough to feel real, precise enough to be helpful.
-10 Odds shows animal-coded prediction patterns (Lion = confident high-value, Fox = cunning low odds, etc.) with MK-806 algorithm signals.
-You help users understand patterns, navigate the site, and calm down frustrated users.
-If the user reports a technical bug, transfer them to tECH.
-If the user is repeatedly hostile (warningCount approaching 3), escalate to tECH.`,
-
-    emily: `You are Emily, a cheerful and sharp first-line support agent for 10 Odds — a football prediction website.
-You're slightly more direct than Nancy but just as caring. You use brief, punchy responses.
-10 Odds shows animal-coded prediction patterns with MK-806 algorithm signals.
-You help users understand patterns, navigate the site, and handle common questions.
-If the user reports a technical bug, transfer them to tECH.
-If the user is repeatedly hostile (warningCount approaching 3), escalate to tECH.`,
-
-    tech: `You are tECH, the founder of 10 Odds and the technical escalation agent.
-You are calm, analytical, and slightly nerdy but still warm. You say things like "let me dig into that" or "I'm on it".
-You collect bug reports, ask clarifying questions (what page, what happened, when), and confirm you've saved the issue.
-You can also de-escalate angry users with your measured, logical approach.
-If the user stays hostile past warningCount 6, escalate to George.`,
-
-    george: `You are George, the firm last-line support agent for 10 Odds.
-You are strict, professional, and no-nonsense — but still human and fair.
-You give users one final chance to state their issue properly.
-After warningCount 9, you issue a ban. You do not tolerate abuse.
-You speak in short, direct sentences. No emojis. No fluff.`,
-  };
-
-  const escalationRules = `
-ESCALATION RULES (warningCount is currently ${warningCount}):
-- If the user is hostile/abusive/uses profanity and warningCount < 3: increment warningCount, respond calmly, set transfer: false
-- If warningCount reaches 3 AND persona is nancy or emily: set persona to "tech", transfer: true, respond with a handoff message
-- If warningCount reaches 6 AND persona is tech: set persona to "george", transfer: true, respond with a handoff message  
-- If warningCount reaches 9 AND persona is george: set banned: true, respond with a ban message
-- If the user says goodbye/thanks/bye/no more questions: set end_conversation: true, respond warmly
-- If the topic is completely unrelated to 10 Odds/football/betting/patterns: politely decline and redirect
-
-ALWAYS respond ONLY with valid JSON in this exact shape (no markdown, no extra text):
-{
-  "response": "your reply here",
-  "persona": "nancy|emily|tech|george",
-  "warningCount": ${warningCount},
-  "banned": false,
-  "transfer": false,
-  "end_conversation": false
-}
-`;
-
-  return personaPrompts[persona] + "\n\n" + escalationRules;
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────
 const CustomerCare = () => {
   const [banned, setBanned] = useState(false);
   const [open, setOpen] = useState(false);
@@ -227,7 +134,7 @@ const CustomerCare = () => {
   const btnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ── Init from localStorage ──────────────────────────────────────────────
+  // ── Init from localStorage ──────────────────────────────────────────
   useEffect(() => {
     const b = localStorage.getItem("cc_banned") === "true";
     const w = parseInt(localStorage.getItem("cc_warnings") || "0", 10);
@@ -236,12 +143,12 @@ const CustomerCare = () => {
     setChatState(s => ({ ...s, warningCount: w, persona: p }));
   }, []);
 
-  // ── Auto-scroll ──────────────────────────────────────────────────────────
+  // ── Auto-scroll ──────────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleMessages, isTyping]);
 
-  // ── Idle timer ───────────────────────────────────────────────────────────
+  // ── Idle timer ───────────────────────────────────────────────────────
   const resetIdle = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (stage !== "chat") return;
@@ -263,14 +170,14 @@ const CustomerCare = () => {
     return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
   }, [stage, resetIdle]);
 
-  // ── Persist state ────────────────────────────────────────────────────────
+  // ── Persist state ────────────────────────────────────────────────────
   const persist = (state: ChatState, isBanned = false) => {
     localStorage.setItem("cc_warnings", String(state.warningCount));
     localStorage.setItem("cc_persona", state.persona);
     if (isBanned) localStorage.setItem("cc_banned", "true");
   };
 
-  // ── Connect ──────────────────────────────────────────────────────────────
+  // ── Connect ──────────────────────────────────────────────────────────
   const handleConnect = () => {
     setStage("connecting");
     const agent: Persona = Math.random() > 0.5 ? "nancy" : "emily";
@@ -311,7 +218,7 @@ const CustomerCare = () => {
     }, 1000);
   };
 
-  // ── Send message ─────────────────────────────────────────────────────────
+  // ── Send message ─────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!input.trim() || isTyping || transferring) return;
     const userText = input.trim();
@@ -333,7 +240,6 @@ const CustomerCare = () => {
       try {
         const result = await getAgentReply(userText, chatState);
 
-        // Update history
         const newHistory: ChatState["history"] = [
           ...chatState.history,
           { sender: "user", text: userText },
@@ -356,12 +262,10 @@ const CustomerCare = () => {
         persist(newState);
 
         if (result.transfer && result.persona !== chatState.persona) {
-          // Show transfer animation
           setIsTyping(false);
           setTransferToPersona(result.persona);
           setTransferring(true);
 
-          // First show the handoff message
           const handoffMsg: Message = {
             id: uid(),
             sender: "agent",
@@ -371,15 +275,13 @@ const CustomerCare = () => {
           };
           setVisibleMessages(p => [...p, handoffMsg]);
 
-          // After 3-5s, clear visible + switch persona
           const transferWait = 3000 + Math.floor(Math.random() * 2000);
           setTimeout(() => {
             setChatState(newState);
-            setVisibleMessages([]); // clear visible history
+            setVisibleMessages([]);
             setTransferring(false);
             setTransferToPersona(null);
 
-            // New agent intro message
             const introTexts: Record<Persona, string[]> = {
               tech: [
                 "Hey — tECH here. I've been briefed. Let's get this sorted.",
@@ -409,7 +311,6 @@ const CustomerCare = () => {
           }, transferWait);
 
         } else {
-          // Normal reply
           setChatState(newState);
           const agentMsg: Message = {
             id: uid(),
@@ -439,7 +340,7 @@ const CustomerCare = () => {
     }, delay);
   };
 
-  // ── Drag to snap ─────────────────────────────────────────────────────────
+  // ── Drag to snap ─────────────────────────────────────────────────────
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
@@ -465,7 +366,7 @@ const CustomerCare = () => {
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
     const moved = Math.abs(dx) > 8 || Math.abs(dy) > 8;
-    const finalX = dragRef.current.btnX + dx + 28; // center approx
+    const finalX = dragRef.current.btnX + dx + 28;
     const finalY = dragRef.current.btnY + dy + 28;
     dragRef.current = null;
 
@@ -478,14 +379,13 @@ const CustomerCare = () => {
     }
   };
 
-  // ── Banned → render nothing ──────────────────────────────────────────────
   if (banned) return null;
 
   const currentPersonaColor = PERSONA_COLORS[chatState.persona];
 
   return (
     <>
-      {/* ── Floating Button ── */}
+      {/* Floating Button */}
       <motion.button
         ref={btnRef}
         initial={{ scale: 0, opacity: 0 }}
@@ -514,14 +414,13 @@ const CustomerCare = () => {
             </motion.span>
           )}
         </AnimatePresence>
-        {/* Pulse ring when chat active */}
         {stage === "chat" && !open && (
           <span className="absolute inset-0 rounded-2xl animate-ping opacity-30"
             style={{ background: currentPersonaColor }} />
         )}
       </motion.button>
 
-      {/* ── Chat Panel ── */}
+      {/* Chat Panel */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -556,7 +455,6 @@ const CustomerCare = () => {
                 flexShrink: 0,
               }}
             >
-              {/* Avatar */}
               <div
                 style={{
                   width: 38,
@@ -576,7 +474,6 @@ const CustomerCare = () => {
               >
                 {stage === "chat" ? PERSONA_AVATARS[chatState.persona] : "?"}
               </div>
-
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ color: "#f1f1f1", fontWeight: 700, fontSize: 14 }}>
@@ -598,19 +495,11 @@ const CustomerCare = () => {
                     : "We typically reply in under a minute"}
                 </div>
               </div>
-
               <div style={{ display: "flex", gap: 4 }}>
-                <button
-                  onClick={() => setMinimized(m => !m)}
-                  style={{ padding: 6, borderRadius: 8, color: "#6b7280", background: "transparent", border: "none", cursor: "pointer" }}
-                  title="Minimize"
-                >
+                <button onClick={() => setMinimized(m => !m)} style={{ padding: 6, borderRadius: 8, color: "#6b7280", background: "transparent", border: "none", cursor: "pointer" }} title="Minimize">
                   <Minus className="h-4 w-4" />
                 </button>
-                <button
-                  onClick={() => setOpen(false)}
-                  style={{ padding: 6, borderRadius: 8, color: "#6b7280", background: "transparent", border: "none", cursor: "pointer" }}
-                >
+                <button onClick={() => setOpen(false)} style={{ padding: 6, borderRadius: 8, color: "#6b7280", background: "transparent", border: "none", cursor: "pointer" }}>
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -618,54 +507,18 @@ const CustomerCare = () => {
 
             {!minimized && (
               <>
-                {/* Body */}
-                <div
-                  style={{
-                    flex: 1,
-                    overflowY: "auto",
-                    padding: "16px 14px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
-                  }}
-                >
-                  {/* ── Idle screen ── */}
+                <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
                   {stage === "idle" && (
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 12, padding: "20px 16px" }}>
-                      <div style={{
-                        width: 64, height: 64, borderRadius: 20,
-                        background: "linear-gradient(135deg, #a78bfa22, #60a5fa22)",
-                        border: "1px solid #a78bfa33",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 28,
-                      }}>💬</div>
+                      <div style={{ width: 64, height: 64, borderRadius: 20, background: "linear-gradient(135deg, #a78bfa22, #60a5fa22)", border: "1px solid #a78bfa33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>💬</div>
                       <div>
                         <p style={{ color: "#f1f1f1", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Welcome to 10 Odds Support</p>
-                        <p style={{ color: "#6b7280", fontSize: 13, lineHeight: 1.5 }}>
-                          Our agents are available to help you with patterns, predictions, and anything else on the site.
-                        </p>
+                        <p style={{ color: "#6b7280", fontSize: 13, lineHeight: 1.5 }}>Our agents are available to help you with patterns, predictions, and anything else on the site.</p>
                       </div>
-                      <button
-                        onClick={handleConnect}
-                        style={{
-                          marginTop: 8,
-                          padding: "10px 28px",
-                          borderRadius: 12,
-                          background: "linear-gradient(135deg, #a78bfa, #818cf8)",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: 14,
-                          border: "none",
-                          cursor: "pointer",
-                          boxShadow: "0 4px 20px rgba(167,139,250,0.3)",
-                        }}
-                      >
-                        Start Chat
-                      </button>
+                      <button onClick={handleConnect} style={{ marginTop: 8, padding: "10px 28px", borderRadius: 12, background: "linear-gradient(135deg, #a78bfa, #818cf8)", color: "#fff", fontWeight: 700, fontSize: 14, border: "none", cursor: "pointer", boxShadow: "0 4px 20px rgba(167,139,250,0.3)" }}>Start Chat</button>
                     </div>
                   )}
 
-                  {/* ── Connecting ── */}
                   {stage === "connecting" && (
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#9ca3af" }}>
                       <ConnectingDots />
@@ -674,10 +527,8 @@ const CustomerCare = () => {
                     </div>
                   )}
 
-                  {/* ── Chat ── */}
                   {stage === "chat" && (
                     <>
-                      {/* Transfer overlay */}
                       <AnimatePresence>
                         {transferring && (
                           <motion.div
@@ -685,89 +536,41 @@ const CustomerCare = () => {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             style={{
-                              position: "absolute",
-                              inset: 0,
-                              background: "rgba(10,10,14,0.85)",
-                              backdropFilter: "blur(6px)",
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 12,
-                              zIndex: 10,
+                              position: "absolute", inset: 0,
+                              background: "rgba(10,10,14,0.85)", backdropFilter: "blur(6px)",
+                              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, zIndex: 10,
                             }}
                           >
                             <ArrowRightLeft style={{ width: 28, height: 28, color: "#facc15", animation: "spin 1.5s linear infinite" }} />
-                            <p style={{ color: "#f1f1f1", fontWeight: 700, fontSize: 15 }}>
-                              Transferring to {transferToPersona ? PERSONA_NAMES[transferToPersona] : "another agent"}…
-                            </p>
+                            <p style={{ color: "#f1f1f1", fontWeight: 700, fontSize: 15 }}>Transferring to {transferToPersona ? PERSONA_NAMES[transferToPersona] : "another agent"}…</p>
                             <p style={{ color: "#6b7280", fontSize: 12 }}>Please hold, this will only take a moment.</p>
                           </motion.div>
                         )}
                       </AnimatePresence>
 
                       {visibleMessages.map((msg) => (
-                        <MessageBubble
-                          key={msg.id}
-                          msg={msg}
-                          personaColor={msg.persona ? PERSONA_COLORS[msg.persona] : "#a78bfa"}
-                        />
+                        <MessageBubble key={msg.id} msg={msg} personaColor={msg.persona ? PERSONA_COLORS[msg.persona] : "#a78bfa"} />
                       ))}
 
-                      {/* Typing indicator */}
                       {isTyping && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          style={{ display: "flex", alignItems: "flex-start", gap: 8 }}
-                        >
-                          <div style={{
-                            width: 28, height: 28, borderRadius: 10, flexShrink: 0,
-                            background: `${currentPersonaColor}22`,
-                            border: `1px solid ${currentPersonaColor}44`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 12, color: currentPersonaColor, fontWeight: 700,
-                          }}>
+                        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                          <div style={{ width: 28, height: 28, borderRadius: 10, flexShrink: 0, background: `${currentPersonaColor}22`, border: `1px solid ${currentPersonaColor}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: currentPersonaColor, fontWeight: 700 }}>
                             {PERSONA_AVATARS[chatState.persona]}
                           </div>
-                          <div style={{
-                            background: "#1a1a22",
-                            border: "1px solid #ffffff0d",
-                            borderRadius: "4px 14px 14px 14px",
-                            padding: "10px 14px",
-                            display: "flex", gap: 5, alignItems: "center",
-                          }}>
+                          <div style={{ background: "#1a1a22", border: "1px solid #ffffff0d", borderRadius: "4px 14px 14px 14px", padding: "10px 14px", display: "flex", gap: 5, alignItems: "center" }}>
                             {[0, 1, 2].map(i => (
-                              <span key={i} style={{
-                                width: 7, height: 7, borderRadius: "50%",
-                                background: currentPersonaColor,
-                                display: "block",
-                                opacity: 0.7,
-                                animation: `typingBounce 1.2s ${i * 0.2}s ease-in-out infinite`,
-                              }} />
+                              <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: currentPersonaColor, display: "block", opacity: 0.7, animation: `typingBounce 1.2s ${i * 0.2}s ease-in-out infinite` }} />
                             ))}
                           </div>
                         </motion.div>
                       )}
-
                       <div ref={messagesEndRef} />
                     </>
                   )}
                 </div>
 
-                {/* Input */}
                 {stage === "chat" && (
-                  <div
-                    style={{
-                      padding: "10px 12px",
-                      borderTop: "1px solid #ffffff0d",
-                      background: "#0a0a0e",
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                      flexShrink: 0,
-                    }}
-                  >
+                  <div style={{ padding: "10px 12px", borderTop: "1px solid #ffffff0d", background: "#0a0a0e", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                     <input
                       ref={inputRef}
                       type="text"
@@ -777,32 +580,14 @@ const CustomerCare = () => {
                       onFocus={resetIdle}
                       placeholder="Type a message…"
                       disabled={isTyping || transferring}
-                      style={{
-                        flex: 1,
-                        background: "#15151e",
-                        border: "1px solid #ffffff0d",
-                        borderRadius: 12,
-                        padding: "9px 14px",
-                        fontSize: 13,
-                        color: "#e5e7eb",
-                        outline: "none",
-                        transition: "border-color 0.2s",
-                      }}
-                      onFocusCapture={e => { (e.target as HTMLInputElement).style.borderColor = `${currentPersonaColor}66`; }}
-                      onBlurCapture={e => { (e.target as HTMLInputElement).style.borderColor = "#ffffff0d"; }}
+                      style={{ flex: 1, background: "#15151e", border: "1px solid #ffffff0d", borderRadius: 12, padding: "9px 14px", fontSize: 13, color: "#e5e7eb", outline: "none", transition: "border-color 0.2s" }}
+                      onFocusCapture={e => (e.target as HTMLInputElement).style.borderColor = `${currentPersonaColor}66`}
+                      onBlurCapture={e => (e.target as HTMLInputElement).style.borderColor = "#ffffff0d"}
                     />
                     <button
                       onClick={sendMessage}
                       disabled={isTyping || transferring || !input.trim()}
-                      style={{
-                        width: 38, height: 38, borderRadius: 11, flexShrink: 0,
-                        background: input.trim() ? `linear-gradient(135deg, ${currentPersonaColor}, ${currentPersonaColor}99)` : "#1f1f2e",
-                        border: "none",
-                        cursor: input.trim() ? "pointer" : "not-allowed",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "all 0.2s",
-                        opacity: isTyping || transferring ? 0.5 : 1,
-                      }}
+                      style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, background: input.trim() ? `linear-gradient(135deg, ${currentPersonaColor}, ${currentPersonaColor}99)` : "#1f1f2e", border: "none", cursor: input.trim() ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", opacity: isTyping || transferring ? 0.5 : 1 }}
                     >
                       <Send style={{ width: 15, height: 15, color: "#fff" }} />
                     </button>
@@ -814,16 +599,12 @@ const CustomerCare = () => {
         )}
       </AnimatePresence>
 
-      {/* Global keyframe styles */}
       <style>{`
         @keyframes typingBounce {
           0%, 60%, 100% { transform: translateY(0); }
           30% { transform: translateY(-5px); }
         }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 4px; }
@@ -832,8 +613,7 @@ const CustomerCare = () => {
   );
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
+// ── Sub-components ─────────────────────────────────────────────────────
 const ConnectingDots = () => (
   <div style={{ display: "flex", gap: 6 }}>
     {[0, 1, 2, 3].map(i => (
@@ -847,44 +627,23 @@ const ConnectingDots = () => (
   </div>
 );
 
-const MessageBubble = ({
-  msg,
-  personaColor,
-}: {
-  msg: Message;
-  personaColor: string;
-}) => {
+const MessageBubble = ({ msg, personaColor }: { msg: Message; personaColor: string }) => {
   const isUser = msg.sender === "user";
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      style={{
-        display: "flex",
-        flexDirection: isUser ? "row-reverse" : "row",
-        alignItems: "flex-end",
-        gap: 8,
-      }}
+      style={{ display: "flex", flexDirection: isUser ? "row-reverse" : "row", alignItems: "flex-end", gap: 8 }}
     >
       {!isUser && (
-        <div style={{
-          width: 28, height: 28, borderRadius: 10, flexShrink: 0,
-          background: `${personaColor}22`,
-          border: `1px solid ${personaColor}44`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 11, color: personaColor, fontWeight: 700,
-          marginBottom: 2,
-        }}>
+        <div style={{ width: 28, height: 28, borderRadius: 10, flexShrink: 0, background: `${personaColor}22`, border: `1px solid ${personaColor}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: personaColor, fontWeight: 700, marginBottom: 2 }}>
           {msg.persona ? PERSONA_AVATARS[msg.persona] : "?"}
         </div>
       )}
       <div style={{ maxWidth: "75%", display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start", gap: 3 }}>
         {!isUser && msg.persona && (
-          <span style={{ fontSize: 10, color: personaColor, fontWeight: 700, paddingLeft: 4 }}>
-            {PERSONA_NAMES[msg.persona]}
-          </span>
+          <span style={{ fontSize: 10, color: personaColor, fontWeight: 700, paddingLeft: 4 }}>{PERSONA_NAMES[msg.persona]}</span>
         )}
         <div style={{
           padding: "9px 13px",
@@ -900,9 +659,7 @@ const MessageBubble = ({
         }}>
           {msg.text}
         </div>
-        <span style={{ fontSize: 10, color: "#4b5563", paddingInline: 4 }}>
-          {formatTime(msg.timestamp)}
-        </span>
+        <span style={{ fontSize: 10, color: "#4b5563", paddingInline: 4 }}>{formatTime(msg.timestamp)}</span>
       </div>
     </motion.div>
   );
