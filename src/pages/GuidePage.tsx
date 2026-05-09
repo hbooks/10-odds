@@ -6,40 +6,34 @@ import {
   RefreshCw, ShieldCheck, X, ChevronRight, Sparkles, Sun, Moon,
 } from "lucide-react";
 import AnimalIcon from "@/components/AnimalIcon";
+import { PATTERN_ANIMALS } from "@/lib/patternAnimals";   // official source of truth
 import Layout from "@/components/Layout";
 
-// ─── Pattern data (updated short labels & descriptions) ──────────────────────
-type PatternAnimal = {
-  animal: string;
-  shortLabel: string;
-  confidence: string;
-  evType: string;
-  description: string;
-  img: string;
+type PatternAnimal = (typeof PATTERN_ANIMALS)[number];
+
+// ─── Correct animal images (the ones we already know work) ────────────────────
+const ANIMAL_IMG: Record<string, string> = {
+  Lion:     "https://images.pexels.com/photos/36714661/pexels-photo-36714661.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Eagle:    "https://images.pexels.com/photos/29186242/pexels-photo-29186242.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Bear:     "https://images.pexels.com/photos/162368/bear-zoo-wildlife-animal-162368.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Bull:     "https://images.pexels.com/photos/28410820/pexels-photo-28410820.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Horse:    "https://images.pexels.com/photos/13340069/pexels-photo-13340069.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Rhino:    "https://images.pexels.com/photos/6156855/pexels-photo-6156855.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Fox:      "https://images.pexels.com/photos/35192767/pexels-photo-35192767.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Owl:      "https://images.pexels.com/photos/17404870/pexels-photo-17404870.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Squirrel: "https://images.pexels.com/photos/34613710/pexels-photo-34613710.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Deer:     "https://images.pexels.com/photos/18149113/pexels-photo-18149113.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Frog:     "https://images.pexels.com/photos/8465220/pexels-photo-8465220.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Mole:     "https://images.pexels.com/photos/88512/mole-nature-animals-molehills-88512.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Rabbit:   "https://images.pexels.com/photos/6546550/pexels-photo-6546550.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Hamster:  "https://images.pexels.com/photos/4520484/pexels-photo-4520484.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Turtle:   "https://images.pexels.com/photos/38452/pexels-photo-38452.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Mouse:    "https://images.pexels.com/photos/301448/pexels-photo-301448.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Ant:      "https://images.pexels.com/photos/36498258/pexels-photo-36498258.jpeg?auto=compress&cs=tinysrgb&w=800",
+  Worm:     "https://cdn.pixabay.com/photo/2019/06/08/22/46/fishing-4261191_1280.jpg",
 };
 
-const PATTERN_ANIMALS: PatternAnimal[] = [
-  { animal: "Lion",     shortLabel: "HC + HEV", confidence: "High",     evType: "High Positive", description: "The apex pattern. MK-806 is highly confident and the market mispriced the odds. Historically the most reliable signal in the system.", img: "https://images.pexels.com/photos/36714661/pexels-photo-36714661.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Eagle",    shortLabel: "HC + MEV", confidence: "High",     evType: "Moderate",      description: "Sharp vision, decisive strike. High confidence with reasonable value — a clean conviction play.", img: "https://images.pexels.com/photos/29186242/pexels-photo-29186242.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Bear",     shortLabel: "HC + LEV", confidence: "High",     evType: "Low",           description: "Strong but slow. The model is sure, but the odds barely reward it. Patience required.", img: "https://images.pexels.com/photos/162368/bear-zoo-wildlife-animal-162368.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Bull",     shortLabel: "HC + NEV", confidence: "High",     evType: "Negative",      description: "Conviction without value. MK-806 likes the pick but the market has it priced. Force is there — edge is not.", img: "https://images.pexels.com/photos/28410820/pexels-photo-28410820.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Horse",    shortLabel: "MC + HEV", confidence: "Moderate", evType: "High Positive", description: "Reliable runner, generous price. Moderate confidence paired with a market mistake worth chasing.", img: "https://images.pexels.com/photos/13340069/pexels-photo-13340069.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Rhino",    shortLabel: "MC + MEV", confidence: "Moderate", evType: "Moderate",      description: "The middle ground. Solid but unspectacular. Volume play, not a hero shot.", img: "https://images.pexels.com/photos/6156855/pexels-photo-6156855.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Fox",      shortLabel: "MC + LEV", confidence: "Moderate", evType: "Low",           description: "Cunning but cautious. The model is half-sure and the odds offer little. Selectivity is everything.", img: "https://images.pexels.com/photos/35192767/pexels-photo-35192767.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Owl",      shortLabel: "MC + NEV", confidence: "Moderate", evType: "Negative",      description: "Watchful and silent. Moderate signal, no value. Often best left alone unless context demands.", img: "https://images.pexels.com/photos/17404870/pexels-photo-17404870.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Squirrel", shortLabel: "LC + HEV", confidence: "Low",      evType: "High Positive", description: "Hoarder of mispriced acorns. Low confidence, but the value is too large to ignore — sometimes.", img: "https://images.pexels.com/photos/34613710/pexels-photo-34613710.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Deer",     shortLabel: "LC + MEV", confidence: "Low",      evType: "Moderate",      description: "Skittish and uncertain. Modest value, weak conviction. A pattern of last resort.", img: "https://images.pexels.com/photos/18149113/pexels-photo-18149113.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Frog",     shortLabel: "LC + LEV", confidence: "Low",      evType: "Low",           description: "Small, twitchy, easy to miss. Low across the board — informational only.", img: "https://images.pexels.com/photos/8465220/pexels-photo-8465220.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Mole",     shortLabel: "LC + NEV", confidence: "Low",      evType: "Negative",      description: "Buried, blind, badly priced. The weakest signal MK-806 emits — pass.", img: "https://images.pexels.com/photos/88512/mole-nature-animals-molehills-88512.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Rabbit",   shortLabel: "VHC + HEV", confidence: "High",     evType: "High Positive", description: "Quick, repeatable, prolific. A high-volume elite signal — appears more often than the Lion.", img: "https://images.pexels.com/photos/6546550/pexels-photo-6546550.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Hamster",  shortLabel: "VHC + MEV", confidence: "High",     evType: "Moderate",      description: "Steady spinner. Reliable mid-tier with comfortable expected value.", img: "https://images.pexels.com/photos/4520484/pexels-photo-4520484.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Turtle",   shortLabel: "VHC + LEV", confidence: "High",     evType: "Low",           description: "Slow, methodical, dependable. Low value but the conviction is unmistakable.", img: "https://images.pexels.com/photos/38452/pexels-photo-38452.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Mouse",    shortLabel: "VLC + HEV", confidence: "Low",      evType: "High Positive", description: "Tiny edge, big payoff. Low confidence but the market is asleep. Use sparingly.", img: "https://images.pexels.com/photos/301448/pexels-photo-301448.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Ant",      shortLabel: "VLC + MEV", confidence: "Low",      evType: "Moderate",      description: "Small, social, persistent. Adds incrementally — never the headline act.", img: "https://images.pexels.com/photos/36498258/pexels-photo-36498258.jpeg?auto=compress&cs=tinysrgb&w=800" },
-  { animal: "Worm",     shortLabel: "VLC + LEV", confidence: "Low",      evType: "Low",           description: "Bottom of the food chain. The pattern of last call — almost always skip.", img: "https://cdn.pixabay.com/photo/2019/06/08/22/46/fishing-4261191_1280.jpg" },
-];
-
-// ─── Tier classification ─────────────────────────────────────────────────────
+// ─── Tier classification (unchanged) ────────────────────────────────────────
 function getTier(pa: PatternAnimal) {
   const c = pa.confidence.toLowerCase();
   const e = pa.evType.toLowerCase();
@@ -101,7 +95,7 @@ function ModalBody({ pa, onClose }: { pa: PatternAnimal; onClose: () => void }) 
   return (
     <>
       <div className="relative w-full md:w-1/2 min-h-[300px] md:min-h-[520px] overflow-hidden bg-zinc-950">
-        <img src={pa.img} alt={pa.animal} className="absolute inset-0 w-full h-full object-cover" />
+        <img src={ANIMAL_IMG[pa.animal] ?? ANIMAL_IMG.Lion} alt={pa.animal} className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0" style={{ background: "linear-gradient(115deg, transparent 40%, #0a0a0d 100%), linear-gradient(to top, #0a0a0d 0%, transparent 45%)" }} />
         <div className="absolute top-5 left-5">
           <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-[0.18em] text-black" style={{ background: tier.color, fontFamily: "ui-monospace, monospace" }}>
@@ -109,7 +103,7 @@ function ModalBody({ pa, onClose }: { pa: PatternAnimal; onClose: () => void }) 
           </span>
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-7">
-          <p className="text-[10px] tracking-[0.25em] uppercase mb-2" style={{ color: tier.color, fontFamily: "ui-monospace, monospace" }}>{pa.shortLabel}</p>
+          <p className="text-[10px] tracking-[0.25em] uppercase mb-2" style={{ color: tier.color, fontFamily: "ui-monospace, monospace" }}>{pa.originalLabel}</p>
           <h2 className="text-5xl md:text-6xl font-black text-white leading-[0.9] tracking-tight" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
             The<br />{pa.animal}
           </h2>
@@ -149,7 +143,7 @@ function ModalBody({ pa, onClose }: { pa: PatternAnimal; onClose: () => void }) 
   );
 }
 
-// ─── Animal card ─────────────────────────────────────────────────────────────
+// ─── Animal card (all data now from official library) ─────────────────────────
 function AnimalCard({ pa, index, onClick }: { pa: PatternAnimal; index: number; onClick: () => void }) {
   const tier = getTier(pa);
   const [hover, setHover] = useState(false);
@@ -170,7 +164,7 @@ function AnimalCard({ pa, index, onClick }: { pa: PatternAnimal; index: number; 
       }}
     >
       <div className="relative h-36 overflow-hidden bg-zinc-950">
-        <img src={pa.img} alt={pa.animal} loading="lazy"
+        <img src={ANIMAL_IMG[pa.animal] ?? ANIMAL_IMG.Lion} alt={pa.animal} loading="lazy"
           className="w-full h-full object-cover transition-transform duration-[900ms]"
           style={{ transform: hover ? "scale(1.12)" : "scale(1.02)" }} />
         <div className="absolute inset-0" style={{ background: "linear-gradient(to top, #101015 5%, rgba(16,16,21,0.2) 50%, transparent 80%)" }} />
@@ -183,7 +177,7 @@ function AnimalCard({ pa, index, onClick }: { pa: PatternAnimal; index: number; 
       </div>
       <div className="p-4">
         <p className="text-lg font-bold text-white leading-none mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{pa.animal}</p>
-        <p className="text-[9px] tracking-[0.22em] text-zinc-600 mb-3" style={{ fontFamily: "ui-monospace, monospace" }}>{pa.shortLabel}</p>
+        <p className="text-[9px] tracking-[0.22em] text-zinc-600 mb-3" style={{ fontFamily: "ui-monospace, monospace" }}>{pa.originalLabel}</p>
         <p className="text-[11px] leading-relaxed text-zinc-500 line-clamp-2 mb-3">{pa.description}</p>
         <div className="text-[10px] font-bold tracking-wider flex items-center gap-1.5"
           style={{ color: tier.color, opacity: hover ? 1 : 0.5, fontFamily: "ui-monospace, monospace", transition: "opacity .25s" }}>
@@ -269,7 +263,7 @@ function StepCard({ num, title, desc, color }: { num: string; title: string; des
 // ─── Main page ───────────────────────────────────────────────────────────────
 const GuidePage = () => {
   const [selected, setSelected] = useState<PatternAnimal | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");   // default dark
   const close = useCallback(() => setSelected(null), []);
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
@@ -445,7 +439,7 @@ const GuidePage = () => {
                       whileHover={{ y: -8 }} transition={{ type: "spring", stiffness: 280, damping: 20 }}
                       className={`group relative rounded-3xl overflow-hidden aspect-[3/4] ${i === 1 ? "md:translate-y-8" : ""} ${i === 2 ? "md:-translate-y-4" : ""} ${i === 3 ? "md:translate-y-12" : ""}`}
                       style={{ border: `1px solid ${tier.ring}` }}>
-                      <img src={pa.img} alt={pa.animal} className="w-full h-full object-cover transition-transform duration-[1200ms] group-hover:scale-110" />
+                      <img src={ANIMAL_IMG[pa.animal] ?? ANIMAL_IMG.Lion} alt={pa.animal} className="w-full h-full object-cover transition-transform duration-[1200ms] group-hover:scale-110" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
                       <div className="absolute top-3 left-3">
                         <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-[0.2em] text-black" style={{ background: tier.color, fontFamily: "JetBrains Mono, monospace" }}>
@@ -453,7 +447,7 @@ const GuidePage = () => {
                         </span>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 p-4 text-left">
-                        <p className="text-[9px] tracking-[0.22em] mb-1" style={{ color: tier.color, fontFamily: "JetBrains Mono, monospace" }}>{pa.shortLabel}</p>
+                        <p className="text-[9px] tracking-[0.22em] mb-1" style={{ color: tier.color, fontFamily: "JetBrains Mono, monospace" }}>{pa.originalLabel}</p>
                         <p className="text-2xl font-black text-white leading-none" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>The {pa.animal}</p>
                       </div>
                     </motion.button>
