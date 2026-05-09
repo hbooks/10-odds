@@ -26,7 +26,7 @@ interface PatternData {
   updated_at: string;
 }
 
-// ─── Animal images (same as Guide Page Section 5) ─────────────────────────────
+// ─── Animal images (same as Guide Page) ──────────────────────────────────────
 const ANIMAL_IMG: Record<string, string> = {
   Lion:    "https://images.pexels.com/photos/36714661/pexels-photo-36714661.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&fit=crop",
   Eagle:   "https://images.pexels.com/photos/29186242/pexels-photo-29186242.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&fit=crop",
@@ -48,7 +48,7 @@ const ANIMAL_IMG: Record<string, string> = {
   Worm:    "https://cdn.pixabay.com/photo/2019/06/08/22/46/fishing-4261191_1280.jpg?auto=compress&cs=tinysrgb&w=600&h=600&fit=crop",
 };
 
-// ─── Random phrases ───────────────────────────────────────────────────────────
+// ─── Random descriptive phrases ──────────────────────────────────────────────
 const WIN_PHRASES = [
   "This pattern is currently performing well historically.",
   "Past results show this pattern has a strong edge.",
@@ -94,123 +94,230 @@ const PATTERN_CONFIG: Record<PatternType, { icon: React.ElementType; color: stri
   INSUFFICIENT_DATA: { icon: HelpCircle, color: "#9ca3af", label: "INSUFFICIENT" },
 };
 
-// ─── Card component (matches Guide Page AnimalCard) ───────────────────────────
+// ─── Tier logic (same as Guide Page) ─────────────────────────────────────────
+function getTier(confidence: string, evType: string) {
+  const c = confidence.toLowerCase();
+  const e = evType.toLowerCase();
+  const hiC = c.includes("high");
+  const hiE = e.includes("high") || e.includes("positive");
+  const loC = c.includes("low");
+  const loE = e.includes("low") || e.includes("negative");
+  if (hiC && hiE) return { label: "ELITE", color: "#f5a623", dim: "rgba(245,166,35,0.18)", ring: "rgba(245,166,35,0.4)" };
+  if (hiC)        return { label: "STRONG", color: "#22c55e", dim: "rgba(34,197,94,0.15)", ring: "rgba(34,197,94,0.38)" };
+  if (hiE)        return { label: "VALUE", color: "#3b82f6", dim: "rgba(59,130,246,0.15)", ring: "rgba(59,130,246,0.38)" };
+  if (loC && loE) return { label: "WEAK", color: "#ef4444", dim: "rgba(239,68,68,0.15)", ring: "rgba(239,68,68,0.35)" };
+  return                 { label: "MODERATE", color: "#a855f7", dim: "rgba(168,85,247,0.15)", ring: "rgba(168,85,247,0.35)" };
+}
+
+// ─── Animal card (exactly like Guide Page, badges outside) ──────────────────
 function AnimalCard({
   animalName,
   onClick,
   isBest,
   isWorst,
-  row,
 }: {
   animalName: string;
   onClick: () => void;
   isBest: boolean;
   isWorst: boolean;
-  row?: PatternData;
 }) {
   const animal = PATTERN_ANIMALS.find((a) => a.animal === animalName);
   if (!animal) return null;
   const img = ANIMAL_IMG[animalName];
   const [hover, setHover] = useState(false);
-
-  // Tier badge (same logic as guide)
-  const getTier = () => {
-    const c = (animal.confidence ?? "").toLowerCase();
-    const e = (animal.evType ?? "").toLowerCase();
-    const hiC = c.includes("high");
-    const hiE = e.includes("high") || e.includes("positive");
-    const loC = c.includes("low");
-    const loE = e.includes("low") || e.includes("negative");
-    if (hiC && hiE) return { label: "ELITE", color: "#f5a623", dim: "rgba(245,166,35,0.18)", ring: "rgba(245,166,35,0.4)" };
-    if (hiC)        return { label: "STRONG", color: "#22c55e", dim: "rgba(34,197,94,0.15)", ring: "rgba(34,197,94,0.38)" };
-    if (hiE)        return { label: "VALUE", color: "#3b82f6", dim: "rgba(59,130,246,0.15)", ring: "rgba(59,130,246,0.38)" };
-    if (loC && loE) return { label: "WEAK", color: "#ef4444", dim: "rgba(239,68,68,0.15)", ring: "rgba(239,68,68,0.35)" };
-    return { label: "MODERATE", color: "#a855f7", dim: "rgba(168,85,247,0.15)", ring: "rgba(168,85,247,0.35)" };
-  };
-  const tier = getTier();
+  const tier = getTier(animal.confidence, animal.evType);
 
   return (
-    <motion.button
-      whileHover={{ scale: 1.03, y: -4 }}
-      whileTap={{ scale: 0.96 }}
-      onClick={onClick}
-      className="relative rounded-2xl overflow-hidden border bg-[#111115] cursor-pointer text-left w-full transition-shadow duration-300"
-      style={{
-        borderColor: hover ? tier.ring : 'rgba(255,255,255,0.06)',
-        boxShadow: hover
-          ? `0 20px 40px -10px rgba(0,0,0,0.5), 0 0 25px ${tier.dim}`
-          : isBest
-          ? `0 0 15px rgba(245,158,11,0.25)`
-          : 'none',
-      }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      {/* Photo strip */}
-      <div className="relative h-32 overflow-hidden bg-gray-900">
-        {img ? (
-          <img
-            src={img}
-            alt={animalName}
-            loading="lazy"
-            className="w-full h-full object-cover object-center transition-transform duration-700"
-            style={{ transform: hover ? 'scale(1.08)' : 'scale(1)' }}
-            onError={(e) => (e.currentTarget.style.opacity = '0')}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
-            <AnimalIcon animal={animalName} size={42} />
+    <div className="relative">
+      {/* Crown / Skull placed outside the card, above */}
+      {isBest && (
+        <motion.div
+          className="absolute -top-3 left-1/2 -translate-x-1/2 z-10"
+          animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.15, 1] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
+          <Crown className="h-6 w-6 text-amber-400 drop-shadow-md" />
+        </motion.div>
+      )}
+      {isWorst && (
+        <motion.div
+          className="absolute -top-3 left-1/2 -translate-x-1/2 z-10"
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ repeat: Infinity, duration: 1.5 }}
+        >
+          <Skull className="h-6 w-6 text-red-400 drop-shadow-md" />
+        </motion.div>
+      )}
+
+      <motion.button
+        whileHover={{ scale: 1.03, y: -4 }}
+        whileTap={{ scale: 0.96 }}
+        onClick={onClick}
+        className="relative rounded-2xl overflow-hidden border bg-[#111115] cursor-pointer text-left w-full transition-shadow duration-300"
+        style={{
+          borderColor: hover ? tier.ring : 'rgba(255,255,255,0.06)',
+          boxShadow: hover
+            ? `0 20px 40px -10px rgba(0,0,0,0.5), 0 0 25px ${tier.dim}`
+            : isBest
+            ? `0 0 15px rgba(245,158,11,0.25)`
+            : 'none',
+        }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        <div className="relative h-32 overflow-hidden bg-gray-900">
+          {img ? (
+            <img
+              src={img}
+              alt={animalName}
+              loading="lazy"
+              className="w-full h-full object-cover object-center transition-transform duration-700"
+              style={{ transform: hover ? 'scale(1.08)' : 'scale(1)' }}
+              onError={(e) => (e.currentTarget.style.opacity = '0')}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+              <AnimalIcon animal={animalName} size={42} />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#111115] to-transparent" />
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-black font-mono tracking-widest text-black" style={{ background: tier.color }}>
+            {tier.label}
           </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#111115] to-transparent" />
-        {/* Tier badge */}
-        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-black font-mono tracking-widest text-black" style={{ background: tier.color }}>
-          {tier.label}
-        </div>
-        {/* Animal icon chip */}
-        <div className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-black/50 backdrop-blur-sm border flex items-center justify-center" style={{ borderColor: tier.ring }}>
-          <AnimalIcon animal={animalName} size={14} style={{ color: tier.color }} />
+          <div className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-black/50 backdrop-blur-sm border flex items-center justify-center" style={{ borderColor: tier.ring }}>
+            <AnimalIcon animal={animalName} size={14} style={{ color: tier.color }} />
+          </div>
         </div>
 
-        {/* Best/Worst badges */}
-        {isBest && (
-          <motion.div
-            className="absolute -top-1 -right-1"
-            animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.15, 1] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-          >
-            <Crown className="h-6 w-6 text-amber-400 drop-shadow-md" />
-          </motion.div>
-        )}
-        {isWorst && (
-          <motion.div
-            className="absolute -top-1 -right-1"
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-          >
-            <Skull className="h-6 w-6 text-red-400 drop-shadow-md" />
-          </motion.div>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="p-3.5">
-        <div className="text-[15px] font-bold font-serif text-white leading-tight mb-0.5">{animalName}</div>
-        <div className="text-[10px] font-mono tracking-widest text-gray-700 mb-2">{animal.originalLabel}</div>
-        <div className="flex gap-1.5 mb-2">
-          <span className="text-[9px] font-mono tracking-wide bg-white/5 border border-white/10 px-2 py-0.5 rounded-md text-gray-400">{animal.confidence}</span>
-          <span className="text-[9px] font-mono tracking-wide bg-white/5 border border-white/10 px-2 py-0.5 rounded-md text-gray-400">{animal.evType}</span>
+        <div className="p-3.5">
+          <div className="text-[15px] font-bold font-serif text-white leading-tight mb-0.5">{animalName}</div>
+          <div className="text-[10px] font-mono tracking-widest text-gray-700 mb-2">{animal.originalLabel}</div>
+          <div className="flex gap-1.5 mb-2">
+            <span className="text-[9px] font-mono tracking-wide bg-white/5 border border-white/10 px-2 py-0.5 rounded-md text-gray-400">{animal.confidence}</span>
+            <span className="text-[9px] font-mono tracking-wide bg-white/5 border border-white/10 px-2 py-0.5 rounded-md text-gray-400">{animal.evType}</span>
+          </div>
+          <p className="text-[11px] leading-relaxed text-gray-500 line-clamp-2">{animal.description}</p>
+          <div className="mt-2 text-[11px] font-bold font-mono tracking-wide flex items-center gap-1 opacity-0 transition-opacity" style={{ color: tier.color, opacity: hover ? 1 : 0 }}>
+            EXPAND <ArrowRight size={11} />
+          </div>
         </div>
-        <p className="text-[11px] leading-relaxed text-gray-500 line-clamp-2">{animal.description}</p>
-        <div className="mt-2 text-[11px] font-bold font-mono tracking-wide flex items-center gap-1 opacity-0 transition-opacity" style={{ color: tier.color, opacity: hover ? 1 : 0 }}>
-          EXPAND <ArrowRight size={11} />
-        </div>
-      </div>
-    </motion.button>
+      </motion.button>
+    </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Detail pop‑up ──────────────────────────────────────────────────────────
+function AnimalDetailModal({
+  label,
+  onClose,
+  row,
+}: {
+  label: string;
+  onClose: () => void;
+  row?: PatternData;
+}) {
+  const animal = PATTERN_ANIMALS.find((a) => a.originalLabel === label);
+  if (!animal) return null;
+
+  const tier = getTier(animal.confidence, animal.evType);
+  const type = row?.pattern_type ?? "INSUFFICIENT_DATA";
+  const cfg = PATTERN_CONFIG[type];
+  const Icon = cfg.icon;
+  const phrase = randomPhrase(type);
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.28 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-black/90 backdrop-blur-lg"
+        />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.87, y: 48 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.93, y: 28 }}
+          transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+          className="relative z-10 w-full max-w-[740px] rounded-2xl overflow-hidden bg-[#0d0d10] border border-white/10 shadow-2xl flex flex-col md:flex-row"
+          style={{ borderColor: tier.ring, boxShadow: `0 0 80px ${tier.dim}` }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Left – photo */}
+          <div className="relative w-full md:w-5/12 min-h-[280px] md:min-h-[440px] bg-gray-900 overflow-hidden">
+            <img
+              src={ANIMAL_IMG[animal.animal] ?? ANIMAL_IMG.Fox}
+              alt={animal.animal}
+              className="absolute inset-0 w-full h-full object-cover object-center"
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0d0d10] md:bg-gradient-to-r md:from-transparent md:via-transparent md:to-[#0d0d10] bg-gradient-to-t from-[#0d0d10]/80 to-transparent" />
+            <div className="absolute top-4 left-4 px-3 py-1 rounded-full text-[10px] font-bold font-mono tracking-widest text-black" style={{ background: tier.color }}>
+              {tier.label}
+            </div>
+            <div className="absolute bottom-5 left-5">
+              <div className="text-[10px] font-mono tracking-widest uppercase opacity-70" style={{ color: tier.color }}>{animal.originalLabel}</div>
+              <h2 className="text-4xl font-black font-serif text-white leading-none mt-1 drop-shadow-lg">{animal.animal}</h2>
+            </div>
+          </div>
+
+          {/* Right – info */}
+          <div className="relative flex-1 p-6 md:p-8 flex flex-col">
+            <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-500 hover:text-white transition">
+              <X size={14} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center border" style={{ background: tier.dim, borderColor: tier.ring }}>
+                <AnimalIcon animal={animal.animal} size={22} style={{ color: tier.color }} />
+              </div>
+              <div>
+                <div className="text-xl font-black font-serif text-white leading-tight">The {animal.animal}</div>
+                <div className="text-[11px] font-mono tracking-wide text-gray-600 mt-0.5">Pattern {PATTERN_ANIMALS.indexOf(animal) + 1} / {PATTERN_ANIMALS.length}</div>
+              </div>
+            </div>
+
+            {/* Live stats + phrase */}
+            {row ? (
+              <>
+                <div className="flex gap-2 mb-4">
+                  <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 flex-1">
+                    <div className="text-[9px] font-mono tracking-widest text-gray-600 mb-1">WIN RATE</div>
+                    <div className="text-sm font-bold" style={{ color: cfg.color }}>{row.win_rate.toFixed(1)}%</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 flex-1">
+                    <div className="text-[9px] font-mono tracking-widest text-gray-600 mb-1">PATTERN TYPE</div>
+                    <div className="flex items-center gap-1 text-sm font-bold" style={{ color: cfg.color }}>
+                      <Icon className="h-3.5 w-3.5" />
+                      {cfg.label}
+                    </div>
+                  </div>
+                </div>
+                <div className="h-px bg-white/5 mb-4" />
+                <div className="rounded-xl bg-white/5 border border-white/10 p-4 mb-4">
+                  <p className="text-sm leading-relaxed text-gray-300">{phrase}</p>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-10 text-gray-400">No live data yet for this pattern.</div>
+            )}
+
+            <p className="text-sm leading-relaxed text-gray-400 flex-1">{animal.description}</p>
+
+            <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between">
+              <span className="text-[10px] font-mono text-gray-700">UPDATED DAILY</span>
+              <button onClick={onClose} className="text-xs font-bold font-mono tracking-wide flex items-center gap-1" style={{ color: tier.color }}>
+                CLOSE <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
 const PatternQuickLook = () => {
   const [open, setOpen] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
@@ -228,7 +335,6 @@ const PatternQuickLook = () => {
     if (open) fetchData();
   }, [open]);
 
-  // Best & worst patterns (min 5 predictions)
   const { bestLabel, worstLabel } = useMemo(() => {
     const eligible = patternData.filter((p) => p.total_predictions >= 5);
     if (eligible.length === 0) return { bestLabel: null, worstLabel: null };
@@ -239,19 +345,11 @@ const PatternQuickLook = () => {
     };
   }, [patternData]);
 
-  const getPatternRow = (label: string) => patternData.find((p) => p.pattern_label === label) ?? null;
-
-  // Detail pop‑up content
-  const selectedRow = selectedLabel ? getPatternRow(selectedLabel) : null;
-  const selectedAnimal = selectedLabel ? getAnimalByLabel(selectedLabel) : null;
-  const selectedType = selectedRow?.pattern_type ?? "INSUFFICIENT_DATA";
-  const selectedCfg = PATTERN_CONFIG[selectedType];
-  const SelectedIcon = selectedCfg.icon;
-  const phrase = selectedType ? randomPhrase(selectedType) : "";
+  const getPatternRow = (label: string) => patternData.find((p) => p.pattern_label === label) ?? undefined;
 
   return (
     <>
-      {/* Floating trigger button */}
+      {/* Floating button */}
       <motion.button
         initial={{ opacity: 0, scale: 0.7 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -290,7 +388,7 @@ const PatternQuickLook = () => {
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-2xl font-bold text-white font-serif">All Pattern Animals</h2>
-                    <p className="text-sm text-gray-400 mt-1">Tap any card for detailed live stats</p>
+                    <p className="text-sm text-gray-400 mt-1">Tap any card for live stats</p>
                   </div>
                   <button onClick={() => setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition">
                     <X className="h-5 w-5" />
@@ -302,22 +400,16 @@ const PatternQuickLook = () => {
                     <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {PATTERN_ANIMALS.map((pa) => {
-                      const row = getPatternRow(pa.originalLabel);
-                      const isBest = pa.originalLabel === bestLabel;
-                      const isWorst = pa.originalLabel === worstLabel;
-                      return (
-                        <AnimalCard
-                          key={pa.animal}
-                          animalName={pa.animal}
-                          isBest={isBest}
-                          isWorst={isWorst}
-                          row={row}
-                          onClick={() => setSelectedLabel(pa.originalLabel)}
-                        />
-                      );
-                    })}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {PATTERN_ANIMALS.map((pa) => (
+                      <AnimalCard
+                        key={pa.animal}
+                        animalName={pa.animal}
+                        isBest={pa.originalLabel === bestLabel}
+                        isWorst={pa.originalLabel === worstLabel}
+                        onClick={() => setSelectedLabel(pa.originalLabel)}
+                      />
+                    ))}
                   </div>
                 )}
               </motion.div>
@@ -326,92 +418,14 @@ const PatternQuickLook = () => {
         )}
       </AnimatePresence>
 
-      {/* Detail popup */}
-      <AnimatePresence>
-        {selectedLabel && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setSelectedLabel(null)}
-              className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-lg"
-            />
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.85, y: 30 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.85, y: 30 }}
-                transition={{ type: "spring", stiffness: 350, damping: 28 }}
-                className="w-full max-w-md bg-[#0d0d10] border border-white/10 rounded-2xl shadow-2xl p-6"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {selectedAnimal && (
-                  <>
-                    <div className="flex items-center justify-between mb-5">
-                      <div className="flex items-center gap-3">
-                        <AnimalIcon animal={selectedAnimal.animal} size={24} className="text-gold" />
-                        <div>
-                          <h3 className="text-lg font-bold text-white">{selectedAnimal.animal}</h3>
-                          <code className="text-xs text-gray-500 font-mono">{selectedLabel}</code>
-                        </div>
-                      </div>
-                      <button onClick={() => setSelectedLabel(null)} className="p-1.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {selectedRow && (
-                      <>
-                        <div className="grid grid-cols-2 gap-3 mb-4">
-                          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                            <div className="text-[10px] font-mono text-gray-500 mb-1">WIN RATE</div>
-                            <div className="text-lg font-bold" style={{ color: selectedCfg.color }}>
-                              {selectedRow.win_rate.toFixed(1)}%
-                            </div>
-                          </div>
-                          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                            <div className="text-[10px] font-mono text-gray-500 mb-1">WINS / LOSSES</div>
-                            <div className="text-sm font-bold text-white">
-                              <span className="text-emerald-400">{Number(selectedRow.wins).toFixed(1)}W</span> /{" "}
-                              <span className="text-red-400">{Number(selectedRow.losses).toFixed(1)}L</span>
-                            </div>
-                          </div>
-                          <div className="rounded-xl bg-white/5 border border-white/10 p-3 col-span-2">
-                            <div className="text-[10px] font-mono text-gray-500 mb-1">TOTAL PREDICTIONS</div>
-                            <div className="text-lg font-bold text-white">{selectedRow.total_predictions}</div>
-                          </div>
-                        </div>
-                        <div className="mb-4">
-                          <span
-                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium"
-                            style={{
-                              background: `${selectedCfg.color}15`,
-                              color: selectedCfg.color,
-                              border: `1px solid ${selectedCfg.color}30`,
-                            }}
-                          >
-                            <SelectedIcon className="h-3 w-3" />
-                            {selectedCfg.label} PATTERN
-                          </span>
-                        </div>
-                        <div className="rounded-xl bg-white/5 border border-white/10 p-4 mb-4">
-                          <p className="text-sm leading-relaxed text-gray-300">{phrase}</p>
-                        </div>
-                        <p className="text-xs text-gray-600 text-center">
-                          Tap the Pattern Analyser page for full league breakdowns.
-                        </p>
-                      </>
-                    )}
-
-                    {!selectedRow && (
-                      <div className="text-center py-10 text-gray-400">No live data yet for this pattern.</div>
-                    )}
-                  </>
-                )}
-              </motion.div>
-            </div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Detail modal */}
+      {selectedLabel && (
+        <AnimalDetailModal
+          label={selectedLabel}
+          onClose={() => setSelectedLabel(null)}
+          row={getPatternRow(selectedLabel)}
+        />
+      )}
     </>
   );
 };
