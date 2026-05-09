@@ -123,7 +123,7 @@ const CustomerCare = () => {
       <div className="fixed bottom-24 right-6 z-40">
         <div className="w-80 rounded-2xl bg-red-950 border border-red-800 p-5 text-white text-sm">
           <p className="font-bold text-lg mb-2">🚫 Access Denied</p>
-          <p>You have been banned from customer support.</p>
+          <p>You have been restricted from accessing customer support because of repeated misbehavior.</p>
         </div>
       </div>
     );

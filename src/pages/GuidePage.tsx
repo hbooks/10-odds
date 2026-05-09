@@ -263,7 +263,7 @@ function StepCard({ num, title, desc, color }: { num: string; title: string; des
 // ─── Main page ───────────────────────────────────────────────────────────────
 const GuidePage = () => {
   const [selected, setSelected] = useState<PatternAnimal | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");   // default dark
+  const [theme, setTheme] = useState<"light" | "dark">("light");  // default light theme, can be toggled by user if they figure out where the button is :D
   const close = useCallback(() => setSelected(null), []);
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
