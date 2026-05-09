@@ -15,6 +15,7 @@ import Layout from "@/components/Layout";
 import { createClient } from "@supabase/supabase-js";
 import { getAnimalByLabel } from "@/lib/patternAnimals";
 import AnimalIcon from "@/components/AnimalIcon";
+import PatternQuickLook from "@/components/PatternQuickLook";
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 const supabase = createClient(
@@ -494,6 +495,7 @@ const PatternAnalyserPage = () => {
           </motion.div>
         )}
       </div>
+      <PatternQuickLook />
     </Layout>
   );
 };
