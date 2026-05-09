@@ -9,6 +9,7 @@ import GlobalLoader from "@/components/GlobalLoader";
 import SupportPortal from "@/components/SupportPortal";
 import AdminCommunity from "@/pages/AdminCommunity";
 import { PageTracker } from "@/hooks/usePageTracking";
+import CustomerCare from "@/components/CustomerCare";
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
 const GamesPage        = lazy(() => import("@/pages/GamesPage"));
@@ -108,6 +109,7 @@ function App() {
               </Routes>
             </Suspense>
 
+            <CustomerCare />
             <SupportPortal />
           </BrowserRouter>
         </LoadingContext.Provider>
