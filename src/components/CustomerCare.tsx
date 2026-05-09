@@ -43,12 +43,12 @@ const PERSONA_AVATARS: Record<Persona, string> = {
   george: "G",
 };
 
-const IDLE_TIMEOUT_MS = 25_000;
+const IDLE_TIMEOUT_MS = 75_000; // 1 min 15 sec
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 // ─── Utilities ────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2);
-const typingDelay = () => 2000 + Math.floor(Math.random() * 6000);
+const typingDelay = () => 4000 + Math.floor(Math.random() * 8000); // 4-12 sec
 const formatTime = (d: Date) =>
   d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -148,7 +148,7 @@ const CustomerCare = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleMessages, isTyping]);
 
-  // ── Idle timer ───────────────────────────────────────────────────────
+  // ── Idle timer (resets on any user action) ──────────────────────────
   const resetIdle = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (stage !== "chat") return;
@@ -214,6 +214,7 @@ const CustomerCare = () => {
         };
         setVisibleMessages([msg]);
         setChatState(s => ({ ...s, history: [{ sender: "agent", text: greeting }] }));
+        resetIdle();
       }
     }, 1000);
   };
@@ -275,7 +276,7 @@ const CustomerCare = () => {
           };
           setVisibleMessages(p => [...p, handoffMsg]);
 
-          const transferWait = 3000 + Math.floor(Math.random() * 2000);
+          const transferWait = 4000 + Math.floor(Math.random() * 3000); // 4-7 sec
           setTimeout(() => {
             setChatState(newState);
             setVisibleMessages([]);
@@ -289,9 +290,9 @@ const CustomerCare = () => {
                 "Hey, I'm tECH. Nancy filled me in — what's the issue?",
               ],
               george: [
-                "George here. I understand there's been some difficulty.",
-                "This is George. Let's resolve this properly.",
-                "George. I'm listening — one more chance to explain the issue.",
+                "George here. I understand there's been some difficulty. Let's handle this properly.",
+                "This is George. I'm listening — you have one chance to explain the issue.",
+                "George. Keep it professional and we'll get somewhere.",
               ],
               nancy: [], emily: [],
             };
@@ -308,6 +309,7 @@ const CustomerCare = () => {
               setVisibleMessages([introMsg]);
               setChatState(s => ({ ...s, history: [...newHistory, { sender: "agent", text: intro }] }));
             }
+            resetIdle();
           }, transferWait);
 
         } else {
@@ -325,6 +327,7 @@ const CustomerCare = () => {
           if (result.end_conversation) {
             setTimeout(() => setOpen(false), 4000);
           }
+          resetIdle();
         }
       } catch {
         const errMsg: Message = {
@@ -336,6 +339,7 @@ const CustomerCare = () => {
         };
         setVisibleMessages(p => [...p, errMsg]);
         setIsTyping(false);
+        resetIdle();
       }
     }, delay);
   };
@@ -575,8 +579,8 @@ const CustomerCare = () => {
                       ref={inputRef}
                       type="text"
                       value={input}
-                      onChange={e => setInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") { sendMessage(); resetIdle(); } }}
+                      onChange={(e) => { setInput(e.target.value); resetIdle(); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { sendMessage(); resetIdle(); } else { resetIdle(); } }}
                       onFocus={resetIdle}
                       placeholder="Type a message…"
                       disabled={isTyping || transferring}
@@ -613,7 +617,7 @@ const CustomerCare = () => {
   );
 };
 
-// ── Sub-components ─────────────────────────────────────────────────────
+// ── Sub‑components ─────────────────────────────────────────────────────
 const ConnectingDots = () => (
   <div style={{ display: "flex", gap: 6 }}>
     {[0, 1, 2, 3].map(i => (
