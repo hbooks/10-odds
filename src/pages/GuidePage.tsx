@@ -1,8 +1,9 @@
-import { motion, AnimatePresence } from "framer-motion";
+import React from "react";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useState, useCallback } from "react";
 import {
-  Zap, MessageSquare, TrendingUp, BookOpen, AlertCircle,
+  Zap, MessageSquare, TrendingUp, AlertCircle,
   BarChart2, ArrowRight, RefreshCw, ShieldCheck, X, ChevronRight,
 } from "lucide-react";
 import Layout from "@/components/Layout";
@@ -46,11 +47,13 @@ function getTier(pa: PatternAnimal) {
   return                  { label: "MODERATE",color: "#a855f7", dim: "rgba(168,85,247,0.12)",  ring: "rgba(168,85,247,0.3)" };
 }
 
-const fadeUp = {
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
+const fadeUp: Variants = {
   hidden:  { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
 };
-const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
+const stagger: Variants = { visible: { transition: { staggerChildren: 0.08 } } };
 
 // ─── Animal modal ─────────────────────────────────────────────────────────────
 function AnimalModal({ pa, onClose }: { pa: PatternAnimal | null; onClose: () => void }) {
@@ -68,7 +71,7 @@ function AnimalModal({ pa, onClose }: { pa: PatternAnimal | null; onClose: () =>
             initial={{ opacity: 0, scale: 0.88, y: 40 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.93, y: 24 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.4, ease: EASE }}
             className="relative z-10 w-full max-w-[760px] rounded-3xl overflow-hidden flex flex-col md:flex-row"
             style={{
               background: "#0a0a0d",
@@ -436,7 +439,7 @@ const GuidePage = () => {
 
               {/* _806 message mockup */}
               <motion.div variants={fadeUp}>
-                <div className="rounded-2xl p-5" style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
+                <div className="rounded-2xl p-5" style={{ background: "rgba(223, 230, 240, 0.36)", border: "1px solid rgba(59,130,246,0.15)" }}>
                   <div className="flex gap-3">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-black font-mono shrink-0" style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }}>
                       806
