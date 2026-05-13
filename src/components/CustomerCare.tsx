@@ -15,7 +15,7 @@ interface Message {
   text: string;
   persona?: Persona;
   timestamp: Date;
-  status?: "sent" | "seen" | "typing" | "replied"; // user messages only
+  status?: "sent" | "seen" | "typing" | "replied";
 }
 
 interface ChatState {
@@ -50,7 +50,7 @@ const PERSONA_AVATARS: Record<Persona, string> = {
   george: "G",
 };
 
-const IDLE_TIMEOUT_MS = 75_000; // 1 min 15 sec
+const IDLE_TIMEOUT_MS = 180_000; // 3 minutes
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 /* ═══════════════════════════════════════════════════════════
@@ -75,13 +75,14 @@ const snapPosition = (
   return "top-left";
 };
 
+// Button offset: top positions moved down by ~1 inch (120px) to avoid navbar
 const edgeStyle = (edge: SnapEdge): React.CSSProperties => {
   switch (edge) {
     case "bottom-right": return { bottom: 24, right: 24 };
     case "bottom-left":  return { bottom: 24, left: 24 };
-    case "top-right":    return { top: 24, right: 24 };
-    case "top-left":     return { top: 24, left: 24 };
-    default:             return { top: 24, right: 24 };
+    case "top-right":    return { top: 120, right: 24 };
+    case "top-left":     return { top: 120, left: 24 };
+    default:             return { top: 120, right: 24 };
   }
 };
 
@@ -90,9 +91,9 @@ const panelPosition = (edge: SnapEdge): React.CSSProperties => {
   switch (edge) {
     case "bottom-right": return { ...base, bottom: 96, right: 24 };
     case "bottom-left":  return { ...base, bottom: 96, left: 24 };
-    case "top-right":    return { ...base, top: 96, right: 24 };
-    case "top-left":     return { ...base, top: 96, left: 24 };
-    default:             return { ...base, top: 96, right: 24 };
+    case "top-right":    return { ...base, top: 192, right: 24 };   // button top + 72
+    case "top-left":     return { ...base, top: 192, left: 24 };
+    default:             return { ...base, top: 192, right: 24 };
   }
 };
 
@@ -145,7 +146,7 @@ const CustomerCare = () => {
 
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  // ✨ start button at top‑right (safe from other buttons)
+  // Initial button position: top‑right, but moved down so it doesn't block navbar
   const [snapEdge, setSnapEdge] = useState<SnapEdge>("top-right");
   const [connectTimer, setConnectTimer] = useState(0);
 
@@ -160,16 +161,15 @@ const CustomerCare = () => {
   const btnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  /* ─── Init from localStorage ────────────────────── */
+  /* ─── Init from localStorage (only ban status) ────── */
   useEffect(() => {
     const b = localStorage.getItem("cc_banned") === "true";
-    const w = parseInt(localStorage.getItem("cc_warnings") || "0", 10);
-    const p = (localStorage.getItem("cc_persona") || "nancy") as Persona;
     if (b) {
       setBanned(true);
       return;
     }
-    setChatState(s => ({ ...s, warningCount: w, persona: p }));
+    // On fresh load, always start at idle (no persistent chat)
+    resetChatState();
   }, []);
 
   /* ─── Auto‑scroll ───────────────────────────────── */
@@ -184,7 +184,6 @@ const CustomerCare = () => {
     idleTimerRef.current = setTimeout(() => {
       const currentAgent = chatState.persona;
       const agentName = PERSONA_NAMES[currentAgent];
-      // System message: agent closed the chat
       const closeMsg: Message = {
         id: uid(),
         type: "system",
@@ -192,7 +191,11 @@ const CustomerCare = () => {
         timestamp: new Date(),
       };
       setVisibleMessages(p => [...p, closeMsg]);
-      setTimeout(() => setOpen(false), 3000);
+      // After a short delay, fully close and reset
+      setTimeout(() => {
+        setOpen(false);
+        resetChatState();
+      }, 4000);
     }, IDLE_TIMEOUT_MS);
   }, [stage, chatState.persona]);
 
@@ -203,11 +206,28 @@ const CustomerCare = () => {
     };
   }, [stage, resetIdle]);
 
-  /* ─── Persist state ─────────────────────────────── */
-  const persist = (state: ChatState, isBanned = false) => {
-    localStorage.setItem("cc_warnings", String(state.warningCount));
-    localStorage.setItem("cc_persona", state.persona);
-    if (isBanned) localStorage.setItem("cc_banned", "true");
+  /* ─── Full reset to initial idle state ───────────── */
+  const resetChatState = () => {
+    setStage("idle");
+    setVisibleMessages([]);
+    setChatState({
+      persona: "nancy",
+      warningCount: 0,
+      history: [],
+    });
+    setInput("");
+    setIsTyping(false);
+    setTransferring(false);
+    setTransferToPersona(null);
+    setMinimized(false);
+    // Clear any warnings from localStorage so user gets a fresh start
+    localStorage.removeItem("cc_warnings");
+    localStorage.removeItem("cc_persona");
+  };
+
+  /* ─── Persist only ban ───────────────────────────── */
+  const persistBan = () => {
+    localStorage.setItem("cc_banned", "true");
   };
 
   /* ─── Connect ────────────────────────────────────── */
@@ -215,7 +235,8 @@ const CustomerCare = () => {
     setStage("connecting");
     const agent: Persona = Math.random() > 0.5 ? "nancy" : "emily";
     setChatState(s => ({ ...s, persona: agent }));
-    const waitSecs = 3 + Math.floor(Math.random() * 5);
+    // Wait time: 3‑7 minutes (180‑420 seconds)
+    const waitSecs = 180 + Math.floor(Math.random() * 240);
     setConnectTimer(waitSecs);
 
     let rem = waitSecs;
@@ -226,14 +247,14 @@ const CustomerCare = () => {
         clearInterval(t);
         setStage("chat");
         const agentName = PERSONA_NAMES[agent];
-        // System message: connected
+        // System: connected
         const connectSys: Message = {
           id: uid(),
           type: "system",
           text: `You have been connected to ${agentName}.`,
           timestamp: new Date(),
         };
-        // Normal greeting
+        // Agent greeting
         const greetings: Record<Persona, string[]> = {
           nancy: [
             `Hi there! 👋 I'm Nancy from 10 Odds support. What can I help you with today?`,
@@ -265,7 +286,7 @@ const CustomerCare = () => {
     }, 1000);
   };
 
-  /* ─── Send message (with natural 7‑9 sec total delay) ──────── */
+  /* ─── Send message (natural rhythm, 7‑9 sec total) ── */
   const sendMessage = async () => {
     if (!input.trim() || isTyping || transferring) return;
 
@@ -285,36 +306,35 @@ const CustomerCare = () => {
     setVisibleMessages(p => [...p, userMsg]);
     setIsTyping(false);
 
-    // ── Total reply delay between 7 and 9 seconds ──
-    const totalDelay = 7000 + Math.random() * 2000; // 7‑9 s
-    const minTyping = 2000; // typing dots always at least 2 s
+    // Total reply delay: 7‑9 seconds
+    const totalDelay = 7000 + Math.random() * 2000;
+    const minTyping = 2000;
 
-    // 1. seen delay: 1‑3 seconds
+    // 1. Seen delay: 1‑3 s
     const seenDelay = 1000 + Math.random() * 2000;
     await delayMs(seenDelay);
     setVisibleMessages(p =>
       p.map(m => (m.id === userMsgId ? { ...m, status: "seen" as const } : m))
     );
 
-    // 2. seen stay: at least 1 s, up to 4 s, but we need room for typing
+    // 2. Seen stay: at least 1 s, up to 4 s (but ensure room for typing)
     const remainingAfterSeen = totalDelay - seenDelay;
     const maxSeenStay = Math.min(remainingAfterSeen - minTyping, 3000);
     const seenStay = Math.max(1000, Math.floor(Math.random() * maxSeenStay + 500));
     await delayMs(seenStay);
 
-    // 3. Start typing
+    // 3. Start typing dots
     const typingStart = Date.now();
     setIsTyping(true);
     setVisibleMessages(p =>
       p.map(m => (m.id === userMsgId ? { ...m, status: "typing" as const } : m))
     );
 
-    // ── Fetch the agent response ──
+    // Fetch agent reply
     let result;
     try {
       result = await getAgentReply(userText, chatState);
     } catch {
-      // Error system message
       const errSys: Message = {
         id: uid(),
         type: "system",
@@ -327,10 +347,8 @@ const CustomerCare = () => {
       return;
     }
 
-    // 4. Enforce minimum 2 s typing display
+    // 4. Enforce minimum typing display + total delay
     const elapsed = Date.now() - typingStart;
-    const remainingTyping = Math.max(minTyping, totalDelay - seenDelay - seenStay - elapsed + minTyping);
-    // Actually ensure total from send to reply >= totalDelay
     const totalElapsed = seenDelay + seenStay + elapsed;
     if (totalElapsed < totalDelay) {
       await delayMs(totalDelay - totalElapsed);
@@ -341,7 +359,6 @@ const CustomerCare = () => {
       p.map(m => (m.id === userMsgId ? { ...m, status: "replied" as const } : m))
     );
 
-    // History update
     const newHistory: ChatState["history"] = [
       ...chatState.history,
       { sender: "user", text: userText },
@@ -357,24 +374,22 @@ const CustomerCare = () => {
     // Ban
     if (result.banned) {
       setBanned(true);
-      persist(newState, true);
+      persistBan();
       return;
     }
-
-    persist(newState);
 
     // Transfer
     if (result.transfer && result.persona !== chatState.persona) {
       const oldPersonaName = PERSONA_NAMES[chatState.persona];
 
-      // System message: transfer initiated
-      const transferSys: Message = {
+      // System: transfer initiated
+      const transferInitSys: Message = {
         id: uid(),
         type: "system",
         text: `${oldPersonaName} transferred this chat. Please wait as we connect you.`,
         timestamp: new Date(),
       };
-      setVisibleMessages(p => [...p, transferSys]);
+      setVisibleMessages(p => [...p, transferInitSys]);
 
       // Handoff message from current agent
       const handoffMsg: Message = {
@@ -389,15 +404,25 @@ const CustomerCare = () => {
       setTransferToPersona(result.persona);
       setTransferring(true);
 
-      const transferWait = 4000 + Math.floor(Math.random() * 3000);
+      // Transfer wait: 20‑25 seconds
+      const transferWait = 20000 + Math.floor(Math.random() * 5000);
       await delayMs(transferWait);
 
+      // Post‑transfer system message
+      const newAgentName = PERSONA_NAMES[result.persona];
+      const transferDoneSys: Message = {
+        id: uid(),
+        type: "system",
+        text: `${oldPersonaName} transferred you to another agent. You are now connected to ${newAgentName}.`,
+        timestamp: new Date(),
+      };
+
       setChatState(newState);
-      setVisibleMessages([]);
+      setVisibleMessages([]); // clear old chat
       setTransferring(false);
       setTransferToPersona(null);
 
-      // New agent intro
+      // Add the system notice first, then new agent intro
       const introTexts: Record<Persona, string[]> = {
         tech: [
           "Hey — tECH here. I've been briefed. Let's get this sorted.",
@@ -422,11 +447,13 @@ const CustomerCare = () => {
           persona: result.persona,
           timestamp: new Date(),
         };
-        setVisibleMessages([introMsg]);
+        setVisibleMessages([transferDoneSys, introMsg]);
         setChatState(s => ({
           ...s,
           history: [...newHistory, { sender: "agent", text: intro }],
         }));
+      } else {
+        setVisibleMessages([transferDoneSys]);
       }
       resetIdle();
       return;
@@ -445,7 +472,6 @@ const CustomerCare = () => {
 
     if (result.end_conversation) {
       const agentName = PERSONA_NAMES[result.persona];
-      // System message: agent closed the chat
       const closeSys: Message = {
         id: uid(),
         type: "system",
@@ -453,7 +479,11 @@ const CustomerCare = () => {
         timestamp: new Date(),
       };
       setVisibleMessages(p => [...p, closeSys]);
-      setTimeout(() => setOpen(false), 4000);
+      setTimeout(() => {
+        setOpen(false);
+        resetChatState();
+      }, 4000);
+      return;
     }
 
     resetIdle();
@@ -503,13 +533,19 @@ const CustomerCare = () => {
     }
   };
 
+  // Manual close (X button) — full reset
+  const handleClose = () => {
+    setOpen(false);
+    resetChatState();
+  };
+
   if (banned) return null;
 
   const currentPersonaColor = PERSONA_COLORS[chatState.persona];
 
   return (
     <>
-      {/* Floating Button – starts top‑right */}
+      {/* Floating Button – top‑right, moved down */}
       <motion.button
         ref={btnRef}
         initial={{ scale: 0, opacity: 0 }}
@@ -659,7 +695,7 @@ const CustomerCare = () => {
                   <Minus className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => setOpen(false)}
+                  onClick={handleClose}
                   style={{
                     padding: 6,
                     borderRadius: 8,
@@ -775,10 +811,8 @@ const CustomerCare = () => {
                       <p style={{ fontSize: 13 }}>
                         Connecting you to an agent…
                       </p>
-                      <p
-                        style={{ fontSize: 12, color: "#4b5563" }}
-                      >
-                        Estimated wait: {connectTimer}s
+                      <p style={{ fontSize: 12, color: "#4b5563" }}>
+                        Estimated wait: {Math.floor(connectTimer / 60)}m {connectTimer % 60}s
                       </p>
                     </div>
                   )}
@@ -911,7 +945,6 @@ const CustomerCare = () => {
                           </div>
                         </motion.div>
                       )}
-
                       <div ref={messagesEndRef} />
                     </>
                   )}
@@ -1047,7 +1080,6 @@ const MessageBubble = ({
   currentPersonaName?: string;
   currentPersonaColor?: string;
 }) => {
-  // System messages
   if (msg.type === "system") {
     return (
       <motion.div
@@ -1077,7 +1109,6 @@ const MessageBubble = ({
     );
   }
 
-  // Normal user/agent messages
   const isUser = msg.type === "user";
 
   return (
