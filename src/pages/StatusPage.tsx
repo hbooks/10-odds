@@ -289,6 +289,7 @@ function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBes
 
   const handleToggle = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setOpen((o) => !o);
   };
 
@@ -301,6 +302,9 @@ function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBes
       // Desktop: hover to show tooltip
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      // Mobile: block the entire touch sequence from reaching the backdrop
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={handleToggle}
     >
       {/* Tooltip */}
       <AnimatePresence>
@@ -321,7 +325,6 @@ function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBes
 
       <div
         onClick={handleToggle}
-        onTouchEnd={handleToggle}
         className={`relative rounded-2xl p-3 flex flex-col items-center gap-1.5 border transition-all duration-200 cursor-pointer select-none
           ${isPrimary
             ? "border-gold/50 shadow-[0_0_16px_rgba(212,175,55,0.2)]"
