@@ -197,6 +197,40 @@ interface PredictionModalProps {
 }
 
 const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
+  const [showHippo, setShowHippo] = useState(false);
+  const [hippoLoading, setHippoLoading] = useState(false);
+  const [hippoData, setHippoData] = useState<{
+    market_1: string;
+    selection_1: string;
+    confidence_1: number;
+    market_2: string;
+    selection_2: string;
+    confidence_2: number;
+    market_3: string;
+    selection_3: string;
+    confidence_3: number;
+    market_4: string;
+    selection_4: string;
+    confidence_4: number;
+  } | null>(null);
+
+  const loadHippo = useCallback(async () => {
+    if (!prediction) return;
+    setHippoLoading(true);
+    const { data, error } = await supabase
+      .from("hippo_predictions")
+      .select(
+        "market_1, selection_1, confidence_1, market_2, selection_2, confidence_2, market_3, selection_3, confidence_3, market_4, selection_4, confidence_4"
+      )
+      .eq("prediction_id", prediction.id)
+      .maybeSingle();
+    if (!error && data) {
+      setHippoData(data);
+      setShowHippo(true);
+    }
+    setHippoLoading(false);
+  }, [prediction]);
+
   if (!prediction) return null;
 
   const match   = prediction.matches;
@@ -209,6 +243,71 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
     backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.55) 100%), url('https://images.pexels.com/photos/47730/the-ball-stadion-football-the-pitch-47730.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
     backgroundSize: "cover",
     backgroundPosition: "center",
+  };
+
+  // ── Helper for Hippo market cards ──────────────────────────────
+  const hippoMarkets = hippoData
+    ? [
+        { market: hippoData.market_1, selection: hippoData.selection_1, confidence: hippoData.confidence_1 },
+        { market: hippoData.market_2, selection: hippoData.selection_2, confidence: hippoData.confidence_2 },
+        { market: hippoData.market_3, selection: hippoData.selection_3, confidence: hippoData.confidence_3 },
+        { market: hippoData.market_4, selection: hippoData.selection_4, confidence: hippoData.confidence_4 },
+      ]
+    : [];
+
+  const bestHippoConfidence = Math.max(...hippoMarkets.map((m) => m.confidence ?? 0));
+  const hasBest = bestHippoConfidence > 0 && hippoMarkets.filter((m) => m.confidence === bestHippoConfidence).length === 1;
+
+  // Generate a short label from a market name (e.g. "Over 2.5 Goals" → "O/U 2.5")
+  const shortMarketLabel = (market: string): string => {
+    const m = market.toLowerCase();
+    if (m.includes("1x2")) return "1X2";
+    if (m.includes("double chance")) return "DC";
+    if (m.includes("draw no bet")) return "DNB";
+    if (m.includes("btts")) return "BTTS";
+    if (m.includes("over") || m.includes("under")) {
+      const num = market.match(/[\d.]+/)?.[0];
+      return `${m.startsWith("Over") ? "O" : "U"}${num ? " " + num : ""}`;
+    }
+    if (m.includes("goal line")) return "GL";
+    if (m.includes("asian handicap")) return "AH";
+    if (m.includes("european handicap")) return "EH";
+    if (m.includes("correct score")) return "CS";
+    if (m.includes("ht/ft")) return "HT/FT";
+    if (m.includes("clean sheet")) return "CS";
+    if (m.includes("win to nil")) return "WTN";
+    if (m.includes("corner")) return "Cnr";
+    if (m.includes("card")) return "Card";
+    if (m.includes("booking points")) return "BP";
+    if (m.includes("offside")) return "Off";
+    if (m.includes("total goals")) return "TG";
+    if (m.includes("exact total goals")) return "ETG";
+    if (m.includes("even") || m.includes("odd")) return "E/O";
+    if (m.includes("penalty awarded")) return "Pen";
+    if (m.includes("red card")) return "Red";
+    if (m.includes("own goal")) return "OG";
+    if (m.includes("comeback win")) return "Comeback";
+    if (m.includes("goal scorer")) return "Scorer";
+    if (m.includes("half-time result")) return "HT 1X2";
+    if (m.includes("half-time over") || m.includes("half-time under")) return "HT O/U";
+    if (m.includes("half-time btts")) return "HT BTTS";
+    if (m.includes("first half goals")) return "1H G";
+    if (m.includes("second half goals")) return "2H G";
+    if (m.includes("multi-goal")) return "Multi";
+    if (m.includes("time of first goal")) return "1st Gl";
+    if (m.includes("highest scoring half")) return "HSH";
+    if (m.includes("team to win both halves")) return "TW BH";
+    if (m.includes("team to win either half")) return "TW EH";
+    if (m.includes("1x2 & btts")) return "1X2+BTTS";
+    return market.slice(0, 6).toUpperCase(); // fallback
+  };
+
+  const confidenceColor = (pct: number) => {
+    if (pct >= 80) return "#34d399";
+    if (pct >= 65) return "#84cc16";
+    if (pct >= 50) return "#facc15";
+    if (pct >= 35) return "#f97316";
+    return "#ef4444";
   };
 
   return (
@@ -225,7 +324,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.92, y: 24 }}
           transition={{ type: "spring", stiffness: 320, damping: 28 }}
-          className="relative w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl"
+          className="relative w-full max-w-xl rounded-2xl overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
           style={backgroundStyle}
           onClick={(e) => e.stopPropagation()}
         >
@@ -237,10 +336,11 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           </button>
 
           <div className="p-6 text-white">
+            {/* Teams and kickoff – same as before */}
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.home_team.crest_url && (
-                 <CrestImage url={match.home_team.crest_url} alt="" size="lg" />
+                  <CrestImage url={match.home_team.crest_url} alt="" size="lg" />
                 )}
                 <span className="font-heading text-base font-bold text-center leading-tight">
                   {match.home_team.name}
@@ -271,6 +371,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               )}
             </div>
 
+            {/* MK-806 Prediction box */}
             <div className="bg-black/40 backdrop-blur-sm rounded-xl p-4 border border-white/10">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white/60 text-xs uppercase tracking-wide">MK‑806 Prediction</span>
@@ -314,6 +415,81 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 confidenceScore={prediction.confidence_score}
                 selection={prediction.selection}
               />
+
+              {/* ── Other Markets button ── */}
+              <div className="mt-4">
+                {!showHippo ? (
+                  <button
+                    onClick={loadHippo}
+                    disabled={hippoLoading}
+                    className="flex items-center gap-2 text-xs font-semibold text-white/90 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl px-4 py-2 transition-colors"
+                  >
+                    {hippoLoading ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-3-9h6v2H9zm0-4h6v2H9z" />
+                      </svg>
+                    )}
+                    Other Markets
+                  </button>
+                ) : hippoMarkets.length > 0 ? (
+                  <div>
+                    <p className="text-xs text-white/70 mb-2 font-medium">Alternative Markets (Hippo AI)</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {/* MK-806 card */}
+                      <div
+                        className="bg-white/5 rounded-lg p-2 flex flex-col items-center justify-center border border-gold/40"
+                        title={`MK-806: ${prediction.bet_type} - ${prediction.selection}`}
+                      >
+                        <span className="text-[10px] font-semibold text-gold mb-0.5">MK</span>
+                        <span className="text-xs font-bold text-center leading-tight">
+                          {prediction.selection}
+                        </span>
+                        <span className="text-[10px] mt-1" style={{ color: confidenceColor(prediction.confidence_score * 100) }}>
+                          {Math.round(prediction.confidence_score * 100)}%
+                        </span>
+                      </div>
+
+                      {/* Hippo cards */}
+                      {hippoMarkets.map((m, idx) => {
+                        const pct = m.confidence ?? 0;
+                        const isBest = pct === bestHippoConfidence && pct > 0 && hippoMarkets.filter(c => c.confidence === bestHippoConfidence).length === 1;
+                        return (
+                          <div
+                            key={idx}
+                            className={`rounded-lg p-2 flex flex-col items-center justify-center border transition-all ${
+                              isBest ? "border-gold shadow-[0_0_8px_rgba(255,215,0,0.5)]" : "border-white/10"
+                            }`}
+                            style={{
+                              background: `radial-gradient(circle at center, ${confidenceColor(pct)}20 0%, rgba(0,0,0,0.2) 100%)`,
+                            }}
+                            title={`${m.market}: ${m.selection} (${pct}%)`}
+                          >
+                            <span className="text-[10px] font-semibold text-white/80 mb-0.5">
+                              {shortMarketLabel(m.market)}
+                            </span>
+                            <span className="text-[11px] font-bold leading-tight text-center">
+                              {m.selection}
+                            </span>
+                            <span className="text-[10px] mt-1 font-medium" style={{ color: confidenceColor(pct) }}>
+                              {pct}%
+                            </span>
+                            {isBest && (
+                              <svg className="absolute -top-1 -right-1 h-4 w-4 text-gold" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.37 2.448a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.176 0l-3.37 2.448c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.063 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69l1.286-3.957z" />
+                              </svg>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-white/40 mt-1.5 text-right">Tap cards for details</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/50 italic">No alternative markets available yet.</p>
+                )}
+              </div>
             </div>
           </div>
         </motion.div>
