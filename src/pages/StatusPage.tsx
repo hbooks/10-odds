@@ -199,6 +199,7 @@ interface PredictionModalProps {
 const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   const [showHippo, setShowHippo] = useState(false);
   const [hippoLoading, setHippoLoading] = useState(false);
+  const [hippoError, setHippoError] = useState<string | null>(null);
   const [hippoData, setHippoData] = useState<{
     market_1: string;
     selection_1: string;
@@ -217,18 +218,29 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   const loadHippo = useCallback(async () => {
     if (!prediction) return;
     setHippoLoading(true);
-    const { data, error } = await supabase
-      .from("hippo_predictions")
-      .select(
-        "market_1, selection_1, confidence_1, market_2, selection_2, confidence_2, market_3, selection_3, confidence_3, market_4, selection_4, confidence_4"
-      )
-      .eq("prediction_id", prediction.id)
-      .maybeSingle();
-    if (!error && data) {
-      setHippoData(data);
-      setShowHippo(true);
+    setHippoError(null);
+    try {
+      const { data, error } = await supabase
+        .from("hippo_predictions")
+        .select(
+          "market_1, selection_1, confidence_1, market_2, selection_2, confidence_2, market_3, selection_3, confidence_3, market_4, selection_4, confidence_4"
+        )
+        .eq("prediction_id", prediction.id)
+        .maybeSingle();
+
+      if (error) {
+        setHippoError("Internal server error");
+      } else if (!data) {
+        setHippoError("Hippo AI has not touched this one yet. Try again later.");
+      } else {
+        setHippoData(data);
+        setShowHippo(true);
+      }
+    } catch {
+      setHippoError("Internal server error");
+    } finally {
+      setHippoLoading(false);
     }
-    setHippoLoading(false);
   }, [prediction]);
 
   if (!prediction) return null;
@@ -258,7 +270,6 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   const bestHippoConfidence = Math.max(...hippoMarkets.map((m) => m.confidence ?? 0));
   const hasBest = bestHippoConfidence > 0 && hippoMarkets.filter((m) => m.confidence === bestHippoConfidence).length === 1;
 
-  // Generate a short label from a market name (e.g. "Over 2.5 Goals" → "O/U 2.5")
   const shortMarketLabel = (market: string): string => {
     const m = market.toLowerCase();
     if (m.includes("1x2")) return "1X2";
@@ -299,7 +310,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
     if (m.includes("team to win both halves")) return "TW BH";
     if (m.includes("team to win either half")) return "TW EH";
     if (m.includes("1x2 & btts")) return "1X2+BTTS";
-    return market.slice(0, 6).toUpperCase(); // fallback
+    return market.slice(0, 6).toUpperCase();
   };
 
   const confidenceColor = (pct: number) => {
@@ -433,6 +444,10 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                     )}
                     Other Markets
                   </button>
+                ) : hippoError ? (
+                  <p className="text-xs text-white/70 bg-white/5 rounded-lg px-3 py-2 border border-white/10">
+                    {hippoError}
+                  </p>
                 ) : hippoMarkets.length > 0 ? (
                   <div>
                     <p className="text-xs text-white/70 mb-2 font-medium">Alternative Markets (Hippo AI)</p>
