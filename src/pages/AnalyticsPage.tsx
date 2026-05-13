@@ -52,6 +52,14 @@ interface Prediction {
   };
 }
 
+// Hippo market evaluation row (flattened from hippo_predictions)
+interface HippoMarketEval {
+  market: string;
+  selection: string;
+  confidence: number;
+  result: "won" | "lost" | "pending";
+}
+
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const EMERALD  = "#10b981";
 const ROSE     = "#f43f5e";
@@ -286,7 +294,7 @@ function LeagueBar({ league, winRate, color }: { league: string; winRate: number
   );
 }
 
-// ─── Helper functions for data processing ─────────────────────────────────────
+// ─── Helper functions for MK-806 data processing ──────────────────────────────
 function processPredictions(predictions: Prediction[]) {
   if (!predictions.length) {
     return {
@@ -330,7 +338,7 @@ function processPredictions(predictions: Prediction[]) {
   const roi = totalStake > 0 ? ((totalReturn - totalStake) / totalStake) * 100 : 0;
   const profitUnits = totalReturn - totalStake;
 
-  // Current streak (most recent consecutive wins)
+  // Current streak
   let streak = 0;
   let streakType: "win" | "loss" = "win";
   for (let i = sorted.length - 1; i >= 0; i--) {
@@ -500,13 +508,75 @@ function processPredictions(predictions: Prediction[]) {
   return { summary, weekly, cumulative, leagueBreakdown, betTypeBreakdown, confidenceBuckets };
 }
 
+// ─── Hippo AI data fetching and processing ─────────────────────────────────────
+function processHippoMarkets(rows: any[]): HippoMarketEval[] {
+  const evals: HippoMarketEval[] = [];
+
+  for (const row of rows) {
+    const status = row.result_status || {};
+    const markets = [
+      { market: row.market_1, selection: row.selection_1, confidence: row.confidence_1, key: "market_1" },
+      { market: row.market_2, selection: row.selection_2, confidence: row.confidence_2, key: "market_2" },
+      { market: row.market_3, selection: row.selection_3, confidence: row.confidence_3, key: "market_3" },
+      { market: row.market_4, selection: row.selection_4, confidence: row.confidence_4, key: "market_4" },
+    ];
+
+    for (const m of markets) {
+      const result = status[m.key];
+      if (result === "won" || result === "lost") {
+        evals.push({
+          market: m.market,
+          selection: m.selection,
+          confidence: m.confidence,
+          result: result,
+        });
+      }
+    }
+  }
+
+  return evals;
+}
+
+function computeHippoStats(evals: HippoMarketEval[]) {
+  if (!evals.length) return null;
+
+  const total = evals.length;
+  const wins = evals.filter(e => e.result === "won").length;
+  const losses = evals.filter(e => e.result === "lost").length;
+  const winRate = total > 0 ? (wins / total) * 100 : 0;
+
+  // Market type breakdown
+  const marketMap: Record<string, { wins: number; total: number }> = {};
+  evals.forEach(e => {
+    const label = `${e.market} – ${e.selection}`;
+    if (!marketMap[label]) marketMap[label] = { wins: 0, total: 0 };
+    marketMap[label].total++;
+    if (e.result === "won") marketMap[label].wins++;
+  });
+
+  const marketBreakdown = Object.entries(marketMap)
+    .map(([name, data]) => ({
+      name,
+      wins: data.wins,
+      total: data.total,
+      winRate: data.total > 0 ? (data.wins / data.total) * 100 : 0,
+    }))
+    .sort((a, b) => b.winRate - a.winRate);
+
+  return { total, wins, losses, winRate, marketBreakdown };
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 const AnalyticsPage = () => {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  // Hippo data
+  const [hippoEvals, setHippoEvals] = useState<HippoMarketEval[]>([]);
+  const [hippoLoading, setHippoLoading] = useState(true);
+
+  const fetchMKData = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -529,16 +599,47 @@ const AnalyticsPage = () => {
       if (error) throw error;
       setPredictions(data as unknown as Prediction[]);
     } catch (e) {
-      setError("Failed to load analytics data.");
+      setError("Failed to load MK-806 analytics data.");
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchHippoData = async () => {
+    setHippoLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("hippo_predictions")
+        .select(`
+          market_1, selection_1, confidence_1,
+          market_2, selection_2, confidence_2,
+          market_3, selection_3, confidence_3,
+          market_4, selection_4, confidence_4,
+          result_status
+        `)
+        .not("result_status", "is", null)
+        .not("result_status", "eq", "{}");
+
+      if (error) throw error;
+      const evals = processHippoMarkets(data ?? []);
+      setHippoEvals(evals);
+    } catch (e) {
+      console.error("Failed to fetch Hippo data:", e);
+      setHippoEvals([]);
+    } finally {
+      setHippoLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetchData();
+    fetchMKData();
+    fetchHippoData();
   }, []);
 
+  const mkData = processPredictions(predictions);
+  const hippoStats = computeHippoStats(hippoEvals);
+
+  // MK-806 specific derived
   const {
     summary,
     weekly,
@@ -546,7 +647,7 @@ const AnalyticsPage = () => {
     leagueBreakdown,
     betTypeBreakdown,
     confidenceBuckets,
-  } = processPredictions(predictions);
+  } = mkData;
 
   const voidRate = summary.total > 0 ? (summary.voids / summary.total) * 100 : 0;
   const lossRate = summary.total > 0 ? (summary.losses / summary.total) * 100 : 0;
@@ -567,34 +668,9 @@ const AnalyticsPage = () => {
         <div className="container mx-auto px-4 py-8 text-center">
           <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">{error}</p>
-          <button onClick={fetchData} className="mt-4 text-sm text-gold hover:underline">
+          <button onClick={fetchMKData} className="mt-4 text-sm text-gold hover:underline">
             Try again
           </button>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (predictions.length === 0) {
-    return (
-      <Layout>
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: -16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 mb-1"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg gradient-gold">
-              <BarChart2 className="h-5 w-5 text-accent-foreground" />
-            </div>
-            <h1 className="text-3xl font-heading font-bold">
-              MK-806 <span className="text-gold">Analytics</span>
-            </h1>
-          </motion.div>
-          <div className="text-center py-20 text-muted-foreground">
-            <p className="text-lg">No completed predictions yet.</p>
-            <p className="text-sm mt-2">Analytics will appear once matches finish and results are updated.</p>
-          </div>
         </div>
       </Layout>
     );
@@ -620,7 +696,7 @@ const AnalyticsPage = () => {
             </h1>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => { fetchMKData(); fetchHippoData(); }}
             className="p-2 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors"
             title="Refresh"
           >
@@ -633,11 +709,11 @@ const AnalyticsPage = () => {
           transition={{ delay: 0.15 }}
           className="text-muted-foreground text-sm mb-8 pl-[52px]"
         >
-          Season performance breakdown — all five leagues tracked
+          Season performance breakdown — all five leagues tracked, plus Hippo AI alternative markets
         </motion.p>
 
-        {/* ── KPI row ─────────────────────────────────────────────────── */}
-        <SectionLabel>Overview</SectionLabel>
+        {/* ── MK-806 KPI row ──────────────────────────────────────────── */}
+        <SectionLabel>MK-806 Overview</SectionLabel>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
           <StatCard
             index={0}
@@ -1007,6 +1083,145 @@ const AnalyticsPage = () => {
           </div>
         </ChartCard>
 
+        {/* ════════════════════════════════════════════════════════════════
+           HIPPO AI ALTERNATIVE MARKETS SECTION
+        ════════════════════════════════════════════════════════════════ */}
+        <div className="mt-12 mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sapphire/20">
+              <Zap className="h-4 w-4 text-sapphire" />
+            </div>
+            <h2 className="text-2xl font-heading font-bold">
+              Hippo AI <span className="text-gold">Markets</span>
+            </h2>
+          </div>
+          <p className="text-muted-foreground text-sm mb-6 pl-[44px]">
+            Performance of the 4 alternative markets Hippo selects for each prediction
+          </p>
+        </div>
+
+        {hippoLoading ? (
+          <div className="flex justify-center py-12">
+            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !hippoStats ? (
+          <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-border">
+            <p className="text-lg">No Hippo market results yet.</p>
+            <p className="text-sm mt-2">Results will appear once matches end and the update-results function runs.</p>
+          </div>
+        ) : (
+          <>
+            {/* Hippo summary stats */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+              <StatCard
+                index={11}
+                icon={Target}
+                label="Total Hippo Picks"
+                value={hippoStats.total}
+                sub={`${hippoStats.wins}W · ${hippoStats.losses}L`}
+                accent={GOLD}
+              />
+              <StatCard
+                index={12}
+                icon={Trophy}
+                label="Win Rate"
+                value={`${hippoStats.winRate.toFixed(1)}%`}
+                sub="All alternative markets"
+                accent={EMERALD}
+                trend={hippoStats.winRate >= 50 ? "up" : "down"}
+              />
+              <StatCard
+                index={13}
+                icon={Flame}
+                label="Top Market"
+                value={hippoStats.marketBreakdown[0]?.name || "—"}
+                sub={`${hippoStats.marketBreakdown[0]?.winRate.toFixed(1) ?? 0}% win rate`}
+                accent={SAPPHIRE}
+              />
+            </div>
+
+            {/* Market type breakdown bar chart */}
+            <ChartCard
+              index={14}
+              title="Win Rate by Market Type"
+              subtitle="Each bar represents a specific market + selection pair"
+            >
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={hippoStats.marketBreakdown}
+                    layout="vertical"
+                    margin={{ top: 4, right: 24, left: 4, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} horizontal={false} />
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={160}
+                      tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar
+                      dataKey="winRate"
+                      name="Win Rate"
+                      radius={[0, 4, 4, 0]}
+                      maxBarSize={24}
+                    >
+                      {hippoStats.marketBreakdown.map((entry, i) => (
+                        <Cell
+                          key={i}
+                          fill={entry.winRate >= 60 ? EMERALD : entry.winRate >= 40 ? GOLD : ROSE}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Detailed table */}
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Market & Selection", "Wins", "Total", "Win Rate"].map((h) => (
+                        <th key={h} className="pb-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide first:pl-0">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hippoStats.marketBreakdown.map((row, i) => (
+                      <tr key={i} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="py-3 font-medium text-foreground">{row.name}</td>
+                        <td className="py-3 font-mono text-emerald-400">{row.wins}</td>
+                        <td className="py-3 font-mono">{row.total}</td>
+                        <td className="py-3 font-mono font-semibold" style={{ color: row.winRate >= 60 ? EMERALD : row.winRate >= 40 ? GOLD : ROSE }}>
+                          {row.winRate.toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-3 bg-muted/40 rounded-lg px-3 py-2.5 text-xs text-muted-foreground">
+                <Zap className="h-3 w-3 inline-block text-gold mr-1 -mt-0.5" />
+                Hippo AI markets are evaluated using the same BSD match results. Higher win rates indicate the AI effectively identifies the safest markets.
+              </div>
+            </ChartCard>
+          </>
+        )}
       </div>
     </Layout>
   );
