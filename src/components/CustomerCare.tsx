@@ -7,15 +7,15 @@ import { MessageCircle, X, Send, Minus, ArrowRightLeft } from "lucide-react";
 ═══════════════════════════════════════════════════════════ */
 type Persona = "nancy" | "emily" | "tech" | "george";
 
-type MessageStatus = "sent" | "seen" | "typing" | "replied";
+type MessageType = "user" | "agent" | "system";
 
 interface Message {
   id: string;
-  sender: "user" | "agent";
+  type: MessageType;
   text: string;
   persona?: Persona;
   timestamp: Date;
-  status?: MessageStatus; // only used for user messages
+  status?: "sent" | "seen" | "typing" | "replied"; // user messages only
 }
 
 interface ChatState {
@@ -57,7 +57,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
    UTILITIES
 ═══════════════════════════════════════════════════════════ */
 const uid = () => Math.random().toString(36).slice(2);
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delayMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const formatTime = (d: Date) =>
   d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -81,7 +81,7 @@ const edgeStyle = (edge: SnapEdge): React.CSSProperties => {
     case "bottom-left":  return { bottom: 24, left: 24 };
     case "top-right":    return { top: 24, right: 24 };
     case "top-left":     return { top: 24, left: 24 };
-    default:             return { bottom: 24, right: 24 };
+    default:             return { top: 24, right: 24 };
   }
 };
 
@@ -92,7 +92,7 @@ const panelPosition = (edge: SnapEdge): React.CSSProperties => {
     case "bottom-left":  return { ...base, bottom: 96, left: 24 };
     case "top-right":    return { ...base, top: 96, right: 24 };
     case "top-left":     return { ...base, top: 96, left: 24 };
-    default:             return { ...base, bottom: 96, right: 24 };
+    default:             return { ...base, top: 96, right: 24 };
   }
 };
 
@@ -145,7 +145,8 @@ const CustomerCare = () => {
 
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [snapEdge, setSnapEdge] = useState<SnapEdge>("bottom-right");
+  // ✨ start button at top‑right (safe from other buttons)
+  const [snapEdge, setSnapEdge] = useState<SnapEdge>("top-right");
   const [connectTimer, setConnectTimer] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -181,14 +182,16 @@ const CustomerCare = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (stage !== "chat") return;
     idleTimerRef.current = setTimeout(() => {
-      const idleMsg: Message = {
+      const currentAgent = chatState.persona;
+      const agentName = PERSONA_NAMES[currentAgent];
+      // System message: agent closed the chat
+      const closeMsg: Message = {
         id: uid(),
-        sender: "agent",
-        text: "This chat was closed due to inactivity. Please start a new conversation if you need further assistance.",
-        persona: chatState.persona,
+        type: "system",
+        text: `${agentName} closed this chat.`,
         timestamp: new Date(),
       };
-      setVisibleMessages(p => [...p, idleMsg]);
+      setVisibleMessages(p => [...p, closeMsg]);
       setTimeout(() => setOpen(false), 3000);
     }, IDLE_TIMEOUT_MS);
   }, [stage, chatState.persona]);
@@ -222,6 +225,15 @@ const CustomerCare = () => {
       if (rem <= 0) {
         clearInterval(t);
         setStage("chat");
+        const agentName = PERSONA_NAMES[agent];
+        // System message: connected
+        const connectSys: Message = {
+          id: uid(),
+          type: "system",
+          text: `You have been connected to ${agentName}.`,
+          timestamp: new Date(),
+        };
+        // Normal greeting
         const greetings: Record<Persona, string[]> = {
           nancy: [
             `Hi there! 👋 I'm Nancy from 10 Odds support. What can I help you with today?`,
@@ -236,14 +248,14 @@ const CustomerCare = () => {
         };
         const pool = greetings[agent];
         const greeting = pool[Math.floor(Math.random() * pool.length)];
-        const msg: Message = {
+        const greetMsg: Message = {
           id: uid(),
-          sender: "agent",
+          type: "agent",
           text: greeting,
           persona: agent,
           timestamp: new Date(),
         };
-        setVisibleMessages([msg]);
+        setVisibleMessages([connectSys, greetMsg]);
         setChatState(s => ({
           ...s,
           history: [{ sender: "agent", text: greeting }],
@@ -253,7 +265,7 @@ const CustomerCare = () => {
     }, 1000);
   };
 
-  /* ─── Send message (new three‑step rhythm) ──────── */
+  /* ─── Send message (with natural 7‑9 sec total delay) ──────── */
   const sendMessage = async () => {
     if (!input.trim() || isTyping || transferring) return;
 
@@ -264,69 +276,72 @@ const CustomerCare = () => {
     const userMsgId = uid();
     const userMsg: Message = {
       id: userMsgId,
-      sender: "user",
+      type: "user",
       text: userText,
       timestamp: new Date(),
-      status: "sent", // initial status
+      status: "sent",
     };
 
     setVisibleMessages(p => [...p, userMsg]);
-    setIsTyping(false); // no typing dots yet
+    setIsTyping(false);
 
-    // ── Step 1: wait 1‑3 s before the agent "sees" the message
+    // ── Total reply delay between 7 and 9 seconds ──
+    const totalDelay = 7000 + Math.random() * 2000; // 7‑9 s
+    const minTyping = 2000; // typing dots always at least 2 s
+
+    // 1. seen delay: 1‑3 seconds
     const seenDelay = 1000 + Math.random() * 2000;
-    await delay(seenDelay);
-
-    // Mark as seen
+    await delayMs(seenDelay);
     setVisibleMessages(p =>
       p.map(m => (m.id === userMsgId ? { ...m, status: "seen" as const } : m))
     );
 
-    // ── Step 2: keep the "seen" notice for 1‑4 s
-    const seenStay = 1000 + Math.random() * 3000;
-    await delay(seenStay);
+    // 2. seen stay: at least 1 s, up to 4 s, but we need room for typing
+    const remainingAfterSeen = totalDelay - seenDelay;
+    const maxSeenStay = Math.min(remainingAfterSeen - minTyping, 3000);
+    const seenStay = Math.max(1000, Math.floor(Math.random() * maxSeenStay + 500));
+    await delayMs(seenStay);
 
-    // ── Step 3: start typing dots
+    // 3. Start typing
     const typingStart = Date.now();
     setIsTyping(true);
-    // Optionally change status to "typing" so we can hide the "seen" text if desired
     setVisibleMessages(p =>
       p.map(m => (m.id === userMsgId ? { ...m, status: "typing" as const } : m))
     );
 
-    // ── Step 4: call the edge function (non‑blocking)
+    // ── Fetch the agent response ──
     let result;
     try {
       result = await getAgentReply(userText, chatState);
     } catch {
-      // Display error and stop typing
-      const errMsg: Message = {
+      // Error system message
+      const errSys: Message = {
         id: uid(),
-        sender: "agent",
-        text: "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
-        persona: chatState.persona,
+        type: "system",
+        text: "Unable to connect. Please try again later.",
         timestamp: new Date(),
       };
-      setVisibleMessages(p => [...p, errMsg]);
+      setVisibleMessages(p => [...p, errSys]);
       setIsTyping(false);
       resetIdle();
       return;
     }
 
-    // ── Step 5: enforce a minimum 2‑second typing display
+    // 4. Enforce minimum 2 s typing display
     const elapsed = Date.now() - typingStart;
-    const minTyping = 2000;
-    const remaining = Math.max(0, minTyping - elapsed);
-    if (remaining > 0) await delay(remaining);
+    const remainingTyping = Math.max(minTyping, totalDelay - seenDelay - seenStay - elapsed + minTyping);
+    // Actually ensure total from send to reply >= totalDelay
+    const totalElapsed = seenDelay + seenStay + elapsed;
+    if (totalElapsed < totalDelay) {
+      await delayMs(totalDelay - totalElapsed);
+    }
 
-    // ── Step 6: stop typing and show the agent response
     setIsTyping(false);
-    // Mark user message as "replied" (optional)
     setVisibleMessages(p =>
       p.map(m => (m.id === userMsgId ? { ...m, status: "replied" as const } : m))
     );
 
-    // Update history
+    // History update
     const newHistory: ChatState["history"] = [
       ...chatState.history,
       { sender: "user", text: userText },
@@ -339,7 +354,7 @@ const CustomerCare = () => {
       history: newHistory,
     };
 
-    // Handle ban
+    // Ban
     if (result.banned) {
       setBanned(true);
       persist(newState, true);
@@ -348,76 +363,97 @@ const CustomerCare = () => {
 
     persist(newState);
 
-    // Handle transfer
+    // Transfer
     if (result.transfer && result.persona !== chatState.persona) {
-      // Show handoff message
+      const oldPersonaName = PERSONA_NAMES[chatState.persona];
+
+      // System message: transfer initiated
+      const transferSys: Message = {
+        id: uid(),
+        type: "system",
+        text: `${oldPersonaName} transferred this chat. Please wait as we connect you.`,
+        timestamp: new Date(),
+      };
+      setVisibleMessages(p => [...p, transferSys]);
+
+      // Handoff message from current agent
       const handoffMsg: Message = {
         id: uid(),
-        sender: "agent",
+        type: "agent",
         text: result.response,
         persona: chatState.persona,
         timestamp: new Date(),
       };
       setVisibleMessages(p => [...p, handoffMsg]);
 
-      // Start transfer animation
       setTransferToPersona(result.persona);
       setTransferring(true);
 
-      const transferWait = 4000 + Math.floor(Math.random() * 3000); // 4‑7 s
-      setTimeout(() => {
-        setChatState(newState);
-        setVisibleMessages([]);
-        setTransferring(false);
-        setTransferToPersona(null);
+      const transferWait = 4000 + Math.floor(Math.random() * 3000);
+      await delayMs(transferWait);
 
-        const introTexts: Record<Persona, string[]> = {
-          tech: [
-            "Hey — tECH here. I've been briefed. Let's get this sorted.",
-            "tECH joining the chat. Tell me what's going on.",
-            "Hey, I'm tECH. Nancy filled me in — what's the issue?",
-          ],
-          george: [
-            "George here. I understand there's been some difficulty. Let's handle this properly.",
-            "This is George. I'm listening — you have one chance to explain the issue.",
-            "George. Keep it professional and we'll get somewhere.",
-          ],
-          nancy: [],
-          emily: [],
+      setChatState(newState);
+      setVisibleMessages([]);
+      setTransferring(false);
+      setTransferToPersona(null);
+
+      // New agent intro
+      const introTexts: Record<Persona, string[]> = {
+        tech: [
+          "Hey — tECH here. I've been briefed. Let's get this sorted.",
+          "tECH joining the chat. Tell me what's going on.",
+          "Hey, I'm tECH. Nancy filled me in — what's the issue?",
+        ],
+        george: [
+          "George here. I understand there's been some difficulty. Let's handle this properly.",
+          "This is George. I'm listening — you have one chance to explain the issue.",
+          "George. Keep it professional and we'll get somewhere.",
+        ],
+        nancy: [],
+        emily: [],
+      };
+      const pool = introTexts[result.persona] ?? [];
+      if (pool.length > 0) {
+        const intro = pool[Math.floor(Math.random() * pool.length)];
+        const introMsg: Message = {
+          id: uid(),
+          type: "agent",
+          text: intro,
+          persona: result.persona,
+          timestamp: new Date(),
         };
-        const pool = introTexts[result.persona] ?? [];
-        if (pool.length > 0) {
-          const intro = pool[Math.floor(Math.random() * pool.length)];
-          const introMsg: Message = {
-            id: uid(),
-            sender: "agent",
-            text: intro,
-            persona: result.persona,
-            timestamp: new Date(),
-          };
-          setVisibleMessages([introMsg]);
-          setChatState(s => ({
-            ...s,
-            history: [...newHistory, { sender: "agent", text: intro }],
-          }));
-        }
-        resetIdle();
-      }, transferWait);
-    } else {
-      // Normal reply
-      const agentMsg: Message = {
+        setVisibleMessages([introMsg]);
+        setChatState(s => ({
+          ...s,
+          history: [...newHistory, { sender: "agent", text: intro }],
+        }));
+      }
+      resetIdle();
+      return;
+    }
+
+    // Normal reply
+    const agentMsg: Message = {
+      id: uid(),
+      type: "agent",
+      text: result.response,
+      persona: result.persona,
+      timestamp: new Date(),
+    };
+    setVisibleMessages(p => [...p, agentMsg]);
+    setChatState(newState);
+
+    if (result.end_conversation) {
+      const agentName = PERSONA_NAMES[result.persona];
+      // System message: agent closed the chat
+      const closeSys: Message = {
         id: uid(),
-        sender: "agent",
-        text: result.response,
-        persona: result.persona,
+        type: "system",
+        text: `${agentName} closed this chat.`,
         timestamp: new Date(),
       };
-      setVisibleMessages(p => [...p, agentMsg]);
-      setChatState(newState);
-
-      if (result.end_conversation) {
-        setTimeout(() => setOpen(false), 4000);
-      }
+      setVisibleMessages(p => [...p, closeSys]);
+      setTimeout(() => setOpen(false), 4000);
     }
 
     resetIdle();
@@ -473,7 +509,7 @@ const CustomerCare = () => {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button – starts top‑right */}
       <motion.button
         ref={btnRef}
         initial={{ scale: 0, opacity: 0 }}
@@ -1011,7 +1047,38 @@ const MessageBubble = ({
   currentPersonaName?: string;
   currentPersonaColor?: string;
 }) => {
-  const isUser = msg.sender === "user";
+  // System messages
+  if (msg.type === "system") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          padding: "4px 0",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            color: "#6b7280",
+            background: "#111118",
+            padding: "4px 14px",
+            borderRadius: 10,
+            fontWeight: 500,
+            textAlign: "center",
+            maxWidth: "85%",
+          }}
+        >
+          {msg.text}
+        </span>
+      </motion.div>
+    );
+  }
+
+  // Normal user/agent messages
+  const isUser = msg.type === "user";
 
   return (
     <motion.div
@@ -1025,7 +1092,6 @@ const MessageBubble = ({
         gap: 8,
       }}
     >
-      {/* Avatar for agent messages */}
       {!isUser && (
         <div
           style={{
@@ -1059,7 +1125,6 @@ const MessageBubble = ({
           gap: 3,
         }}
       >
-        {/* Agent name label */}
         {!isUser && msg.persona && (
           <span
             style={{
@@ -1075,7 +1140,6 @@ const MessageBubble = ({
           </span>
         )}
 
-        {/* Message bubble */}
         <div
           style={{
             padding: "9px 13px",
@@ -1095,14 +1159,12 @@ const MessageBubble = ({
           {msg.text}
         </div>
 
-        {/* Timestamp */}
         <span
           style={{ fontSize: 10, color: "#4b5563", paddingInline: 4 }}
         >
           {formatTime(msg.timestamp)}
         </span>
 
-        {/* Status indicator (user messages only) */}
         {isUser && msg.status && currentPersonaName && (
           <div
             style={{
@@ -1123,7 +1185,6 @@ const MessageBubble = ({
             {msg.status === "typing" && (
               <span style={{ opacity: 0.6 }}>typing…</span>
             )}
-            {/* replised or sent – nothing shown */}
           </div>
         )}
       </div>
