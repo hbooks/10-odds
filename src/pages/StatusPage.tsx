@@ -97,13 +97,6 @@ const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; 
   INSUFFICIENT_DATA: { icon: HelpCircle,    color: "text-muted-foreground", label: "NEW Pattern", barColor: "bg-muted-foreground" },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PredictionModal – premium redesign for 10 Odds
-//  Drop this block into StatusPage.tsx, replacing everything from
-//  "// ─── Prediction Modal ────" down to (and including) the closing `};`
-//  of the old PredictionModal.  The AdvisorBar above it is also replaced.
-// ─────────────────────────────────────────────────────────────────────────────
-
 // ─── Advisor Bar (_806) ───────────────────────────────────────────────────────
 function AdvisorBar({
   confidenceScore,
@@ -182,7 +175,7 @@ function AdvisorBar({
 
         <div className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-white/90">_806 Insight</span>
+            <span className="text-xs font-semibold text-white/90">_806 </span>
             <BadgeCheck className="h-3.5 w-3.5 text-[#4A5BA8] shrink-0" />
             {animal && (
               <span className={`flex items-center gap-1 text-[10px] font-medium ${ui.color} opacity-80`}>
@@ -283,7 +276,21 @@ interface MarketCardProps {
 }
 
 function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBest, color, index }: MarketCardProps) {
-  const [hovered, setHovered] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  // Tooltip horizontal anchor: last 2 cards (index 3,4) anchor right so they
+  // don't overflow the modal edge; first 2 cards anchor left; middle is centred.
+  const tooltipPos =
+    index >= 3
+      ? "right-0 translate-x-0"
+      : index <= 1
+      ? "left-0 translate-x-0"
+      : "left-1/2 -translate-x-1/2";
+
+  const handleToggle = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    setOpen((o) => !o);
+  };
 
   return (
     <motion.div
@@ -291,20 +298,19 @@ function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBes
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: index * 0.06 }}
       className="relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
+      // Desktop: hover to show tooltip
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
     >
       {/* Tooltip */}
       <AnimatePresence>
-        {hovered && (
+        {open && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-36 bg-[#0f1117] border border-white/20 rounded-xl px-3 py-2 text-center pointer-events-none shadow-xl"
+            className={`absolute bottom-full mb-2 z-30 w-36 bg-[#0f1117] border border-white/20 rounded-xl px-3 py-2 text-center pointer-events-none shadow-xl ${tooltipPos}`}
           >
             <p className="text-[10px] font-semibold text-gold leading-tight">{fullMarket}</p>
             <p className="text-[11px] text-white mt-0.5">{selection}</p>
@@ -314,7 +320,9 @@ function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBes
       </AnimatePresence>
 
       <div
-        className={`relative rounded-2xl p-3 flex flex-col items-center gap-1.5 border transition-all duration-200 cursor-default select-none
+        onClick={handleToggle}
+        onTouchEnd={handleToggle}
+        className={`relative rounded-2xl p-3 flex flex-col items-center gap-1.5 border transition-all duration-200 cursor-pointer select-none
           ${isPrimary
             ? "border-gold/50 shadow-[0_0_16px_rgba(212,175,55,0.2)]"
             : isBest
@@ -526,8 +534,12 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.25 }}
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: "rgba(0,0,0,0.72)" }}
+        style={{ background: "rgba(0,0,0,0.72)", touchAction: "none" }}
         onClick={onClose}
+        onTouchEnd={(e) => {
+          // Only close if the touch didn't move (not a scroll gesture)
+          if (e.target === e.currentTarget) onClose();
+        }}
       >
         {/* ── Panel ── */}
         <motion.div
@@ -545,6 +557,8 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 32px 80px rgba(0,0,0,0.7)",
           }}
           onClick={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
         >
           {/* ── Pitch background (stronger overlay for readability) ── */}
           <div
@@ -792,7 +806,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                   </div>
 
                   <p className="text-[10px] text-white/25 mt-3 text-center">
-                    Hover a card for full market details
+                    Tap or hover a card for full market details
                   </p>
                 </div>
 
