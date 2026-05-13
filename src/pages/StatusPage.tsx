@@ -215,6 +215,14 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
     confidence_4: number;
   } | null>(null);
 
+  // Reset Hippo state when the prediction changes
+  useEffect(() => {
+    setShowHippo(false);
+    setHippoLoading(false);
+    setHippoError(null);
+    setHippoData(null);
+  }, [prediction?.id]);
+
   const loadHippo = useCallback(async () => {
     if (!prediction) return;
     setHippoLoading(true);
@@ -244,7 +252,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_HIPPO_PUBLIC_TOKEN}`, // you need to expose a token or bypass auth for single mode
+            Authorization: `Bearer ${import.meta.env.VITE_HIPPO_PUBLIC_TOKEN}`,
           },
           body: JSON.stringify({ prediction_id: prediction.id }),
         }
@@ -256,24 +264,30 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
       }
 
       const result = await res.json();
-      const markets = result.markets as Array<{ market: string; selection: string; confidence: number }>;
-      if (!markets || markets.length < 4) throw new Error("Invalid response from server");
+      const markets = result.markets as Array<{
+        market: string;
+        selection: string;
+        confidence: number;
+      }>;
+      if (!markets || markets.length < 4) {
+        throw new Error("Invalid response from server");
+      }
 
-      // Map to the structure our UI expects
       const mapped = {
-        market_1: markets[0].market,
+        market_1:    markets[0].market,
         selection_1: markets[0].selection,
         confidence_1: markets[0].confidence,
-        market_2: markets[1].market,
+        market_2:    markets[1].market,
         selection_2: markets[1].selection,
         confidence_2: markets[1].confidence,
-        market_3: markets[2].market,
+        market_3:    markets[2].market,
         selection_3: markets[2].selection,
         confidence_3: markets[2].confidence,
-        market_4: markets[3].market,
+        market_4:    markets[3].market,
         selection_4: markets[3].selection,
         confidence_4: markets[3].confidence,
       };
+
       setHippoData(mapped);
       setShowHippo(true);
     } catch (err: any) {
@@ -297,7 +311,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
     backgroundPosition: "center",
   };
 
-  // ── Helper for Hippo market cards ──────────────────────────────
+  // ── Hippo markets array ───────────────────────────────────────
   const hippoMarkets = hippoData
     ? [
         { market: hippoData.market_1, selection: hippoData.selection_1, confidence: hippoData.confidence_1 },
@@ -387,7 +401,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           </button>
 
           <div className="p-6 text-white">
-            {/* Teams and kickoff – same as before */}
+            {/* Teams and kickoff */}
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.home_team.crest_url && (
@@ -485,7 +499,6 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                     Other Markets
                   </button>
                 ) : hippoLoading ? (
-                  // Skeleton loader while fetching
                   <div>
                     <p className="text-xs text-white/70 mb-2 font-medium">Loading alternative markets…</p>
                     <div className="grid grid-cols-5 gap-2">
