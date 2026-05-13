@@ -219,8 +219,10 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
     if (!prediction) return;
     setHippoLoading(true);
     setHippoError(null);
+
     try {
-      const { data, error } = await supabase
+      // 1. Check if cached data already exists
+      const { data: cached, error: cacheErr } = await supabase
         .from("hippo_predictions")
         .select(
           "market_1, selection_1, confidence_1, market_2, selection_2, confidence_2, market_3, selection_3, confidence_3, market_4, selection_4, confidence_4"
@@ -228,16 +230,54 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
         .eq("prediction_id", prediction.id)
         .maybeSingle();
 
-      if (error) {
-        setHippoError("Internal server error");
-      } else if (!data) {
-        setHippoError("Hippo AI has not touched this one yet. Try again later.");
-      } else {
-        setHippoData(data);
+      if (cached) {
+        setHippoData(cached);
         setShowHippo(true);
+        setHippoLoading(false);
+        return;
       }
-    } catch {
-      setHippoError("Internal server error");
+
+      // 2. Not cached → call the edge function for this single prediction
+      const res = await fetch(
+        `${FUNCTIONS_BASE}/hippo-predict`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_HIPPO_PUBLIC_TOKEN}`, // you need to expose a token or bypass auth for single mode
+          },
+          body: JSON.stringify({ prediction_id: prediction.id }),
+        }
+      );
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Internal server error");
+      }
+
+      const result = await res.json();
+      const markets = result.markets as Array<{ market: string; selection: string; confidence: number }>;
+      if (!markets || markets.length < 4) throw new Error("Invalid response from server");
+
+      // Map to the structure our UI expects
+      const mapped = {
+        market_1: markets[0].market,
+        selection_1: markets[0].selection,
+        confidence_1: markets[0].confidence,
+        market_2: markets[1].market,
+        selection_2: markets[1].selection,
+        confidence_2: markets[1].confidence,
+        market_3: markets[2].market,
+        selection_3: markets[2].selection,
+        confidence_3: markets[2].confidence,
+        market_4: markets[3].market,
+        selection_4: markets[3].selection,
+        confidence_4: markets[3].confidence,
+      };
+      setHippoData(mapped);
+      setShowHippo(true);
+    } catch (err: any) {
+      setHippoError(err.message || "Internal server error");
     } finally {
       setHippoLoading(false);
     }
@@ -444,6 +484,16 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                     )}
                     Other Markets
                   </button>
+                ) : hippoLoading ? (
+                  // Skeleton loader while fetching
+                  <div>
+                    <p className="text-xs text-white/70 mb-2 font-medium">Loading alternative markets…</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[0,1,2,3,4].map((i) => (
+                        <div key={i} className="bg-white/5 rounded-lg p-2 animate-pulse flex flex-col items-center justify-center border border-white/10 h-20" />
+                      ))}
+                    </div>
+                  </div>
                 ) : hippoError ? (
                   <p className="text-xs text-white/70 bg-white/5 rounded-lg px-3 py-2 border border-white/10">
                     {hippoError}
