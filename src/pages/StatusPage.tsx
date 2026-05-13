@@ -97,10 +97,24 @@ const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; 
   INSUFFICIENT_DATA: { icon: HelpCircle,    color: "text-muted-foreground", label: "NEW Pattern", barColor: "bg-muted-foreground" },
 };
 
-// ─── Advisor bar ──────────────────────────────────────────────────────────────
-function AdvisorBar({ confidenceScore, selection }: { confidenceScore: number; selection: string }) {
-  const [advice, setAdvice] = useState<PatternAdvice | null>(null);
+// ─────────────────────────────────────────────────────────────────────────────
+//  PredictionModal – premium redesign for 10 Odds
+//  Drop this block into StatusPage.tsx, replacing everything from
+//  "// ─── Prediction Modal ────" down to (and including) the closing `};`
+//  of the old PredictionModal.  The AdvisorBar above it is also replaced.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Advisor Bar (_806) ───────────────────────────────────────────────────────
+function AdvisorBar({
+  confidenceScore,
+  selection,
+}: {
+  confidenceScore: number;
+  selection: string;
+}) {
+  const [advice, setAdvice]   = useState<PatternAdvice | null>(null);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen]       = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,12 +141,12 @@ function AdvisorBar({ confidenceScore, selection }: { confidenceScore: number; s
 
   if (loading) {
     return (
-      <div className="mt-4 rounded-xl bg-black/30 border border-white/10 p-3.5 animate-pulse">
+      <div className="mt-5 rounded-2xl bg-white/5 border border-white/10 p-4 animate-pulse">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-white/10 shrink-0" />
+          <div className="h-9 w-9 rounded-full bg-white/10 shrink-0" />
           <div className="flex-1 space-y-2">
-            <div className="h-2.5 bg-white/10 rounded w-1/4" />
-            <div className="h-2 bg-white/10 rounded w-3/4" />
+            <div className="h-2.5 bg-white/10 rounded-full w-1/3" />
+            <div className="h-2 bg-white/10 rounded-full w-2/3" />
           </div>
         </div>
       </div>
@@ -141,52 +155,220 @@ function AdvisorBar({ confidenceScore, selection }: { confidenceScore: number; s
 
   if (!advice) return null;
 
-  const ui      = PATTERN_UI[advice.pattern_type] ?? PATTERN_UI.INSUFFICIENT_DATA;
-  const Icon    = ui.icon;
-  const animal  = getAnimalByLabel(advice.pattern_label);
-  const stats   = advice.total_predictions >= 5
-    ? `${advice.total_predictions} predictions · ${advice.win_rate.toFixed(1)}% win rate`
-    : `${advice.total_predictions} prediction${advice.total_predictions !== 1 ? "s" : ""} so far`;
+  const ui     = PATTERN_UI[advice.pattern_type] ?? PATTERN_UI.INSUFFICIENT_DATA;
+  const Icon   = ui.icon;
+  const animal = getAnimalByLabel(advice.pattern_label);
+  const stats  =
+    advice.total_predictions >= 5
+      ? `${advice.total_predictions} picks · ${advice.win_rate.toFixed(1)}% win rate`
+      : `${advice.total_predictions} pick${advice.total_predictions !== 1 ? "s" : ""} so far`;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-      className="mt-4 rounded-xl bg-black/40 border border-white/10 overflow-hidden"
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="mt-5 rounded-2xl overflow-hidden border border-white/10 bg-black/30 backdrop-blur-md"
     >
-      {/* ── Header strip with animal name + pattern type ── */}
-      <div className={`px-4 py-1.5 flex items-center gap-2 text-xs font-medium ${ui.color} bg-black/20`}>
-        <Icon className="h-3 w-3" />
-        {animal ? (
-          <span className="flex items-center gap-1.5">
-            <AnimalIcon animal={animal.animal} size={14} className={ui.color} />
-            <span className="font-semibold">{animal.animal}</span>
-            {/*<span className="opacity-50 font-mono text-[10px]">({advice.pattern_label})</span>*/}
-
-            {/* Keeping the original label hidden for now since it's mostly just useful
-            for debugging and can be a bit technical/confusing for users */}
-          </span>
-        ) : (
-          <span className="font-mono">{advice.pattern_label}</span>
-        )}
-        <span className="ml-auto opacity-60">{stats}</span>
-      </div>
-
-      {/* ── Body ── */}
-      <div className="px-4 py-3 flex items-start gap-3">
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#4A5BA8] to-[#33468D] flex items-center justify-center text-white text-xs font-bold select-none shrink-0">
+      {/* ── Collapsed header (always visible) ── */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group"
+      >
+        {/* _806 avatar */}
+        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#4A5BA8] to-[#1e2f7a] flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-1 ring-white/20">
           806
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-xs font-semibold text-white/90">_806</span>
+
+        <div className="flex-1 min-w-0 text-left">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-white/90">_806 Insight</span>
             <BadgeCheck className="h-3.5 w-3.5 text-[#4A5BA8] shrink-0" />
+            {animal && (
+              <span className={`flex items-center gap-1 text-[10px] font-medium ${ui.color} opacity-80`}>
+                <AnimalIcon animal={animal.animal} size={12} className={ui.color} />
+                {animal.animal}
+              </span>
+            )}
           </div>
-          <p className="text-xs text-white/75 leading-relaxed">{advice.message}</p>
+          <p className={`text-[10px] mt-0.5 ${ui.color} opacity-70`}>
+            <Icon className="inline h-3 w-3 mr-0.5 -mt-px" />
+            {ui.label} · {stats}
+          </p>
         </div>
+
+        {/* Chevron */}
+        <motion.div
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.25 }}
+          className="text-white/40 group-hover:text-white/60 transition-colors"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </motion.div>
+      </button>
+
+      {/* ── Expanded body ── */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="insight-body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-1 border-t border-white/10">
+              <p className="text-xs text-white/70 leading-relaxed">{advice.message}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ─── Confidence Ring ──────────────────────────────────────────────────────────
+function ConfidenceRing({ pct, color }: { pct: number; color: string }) {
+  const r = 14;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+
+  return (
+    <svg width="36" height="36" viewBox="0 0 36 36" className="shrink-0 -rotate-90">
+      <circle cx="18" cy="18" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+      <motion.circle
+        cx="18"
+        cy="18"
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        initial={{ strokeDashoffset: circ }}
+        animate={{ strokeDashoffset: circ - dash }}
+        transition={{ duration: 0.9, ease: "easeOut", delay: 0.2 }}
+        style={{ filter: `drop-shadow(0 0 4px ${color}88)` }}
+      />
+      <text
+        x="18"
+        y="18"
+        dominantBaseline="central"
+        textAnchor="middle"
+        fill="white"
+        fontSize="7"
+        fontWeight="700"
+        className="rotate-90 origin-center"
+        style={{ transform: "rotate(90deg)", transformOrigin: "18px 18px" }}
+      >
+        {pct}%
+      </text>
+    </svg>
+  );
+}
+
+// ─── Market Card ──────────────────────────────────────────────────────────────
+interface MarketCardProps {
+  label: string;
+  fullMarket: string;
+  selection: string;
+  confidence: number;
+  isPrimary?: boolean;
+  isBest?: boolean;
+  color: string;
+  index: number;
+}
+
+function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBest, color, index }: MarketCardProps) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: index * 0.06 }}
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+    >
+      {/* Tooltip */}
+      <AnimatePresence>
+        {hovered && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-36 bg-[#0f1117] border border-white/20 rounded-xl px-3 py-2 text-center pointer-events-none shadow-xl"
+          >
+            <p className="text-[10px] font-semibold text-gold leading-tight">{fullMarket}</p>
+            <p className="text-[11px] text-white mt-0.5">{selection}</p>
+            <p className="text-[10px] mt-0.5" style={{ color }}>{confidence}% confidence</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div
+        className={`relative rounded-2xl p-3 flex flex-col items-center gap-1.5 border transition-all duration-200 cursor-default select-none
+          ${isPrimary
+            ? "border-gold/50 shadow-[0_0_16px_rgba(212,175,55,0.2)]"
+            : isBest
+            ? "border-gold/40 shadow-[0_0_12px_rgba(212,175,55,0.15)]"
+            : "border-white/10 hover:border-white/20"
+          }`}
+        style={{
+          background: isPrimary
+            ? "linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(0,0,0,0.4) 100%)"
+            : `linear-gradient(135deg, ${color}18 0%, rgba(0,0,0,0.35) 100%)`,
+        }}
+      >
+        {/* Crown / Primary badge */}
+        {(isPrimary || isBest) && (
+          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+            {isPrimary ? (
+              <span className="text-[9px] font-bold bg-gold text-black px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                MK‑806
+              </span>
+            ) : (
+              <svg className="h-4 w-4 text-gold drop-shadow-[0_0_4px_rgba(212,175,55,0.8)]" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.37 2.448a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.176 0l-3.37 2.448c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.063 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69l1.286-3.957z" />
+              </svg>
+            )}
+          </div>
+        )}
+
+        {/* Ring + label */}
+        <ConfidenceRing pct={confidence} color={color} />
+
+        <span
+          className="text-[10px] font-bold tracking-wide uppercase"
+          style={{ color: isPrimary ? "#D4AF37" : "rgba(255,255,255,0.55)" }}
+        >
+          {label}
+        </span>
+
+        <span className="text-[11px] font-bold text-white text-center leading-tight px-0.5">
+          {selection}
+        </span>
       </div>
     </motion.div>
+  );
+}
+
+// ─── Skeleton card ────────────────────────────────────────────────────────────
+function SkeletonCard({ index }: { index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: index * 0.05 }}
+      className="rounded-2xl border border-white/10 bg-white/5 h-24 animate-pulse"
+    />
   );
 }
 
@@ -197,22 +379,14 @@ interface PredictionModalProps {
 }
 
 const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
-  const [showHippo, setShowHippo] = useState(false);
+  const [showHippo,    setShowHippo]    = useState(false);
   const [hippoLoading, setHippoLoading] = useState(false);
-  const [hippoError, setHippoError] = useState<string | null>(null);
+  const [hippoError,   setHippoError]   = useState<string | null>(null);
   const [hippoData, setHippoData] = useState<{
-    market_1: string;
-    selection_1: string;
-    confidence_1: number;
-    market_2: string;
-    selection_2: string;
-    confidence_2: number;
-    market_3: string;
-    selection_3: string;
-    confidence_3: number;
-    market_4: string;
-    selection_4: string;
-    confidence_4: number;
+    market_1: string; selection_1: string; confidence_1: number;
+    market_2: string; selection_2: string; confidence_2: number;
+    market_3: string; selection_3: string; confidence_3: number;
+    market_4: string; selection_4: string; confidence_4: number;
   } | null>(null);
 
   // Reset Hippo state when the prediction changes
@@ -226,11 +400,12 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   const loadHippo = useCallback(async () => {
     if (!prediction) return;
     setHippoLoading(true);
+    setShowHippo(true); // show skeleton immediately
     setHippoError(null);
 
     try {
-      // 1. Check if cached data already exists
-      const { data: cached, error: cacheErr } = await supabase
+      // 1. Check cache
+      const { data: cached } = await supabase
         .from("hippo_predictions")
         .select(
           "market_1, selection_1, confidence_1, market_2, selection_2, confidence_2, market_3, selection_3, confidence_3, market_4, selection_4, confidence_4"
@@ -240,23 +415,19 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
 
       if (cached) {
         setHippoData(cached);
-        setShowHippo(true);
         setHippoLoading(false);
         return;
       }
 
-      // 2. Not cached → call the edge function for this single prediction
-      const res = await fetch(
-        `${FUNCTIONS_BASE}/hippo-predict`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_HIPPO_PUBLIC_TOKEN}`,
-          },
-          body: JSON.stringify({ prediction_id: prediction.id }),
-        }
-      );
+      // 2. Not cached → call edge function
+      const res = await fetch(`${FUNCTIONS_BASE}/hippo-predict`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_HIPPO_PUBLIC_TOKEN}`,
+        },
+        body: JSON.stringify({ prediction_id: prediction.id }),
+      });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -264,32 +435,15 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
       }
 
       const result = await res.json();
-      const markets = result.markets as Array<{
-        market: string;
-        selection: string;
-        confidence: number;
-      }>;
-      if (!markets || markets.length < 4) {
-        throw new Error("Invalid response from server");
-      }
+      const markets = result.markets as Array<{ market: string; selection: string; confidence: number }>;
+      if (!markets || markets.length < 4) throw new Error("Invalid response from server");
 
-      const mapped = {
-        market_1:    markets[0].market,
-        selection_1: markets[0].selection,
-        confidence_1: markets[0].confidence,
-        market_2:    markets[1].market,
-        selection_2: markets[1].selection,
-        confidence_2: markets[1].confidence,
-        market_3:    markets[2].market,
-        selection_3: markets[2].selection,
-        confidence_3: markets[2].confidence,
-        market_4:    markets[3].market,
-        selection_4: markets[3].selection,
-        confidence_4: markets[3].confidence,
-      };
-
-      setHippoData(mapped);
-      setShowHippo(true);
+      setHippoData({
+        market_1: markets[0].market, selection_1: markets[0].selection, confidence_1: markets[0].confidence,
+        market_2: markets[1].market, selection_2: markets[1].selection, confidence_2: markets[1].confidence,
+        market_3: markets[2].market, selection_3: markets[2].selection, confidence_3: markets[2].confidence,
+        market_4: markets[3].market, selection_4: markets[3].selection, confidence_4: markets[3].confidence,
+      });
     } catch (err: any) {
       setHippoError(err.message || "Internal server error");
     } finally {
@@ -305,13 +459,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
   });
   const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
 
-  const backgroundStyle = {
-    backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.55) 100%), url('https://images.pexels.com/photos/47730/the-ball-stadion-football-the-pitch-47730.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-  };
-
-  // ── Hippo markets array ───────────────────────────────────────
+  // ── Hippo markets ──────────────────────────────────────────────────────────
   const hippoMarkets = hippoData
     ? [
         { market: hippoData.market_1, selection: hippoData.selection_1, confidence: hippoData.confidence_1 },
@@ -321,49 +469,40 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
       ]
     : [];
 
-  const bestHippoConfidence = Math.max(...hippoMarkets.map((m) => m.confidence ?? 0));
-  const hasBest = bestHippoConfidence > 0 && hippoMarkets.filter((m) => m.confidence === bestHippoConfidence).length === 1;
+  const bestHippoConfidence =
+    hippoMarkets.length > 0 ? Math.max(...hippoMarkets.map((m) => m.confidence ?? 0)) : 0;
+  const bestIsUnique =
+    bestHippoConfidence > 0 &&
+    hippoMarkets.filter((m) => m.confidence === bestHippoConfidence).length === 1;
 
   const shortMarketLabel = (market: string): string => {
     const m = market.toLowerCase();
-    if (m.includes("1x2")) return "1X2";
-    if (m.includes("double chance")) return "DC";
-    if (m.includes("draw no bet")) return "DNB";
-    if (m.includes("btts")) return "BTTS";
+    if (m.includes("1x2"))                    return "1X2";
+    if (m.includes("double chance"))           return "DC";
+    if (m.includes("draw no bet"))             return "DNB";
+    if (m.includes("btts"))                    return "BTTS";
     if (m.includes("over") || m.includes("under")) {
       const num = market.match(/[\d.]+/)?.[0];
-      return `${m.startsWith("Over") ? "O" : "U"}${num ? " " + num : ""}`;
+      return `${m.startsWith("over") ? "O" : "U"}${num ? " " + num : ""}`;
     }
-    if (m.includes("goal line")) return "GL";
-    if (m.includes("asian handicap")) return "AH";
-    if (m.includes("european handicap")) return "EH";
-    if (m.includes("correct score")) return "CS";
-    if (m.includes("ht/ft")) return "HT/FT";
-    if (m.includes("clean sheet")) return "CS";
-    if (m.includes("win to nil")) return "WTN";
-    if (m.includes("corner")) return "Cnr";
-    if (m.includes("card")) return "Card";
-    if (m.includes("booking points")) return "BP";
-    if (m.includes("offside")) return "Off";
-    if (m.includes("total goals")) return "TG";
-    if (m.includes("exact total goals")) return "ETG";
+    if (m.includes("asian handicap"))          return "AH";
+    if (m.includes("european handicap"))       return "EH";
+    if (m.includes("correct score"))           return "CS";
+    if (m.includes("ht/ft"))                   return "HT/FT";
+    if (m.includes("clean sheet"))             return "CS";
+    if (m.includes("win to nil"))              return "WTN";
+    if (m.includes("corner"))                  return "Cnr";
+    if (m.includes("total goals"))             return "TG";
     if (m.includes("even") || m.includes("odd")) return "E/O";
-    if (m.includes("penalty awarded")) return "Pen";
-    if (m.includes("red card")) return "Red";
-    if (m.includes("own goal")) return "OG";
-    if (m.includes("comeback win")) return "Comeback";
-    if (m.includes("goal scorer")) return "Scorer";
-    if (m.includes("half-time result")) return "HT 1X2";
+    if (m.includes("half-time result"))        return "HT 1X2";
     if (m.includes("half-time over") || m.includes("half-time under")) return "HT O/U";
-    if (m.includes("half-time btts")) return "HT BTTS";
-    if (m.includes("first half goals")) return "1H G";
-    if (m.includes("second half goals")) return "2H G";
-    if (m.includes("multi-goal")) return "Multi";
-    if (m.includes("time of first goal")) return "1st Gl";
-    if (m.includes("highest scoring half")) return "HSH";
-    if (m.includes("team to win both halves")) return "TW BH";
-    if (m.includes("team to win either half")) return "TW EH";
-    if (m.includes("1x2 & btts")) return "1X2+BTTS";
+    if (m.includes("half-time btts"))          return "HT BTTS";
+    if (m.includes("first half goals"))        return "1H G";
+    if (m.includes("second half goals"))       return "2H G";
+    if (m.includes("multi-goal"))              return "Multi";
+    if (m.includes("goal line"))               return "GL";
+    if (m.includes("booking points"))          return "BP";
+    if (m.includes("red card"))                return "Red";
     return market.slice(0, 6).toUpperCase();
   };
 
@@ -375,200 +514,309 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
     return "#ef4444";
   };
 
+  const mkConfidencePct = Math.round(prediction.confidence_score * 100);
+
   return (
     <AnimatePresence>
+      {/* ── Backdrop ── */}
       <motion.div
+        key="modal-backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        transition={{ duration: 0.25 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.72)" }}
         onClick={onClose}
       >
+        {/* ── Panel ── */}
         <motion.div
-          initial={{ scale: 0.92, y: 24 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.92, y: 24 }}
-          transition={{ type: "spring", stiffness: 320, damping: 28 }}
-          className="relative w-full max-w-xl rounded-2xl overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
-          style={backgroundStyle}
+          key="modal-panel"
+          initial={{ scale: 0.93, y: 28, opacity: 0 }}
+          animate={{ scale: 1, y: 0, opacity: 1 }}
+          exit={{ scale: 0.93, y: 28, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 340, damping: 30 }}
+          className="relative w-full max-w-xl rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.7)] max-h-[90vh] overflow-y-auto"
+          style={{
+            background: "rgba(8, 10, 18, 0.82)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 32px 80px rgba(0,0,0,0.7)",
+          }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* ── Pitch background (stronger overlay for readability) ── */}
+          <div
+            className="absolute inset-0 z-0 pointer-events-none"
+            style={{
+              backgroundImage: `url('https://images.pexels.com/photos/47730/the-ball-stadion-football-the-pitch-47730.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              opacity: 0.07,
+            }}
+          />
+
+          {/* ── Gold top-edge glow ── */}
+          <div
+            className="absolute top-0 left-0 right-0 h-px z-10 pointer-events-none"
+            style={{ background: "linear-gradient(90deg, transparent, rgba(212,175,55,0.5) 40%, rgba(212,175,55,0.5) 60%, transparent)" }}
+          />
+
+          {/* ── Close button ── */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+            className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/8 hover:bg-white/15 border border-white/10 text-white/70 hover:text-white transition-all"
+            aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
 
-          <div className="p-6 text-white">
-            {/* Teams and kickoff */}
-            <div className="flex items-center justify-between gap-4 mb-4">
+          {/* ── Content ── */}
+          <div className="relative z-10 px-6 py-7 text-white">
+
+            {/* ────── Teams header ────── */}
+            <div className="flex items-center justify-between gap-3 mb-5">
+              {/* Home */}
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.home_team.crest_url && (
                   <CrestImage url={match.home_team.crest_url} alt="" size="lg" />
                 )}
-                <span className="font-heading text-base font-bold text-center leading-tight">
+                <span className="font-heading text-sm font-bold text-center leading-tight text-white/95">
                   {match.home_team.name}
                 </span>
               </div>
-              <span className="text-3xl font-bold text-gold shrink-0">VS</span>
+
+              {/* VS chip */}
+              <div className="flex flex-col items-center shrink-0 gap-1">
+                <span className="text-2xl font-black text-gold tracking-tighter leading-none">VS</span>
+                {isLive && (
+                  <span className="flex items-center gap-1 bg-red-500/25 border border-red-400/30 px-2 py-0.5 rounded-full text-[9px] font-bold text-red-300 animate-pulse">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                    LIVE
+                  </span>
+                )}
+              </div>
+
+              {/* Away */}
               <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                 {match.away_team.crest_url && (
                   <CrestImage url={match.away_team.crest_url} alt="" size="lg" />
                 )}
-                <span className="font-heading text-base font-bold text-center leading-tight">
+                <span className="font-heading text-sm font-bold text-center leading-tight text-white/95">
                   {match.away_team.name}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
-              <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full text-xs text-white/80">
-                <Trophy className="h-3.5 w-3.5" />{match.competition.name}
+            {/* ── Competition + kickoff pills ── */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+              <span className="flex items-center gap-1.5 bg-white/8 border border-white/10 px-3 py-1.5 rounded-full text-[11px] text-white/75">
+                <Trophy className="h-3 w-3 text-gold" />{match.competition.name}
               </span>
-              <span className="flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full text-xs text-white/80">
-                <Calendar className="h-3.5 w-3.5" />{kickoff}
+              <span className="flex items-center gap-1.5 bg-white/8 border border-white/10 px-3 py-1.5 rounded-full text-[11px] text-white/75">
+                <Calendar className="h-3 w-3 text-white/50" />{kickoff}
               </span>
-              {isLive && (
-                <span className="flex items-center gap-1 bg-red-500/30 px-3 py-1 rounded-full text-xs animate-pulse">
-                  <span className="h-2 w-2 rounded-full bg-red-400" />LIVE
-                </span>
-              )}
             </div>
 
-            {/* MK-806 Prediction box */}
-            <div className="bg-black/40 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-white/60 text-xs uppercase tracking-wide">MK‑806 Prediction</span>
+            {/* ──────── MK-806 Prediction card ──────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="rounded-2xl border border-white/10 overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, rgba(212,175,55,0.07) 0%, rgba(0,0,0,0.4) 100%)",
+              }}
+            >
+              {/* Card header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-white/8">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-gold shadow-[0_0_6px_rgba(212,175,55,0.9)]" />
+                  <span className="text-[11px] font-semibold text-white/50 uppercase tracking-widest">
+                    MK‑806 Primary Pick
+                  </span>
+                </div>
                 {isLive ? (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-red-500/30 text-red-200">LIVE</span>
+                  <span className="text-[10px] px-2.5 py-1 rounded-full font-bold bg-red-500/30 text-red-200 border border-red-400/30 animate-pulse">
+                    LIVE
+                  </span>
                 ) : (
                   <StatusBadge status={prediction.status} />
                 )}
               </div>
 
-              <div className="flex items-baseline justify-between gap-2 mb-3">
-                <span className="text-xl font-bold text-gold leading-snug flex-1 min-w-0 break-words">
+              {/* Selection headline */}
+              <div className="px-5 py-5">
+                <motion.p
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                  className="text-2xl font-black text-gold leading-tight tracking-tight"
+                  style={{ textShadow: "0 0 24px rgba(212,175,55,0.35)" }}
+                >
                   {prediction.selection}
-                </span>
-                <span className="text-lg font-semibold shrink-0">
-                  {prediction.predicted_odds.toFixed(2)}
-                </span>
-              </div>
+                </motion.p>
 
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-gold shrink-0" />
-                <span className="text-xs text-white/70">Confidence:</span>
-                <span className="text-xs font-bold">{Math.round(prediction.confidence_score * 100)}%</span>
-                <div className="ml-1.5 h-1.5 flex-1 bg-white/20 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${prediction.confidence_score * 100}%` }}
-                    transition={{ duration: 0.7, ease: "easeOut" }}
-                    className="h-full rounded-full"
-                    style={{
-                      background:
-                        prediction.confidence_score >= 0.7 ? "#34d399"
-                        : prediction.confidence_score >= 0.5 ? "#fbbf24"
-                        : "#fb7185",
-                    }}
+                {/* Subtle gold underline bar */}
+                <motion.div
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ duration: 0.6, delay: 0.25, ease: "easeOut" }}
+                  className="mt-2 h-0.5 w-16 rounded-full origin-left"
+                  style={{ background: "linear-gradient(90deg, #D4AF37, rgba(212,175,55,0))" }}
+                />
+
+                {/* Bet type sub-label */}
+                <p className="mt-2 text-xs text-white/40 font-medium">
+                  {prediction.bet_type}
+                </p>
+              </div>
+            </motion.div>
+
+            {/* ──────── Advisor Bar ──────── */}
+            <AdvisorBar
+              confidenceScore={prediction.confidence_score}
+              selection={prediction.selection}
+            />
+
+            {/* ──────── Other Markets section ──────── */}
+            <div className="mt-5">
+              {!showHippo ? (
+                /* ── Trigger button ── */
+                <motion.button
+                  onClick={loadHippo}
+                  disabled={hippoLoading}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="group relative w-full flex items-center justify-center gap-2.5 rounded-2xl border border-white/15 px-5 py-3.5 text-sm font-semibold text-white/85 transition-all duration-200 overflow-hidden hover:border-gold/40"
+                  style={{ background: "rgba(255,255,255,0.04)" }}
+                >
+                  {/* Subtle gold glow on hover */}
+                  <span
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                    style={{ background: "radial-gradient(ellipse at center, rgba(212,175,55,0.06) 0%, transparent 70%)" }}
                   />
+
+                  {/* Hippo icon */}
+                  <svg className="h-4 w-4 text-gold/70 group-hover:text-gold transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M8 12h8M12 8v8" strokeLinecap="round" />
+                  </svg>
+                  <span>Explore Alternative Markets</span>
+                  <span className="text-[10px] font-normal text-white/40 ml-0.5">via Hippo AI</span>
+
+                  {/* Animated arrow */}
+                  <motion.div
+                    animate={{ x: [0, 3, 0] }}
+                    transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                    className="ml-auto text-gold/60"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 8h10M9 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </motion.div>
+                </motion.button>
+
+              ) : hippoLoading ? (
+                /* ── Skeleton shimmer ── */
+                <div>
+                  <p className="text-[11px] text-white/40 mb-3 text-center font-medium tracking-wide uppercase">
+                    Fetching alternative markets…
+                  </p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {[0,1,2,3,4].map((i) => <SkeletonCard key={i} index={i} />)}
+                  </div>
                 </div>
-              </div>
 
-              <AdvisorBar
-                confidenceScore={prediction.confidence_score}
-                selection={prediction.selection}
-              />
-
-              {/* ── Other Markets button ── */}
-              <div className="mt-4">
-                {!showHippo ? (
+              ) : hippoError ? (
+                /* ── Error state ── */
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex flex-col items-center gap-3 py-6 rounded-2xl border border-white/10 bg-white/4"
+                >
+                  <div className="h-10 w-10 rounded-full bg-red-500/15 border border-red-400/20 flex items-center justify-center">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                  </div>
+                  <p className="text-sm text-white/60 text-center px-4">{hippoError}</p>
                   <button
                     onClick={loadHippo}
-                    disabled={hippoLoading}
-                    className="flex items-center gap-2 text-xs font-semibold text-white/90 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl px-4 py-2 transition-colors"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-gold hover:underline"
                   >
-                    {hippoLoading ? (
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-3-9h6v2H9zm0-4h6v2H9z" />
-                      </svg>
-                    )}
-                    Other Markets
+                    <RefreshCw className="h-3 w-3" /> Retry
                   </button>
-                ) : hippoLoading ? (
-                  <div>
-                    <p className="text-xs text-white/70 mb-2 font-medium">Loading alternative markets…</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {[0,1,2,3,4].map((i) => (
-                        <div key={i} className="bg-white/5 rounded-lg p-2 animate-pulse flex flex-col items-center justify-center border border-white/10 h-20" />
-                      ))}
-                    </div>
-                  </div>
-                ) : hippoError ? (
-                  <p className="text-xs text-white/70 bg-white/5 rounded-lg px-3 py-2 border border-white/10">
-                    {hippoError}
-                  </p>
-                ) : hippoMarkets.length > 0 ? (
-                  <div>
-                    <p className="text-xs text-white/70 mb-2 font-medium">Alternative Markets (Hippo AI)</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {/* MK-806 card */}
-                      <div
-                        className="bg-white/5 rounded-lg p-2 flex flex-col items-center justify-center border border-gold/40"
-                        title={`MK-806: ${prediction.bet_type} - ${prediction.selection}`}
-                      >
-                        <span className="text-[10px] font-semibold text-gold mb-0.5">MK</span>
-                        <span className="text-xs font-bold text-center leading-tight">
-                          {prediction.selection}
-                        </span>
-                        <span className="text-[10px] mt-1" style={{ color: confidenceColor(prediction.confidence_score * 100) }}>
-                          {Math.round(prediction.confidence_score * 100)}%
-                        </span>
-                      </div>
+                </motion.div>
 
-                      {/* Hippo cards */}
-                      {hippoMarkets.map((m, idx) => {
-                        const pct = m.confidence ?? 0;
-                        const isBest = pct === bestHippoConfidence && pct > 0 && hippoMarkets.filter(c => c.confidence === bestHippoConfidence).length === 1;
-                        return (
-                          <div
-                            key={idx}
-                            className={`rounded-lg p-2 flex flex-col items-center justify-center border transition-all ${
-                              isBest ? "border-gold shadow-[0_0_8px_rgba(255,215,0,0.5)]" : "border-white/10"
-                            }`}
-                            style={{
-                              background: `radial-gradient(circle at center, ${confidenceColor(pct)}20 0%, rgba(0,0,0,0.2) 100%)`,
-                            }}
-                            title={`${m.market}: ${m.selection} (${pct}%)`}
-                          >
-                            <span className="text-[10px] font-semibold text-white/80 mb-0.5">
-                              {shortMarketLabel(m.market)}
-                            </span>
-                            <span className="text-[11px] font-bold leading-tight text-center">
-                              {m.selection}
-                            </span>
-                            <span className="text-[10px] mt-1 font-medium" style={{ color: confidenceColor(pct) }}>
-                              {pct}%
-                            </span>
-                            {isBest && (
-                              <svg className="absolute -top-1 -right-1 h-4 w-4 text-gold" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.37 2.448a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.176 0l-3.37 2.448c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.063 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69l1.286-3.957z" />
-                              </svg>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[10px] text-white/40 mt-1.5 text-right">Tap cards for details</p>
+              ) : hippoMarkets.length > 0 ? (
+                /* ── Market cards grid ── */
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-px flex-1 bg-white/8" />
+                    <span className="text-[10px] font-semibold text-white/35 uppercase tracking-widest px-1">
+                      Alternative Markets · Hippo AI
+                    </span>
+                    <div className="h-px flex-1 bg-white/8" />
                   </div>
-                ) : (
-                  <p className="text-xs text-white/50 italic">No alternative markets available yet.</p>
-                )}
-              </div>
+
+                  <div className="grid grid-cols-5 gap-2 pt-3">
+                    {/* MK-806 as primary card */}
+                    <MarketCard
+                      label="MK‑806"
+                      fullMarket={prediction.bet_type}
+                      selection={prediction.selection}
+                      confidence={mkConfidencePct}
+                      isPrimary
+                      color={confidenceColor(mkConfidencePct)}
+                      index={0}
+                    />
+
+                    {/* Hippo cards */}
+                    {hippoMarkets.map((m, idx) => {
+                      const pct     = m.confidence ?? 0;
+                      const isBest  = pct === bestHippoConfidence && pct > 0 && bestIsUnique;
+                      return (
+                        <MarketCard
+                          key={idx}
+                          label={shortMarketLabel(m.market)}
+                          fullMarket={m.market}
+                          selection={m.selection}
+                          confidence={pct}
+                          isBest={isBest}
+                          color={confidenceColor(pct)}
+                          index={idx + 1}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-[10px] text-white/25 mt-3 text-center">
+                    Hover a card for full market details
+                  </p>
+                </div>
+
+              ) : (
+                /* ── Empty state ── */
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center gap-2.5 py-6 rounded-2xl border border-white/8 bg-white/3"
+                >
+                  <div className="h-9 w-9 rounded-full bg-white/6 border border-white/10 flex items-center justify-center">
+                    <svg className="h-4 w-4 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <p className="text-xs text-white/40 text-center px-4">
+                    Hippo AI hasn't analysed this one yet.
+                  </p>
+                </motion.div>
+              )}
             </div>
+
+            {/* Bottom spacing */}
+            <div className="h-1" />
           </div>
         </motion.div>
       </motion.div>
