@@ -468,9 +468,14 @@ function processHippoMarkets(rows: any[]): HippoMarketEval[] {
         ["won","win","w","1","true","yes"].includes(r) ? "won"  :
         ["lost","loss","l","0","false","no"].includes(r) ? "lost" : null;
       if (result) {
+        // Hippo stores confidence as percentage (e.g., 85). Convert to decimal.
+        const rawConf = Number(m.confidence) || 0;
+        const confidence = rawConf > 1.5 ? rawConf / 100 : rawConf;
         evals.push({
-          market: String(m.market), selection: String(m.selection),
-          confidence: Number(m.confidence)||0, result,
+          market: String(m.market),
+          selection: String(m.selection),
+          confidence,
+          result,
           created_at: row.created_at,
         });
       }
@@ -480,7 +485,6 @@ function processHippoMarkets(rows: any[]): HippoMarketEval[] {
 }
 
 // ─── Hippo analytics engine ────────────────────────────────────────────────────
-// Produces rich analytics from the flat evals array — NOT just a raw dump.
 function computeHippoAnalytics(evals: HippoMarketEval[]) {
   if (!evals.length) return null;
 
@@ -489,7 +493,7 @@ function computeHippoAnalytics(evals: HippoMarketEval[]) {
   const losses = evals.filter(e => e.result === "lost").length;
   const winRate = total > 0 ? (wins / total) * 100 : 0;
 
-  // ── 1. Category-level breakdown (Asian Handicap, Over/Under, etc.) ──────────
+  // Category-level breakdown
   const catMap: Record<string,{wins:number;losses:number;total:number}> = {};
   evals.forEach(e => {
     const cat = categoriseMarket(e.market);
@@ -504,9 +508,9 @@ function computeHippoAnalytics(evals: HippoMarketEval[]) {
       winRate: d.total>0 ? (d.wins/d.total)*100 : 0,
       color: MARKET_CATEGORY_COLORS[name] || "#64748b",
     }))
-    .sort((a,b) => b.total - a.total);   // sort by volume
+    .sort((a,b) => b.total - a.total);
 
-  // ── 2. Detailed market-selection pairs (top 12 by volume) ──────────────────
+  // Detailed market-selection pairs (top 12 by volume)
   const pairMap: Record<string,{wins:number;losses:number;total:number;cat:string}> = {};
   evals.forEach(e => {
     const key = `${e.market} — ${e.selection}`;
@@ -521,10 +525,10 @@ function computeHippoAnalytics(evals: HippoMarketEval[]) {
       winRate: d.total>0 ? (d.wins/d.total)*100 : 0,
       color: MARKET_CATEGORY_COLORS[d.cat] || "#64748b",
     }))
-    .sort((a,b) => b.total - a.total)
+    .sort((a,b) => b.total - a.total)   // sort by volume (most used first)
     .slice(0, 14);
 
-  // ── 3. Confidence calibration for Hippo ────────────────────────────────────
+  // Confidence calibration for Hippo
   const confBuckets = [
     {min:0,   max:0.55, range:"<55%"},
     {min:0.55,max:0.65, range:"55–65%"},
@@ -542,11 +546,9 @@ function computeHippoAnalytics(evals: HippoMarketEval[]) {
     };
   }).filter(b => b.count > 0);
 
-  // ── 4. Win rate over time (weekly trend) ────────────────────────────────────
-  // Group by week using created_at; fall back to sequential if no dates
+  // Weekly trend
   const hasDate = evals.some(e => !!e.created_at);
   let weeklyTrend: {label:string;winRate:number;picks:number}[] = [];
-
   if (hasDate) {
     const wkMap: Record<string,{wins:number;total:number}> = {};
     evals.forEach(e => {
@@ -567,7 +569,6 @@ function computeHippoAnalytics(evals: HippoMarketEval[]) {
         picks: d.total,
       }));
   } else {
-    // Chunk into groups of ~10
     const chunkSize = Math.max(Math.floor(total/6), 5);
     for (let i=0; i<evals.length; i+=chunkSize) {
       const chunk = evals.slice(i, i+chunkSize);
@@ -580,12 +581,12 @@ function computeHippoAnalytics(evals: HippoMarketEval[]) {
     }
   }
 
-  // ── 5. Best & worst market by win rate (min 3 picks) ───────────────────────
+  // Best & worst market by win rate (min 3 picks)
   const qualified = pairBreakdown.filter(p => p.total >= 3);
   const bestMarket  = qualified.length ? qualified.slice().sort((a,b)=>b.winRate-a.winRate)[0]  : null;
   const worstMarket = qualified.length ? qualified.slice().sort((a,b)=>a.winRate-b.winRate)[0] : null;
 
-  // ── 6. Current streak ──────────────────────────────────────────────────────
+  // Current streak
   let streak = 0;
   let streakType: "won"|"lost" = "won";
   for (let i = evals.length-1; i >= 0; i--) {
@@ -647,7 +648,6 @@ const AnalyticsPage = () => {
         .order("created_at",{ascending:true});
       if (error) throw error;
 
-      // Drop rows where result_status is genuinely empty
       const nonEmpty = (data ?? []).filter(row => {
         const rs = row.result_status;
         if (!rs) return false;
@@ -657,13 +657,11 @@ const AnalyticsPage = () => {
       });
 
       setHippoRows(nonEmpty);
-
       if (nonEmpty.length>0) {
-        const sample=nonEmpty[0]?.result_status;
         const parsed=processHippoMarkets(nonEmpty);
         if (parsed.length===0) {
-          console.warn("[Hippo] result_status sample:", sample);
-          setHippoError(`${nonEmpty.length} rows fetched but no results matched. Sample key structure logged to console.`);
+          console.warn("[Hippo] result_status sample:", nonEmpty[0]?.result_status);
+          setHippoError(`${nonEmpty.length} rows fetched but no results matched. Check console for sample.`);
         }
       }
     } catch (e:any) {
@@ -674,7 +672,6 @@ const AnalyticsPage = () => {
 
   useEffect(() => { fetchMKData(); fetchHippoData(); }, []);
 
-  // Derived analytics
   const mk    = processPredictions(predictions);
   const hippoEvals = processHippoMarkets(hippoRows);
   const hippo = computeHippoAnalytics(hippoEvals);
@@ -793,34 +790,24 @@ const AnalyticsPage = () => {
 
           {/* Gauge + Bet-type donut */}
           <div className="grid md:grid-cols-2 gap-4 mb-4">
-<Card
-  title="Overall Win Rate"
-  subtitle={`${summary.wins.toFixed(1)} wins from ${(summary.wins + summary.losses).toFixed(1)} settled predictions`}
-  icon={Target}
-  accent={EMERALD}
->
-  <WinRateGauge rate={summary.winRate} color={EMERALD} />
-  <div className="flex justify-center gap-6 -mt-1">
-    {[
-      { label: "Win",  val: summary.winRate.toFixed(1), color: EMERALD, bg: EMERALD_LIGHT },
-      { label: "Loss", val: lossPct.toFixed(1),         color: ROSE,    bg: ROSE_LIGHT   },
-      { label: "Void", val: voidPct.toFixed(1),         color: GOLD,    bg: GOLD_LIGHT   },
-    ].map((x) => (
-      <div key={x.label} className="flex flex-col items-center gap-1">
-        <div className="h-1.5 w-10 rounded-full" style={{ background: x.color }} />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          {x.label}
-        </span>
-        <span
-          className="text-[15px] font-black tabular-nums"
-          style={{ color: x.color }}
-        >
-          {x.val}%
-        </span>
-      </div>
-    ))}
-  </div>
-</Card>
+            <Card title="Overall Win Rate"
+              subtitle={`${summary.wins.toFixed(1)} wins from ${(summary.wins + summary.losses).toFixed(1)} settled predictions`}
+              icon={Target} accent={EMERALD}>
+              <WinRateGauge rate={summary.winRate} color={EMERALD} />
+              <div className="flex justify-center gap-6 -mt-1">
+                {[
+                  {label:"Win",  val:summary.winRate.toFixed(1),color:EMERALD,bg:EMERALD_LIGHT},
+                  {label:"Loss", val:lossPct.toFixed(1),         color:ROSE,   bg:ROSE_LIGHT  },
+                  {label:"Void", val:voidPct.toFixed(1),         color:GOLD,   bg:GOLD_LIGHT  },
+                ].map(x => (
+                  <div key={x.label} className="flex flex-col items-center gap-1">
+                    <div className="h-1.5 w-10 rounded-full" style={{ background:x.color }} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{x.label}</span>
+                    <span className="text-[15px] font-black tabular-nums" style={{ color:x.color }}>{x.val}%</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
 
             <Card title="Bet Type Distribution" subtitle="Predictions by bet category" icon={Layers} accent={SAPPHIRE}>
               <div className="h-44">
@@ -1227,7 +1214,7 @@ const AnalyticsPage = () => {
 
               {/* ── Detailed pair table ───────────────────────────────────── */}
               <Card title="Market-Selection Pair Breakdown"
-                subtitle={`Top ${hippo.pairBreakdown.length} most-picked market combinations — sorted by volume`}
+                subtitle={`Top ${hippo.pairBreakdown.length} most-picked combinations — sorted by volume`}
                 icon={Layers} accent={GOLD} className="mb-4">
                 <div className="overflow-x-auto -mx-1">
                   <table className="w-full text-sm min-w-[580px]">
