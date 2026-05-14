@@ -793,25 +793,34 @@ const AnalyticsPage = () => {
 
           {/* Gauge + Bet-type donut */}
           <div className="grid md:grid-cols-2 gap-4 mb-4">
-            <Card title="Overall Win Rate"
-              subtitle={`${summary.wins.toFixed(1)} wins from ${(wins+losses).toFixed(1)} settled predictions`}
-              icon={Target} accent={EMERALD}>
-              {(() => { const wins=summary.wins, losses_=summary.losses; return null; })()}
-              <WinRateGauge rate={summary.winRate} color={EMERALD} />
-              <div className="flex justify-center gap-6 -mt-1">
-                {[
-                  {label:"Win",  val:summary.winRate.toFixed(1),color:EMERALD,bg:EMERALD_LIGHT},
-                  {label:"Loss", val:lossPct.toFixed(1),         color:ROSE,   bg:ROSE_LIGHT  },
-                  {label:"Void", val:voidPct.toFixed(1),         color:GOLD,   bg:GOLD_LIGHT  },
-                ].map(x => (
-                  <div key={x.label} className="flex flex-col items-center gap-1">
-                    <div className="h-1.5 w-10 rounded-full" style={{ background:x.color }} />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{x.label}</span>
-                    <span className="text-[15px] font-black tabular-nums" style={{ color:x.color }}>{x.val}%</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
+<Card
+  title="Overall Win Rate"
+  subtitle={`${summary.wins.toFixed(1)} wins from ${(summary.wins + summary.losses).toFixed(1)} settled predictions`}
+  icon={Target}
+  accent={EMERALD}
+>
+  <WinRateGauge rate={summary.winRate} color={EMERALD} />
+  <div className="flex justify-center gap-6 -mt-1">
+    {[
+      { label: "Win",  val: summary.winRate.toFixed(1), color: EMERALD, bg: EMERALD_LIGHT },
+      { label: "Loss", val: lossPct.toFixed(1),         color: ROSE,    bg: ROSE_LIGHT   },
+      { label: "Void", val: voidPct.toFixed(1),         color: GOLD,    bg: GOLD_LIGHT   },
+    ].map((x) => (
+      <div key={x.label} className="flex flex-col items-center gap-1">
+        <div className="h-1.5 w-10 rounded-full" style={{ background: x.color }} />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          {x.label}
+        </span>
+        <span
+          className="text-[15px] font-black tabular-nums"
+          style={{ color: x.color }}
+        >
+          {x.val}%
+        </span>
+      </div>
+    ))}
+  </div>
+</Card>
 
             <Card title="Bet Type Distribution" subtitle="Predictions by bet category" icon={Layers} accent={SAPPHIRE}>
               <div className="h-44">
