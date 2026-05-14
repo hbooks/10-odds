@@ -672,34 +672,45 @@ const AnalyticsPage = () => {
     }
   };
 
-  const fetchHippoData = async () => {
-    setHippoLoading(true);
-    try {
-      // Fetch all rows, then filter client-side to be safe
-      const { data, error } = await supabase
-        .from("hippo_predictions")
-        .select(`
-          market_1, selection_1, confidence_1,
-          market_2, selection_2, confidence_2,
-          market_3, selection_3, confidence_3,
-          market_4, selection_4, confidence_4,
-          result_status
-        `);
-      if (error) throw error;
-      const rows = (data ?? []).filter((row: any) => {
-        const rs = row.result_status;
-        // Must have at least one non-null, non-pending result
-        return rs && (
-          rs.market_1 || rs.market_2 || rs.market_3 || rs.market_4
-        );
-      });
-      setHippoEvals(processHippoMarkets(rows));
-    } catch {
-      setHippoEvals([]);
-    } finally {
-      setHippoLoading(false);
+ const fetchHippoData = async () => {
+  setHippoLoading(true);
+  try {
+    // Fetch every row from hippo_predictions – no Supabase JSONB filters
+    const { data, error } = await supabase
+      .from("hippo_predictions")
+      .select(`
+        market_1, selection_1, confidence_1,
+        market_2, selection_2, confidence_2,
+        market_3, selection_3, confidence_3,
+        market_4, selection_4, confidence_4,
+        result_status
+      `);
+
+    if (error) throw error;
+
+    // Client‑side filter: keep rows that have at least one market evaluated
+    const rows = (data ?? []).filter((row: any) => {
+      const rs = row.result_status;
+      return rs && (
+        rs.market_1 !== undefined || rs.market_2 !== undefined ||
+        rs.market_3 !== undefined || rs.market_4 !== undefined
+      );
+    });
+
+    // Debug: log the number of rows found (check browser console)
+    console.log(`[Hippo Analytics] Rows with data: ${rows.length}`);
+    if (rows.length > 0) {
+      console.log("Sample row:", rows[0]);
     }
-  };
+
+    setHippoEvals(processHippoMarkets(rows));
+  } catch (err) {
+    console.error("Hippo fetch error:", err);
+    setHippoEvals([]);
+  } finally {
+    setHippoLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchMKData();
