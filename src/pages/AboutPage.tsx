@@ -102,7 +102,7 @@ const AboutPage = () => {
                 <Zap className="h-5 w-5 text-accent-foreground" />
               </div>
               <h1 className="text-4xl md:text-5xl font-heading font-bold text-foreground">
-                About <span className="text-gold">10dds</span>
+                About <span className="text-gold">10 Odds</span>
               </h1>
             </div>
             <p className="text-base md:text-lg text-muted-foreground max-w-xl">
@@ -119,7 +119,7 @@ const AboutPage = () => {
         {/* ── Our Mission ─────────────────────────────────────────────────── */}
         <Section index={1} icon={Heart} title="Our Mission">
           <p>
-            We built <strong className="text-foreground">10dds</strong> to make
+            We built <strong className="text-foreground">10 Odds</strong> to make
             sophisticated football analysis accessible to everyone — whether you're a
             casual fan who wants context before a big game, or a dedicated bettor
             seeking a smarter edge.
@@ -133,7 +133,7 @@ const AboutPage = () => {
           <p>
             The platform covers the five major European leagues:{" "}
             <strong className="text-foreground">
-              Premier League, La Liga, Serie A, Bundesliga, and Ligue 1 and also Champions League and Fifa World Cup.
+              Premier League, La Liga, Serie A, Bundesliga, and Ligue 1 and also Champions League and Fifa World Cup (These two will be available in the near future).
             </strong>
           </p>
         </Section>
@@ -254,7 +254,7 @@ const AboutPage = () => {
         Odds Availability
       </h4>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        The odds you see on 10dds are sourced in real‑time from third‑party
+        The odds you see on 10 Odds are sourced in real‑time from third‑party
         bookmaker APIs. These services are subject to regional restrictions,
         market suspensions, and occasional technical delays. When a particular
         market (e.g., Over 2.5 Goals or Both Teams to Score) isn't offered by
@@ -308,7 +308,7 @@ const AboutPage = () => {
 </Section>
 
         {/* ── Pattern Insights ─────────────────────────────────────────────── */}
-        <Section index={4} icon={MessageSquare} title="Understanding Pattern Insights">
+        <Section index={4} icon={MessageSquare} title="Understanding Pattern Insights and Hippo AI">
           <p>
             When you tap a prediction on the{" "}
             <strong className="text-foreground">Active Predictions</strong> page, you'll
@@ -355,20 +355,18 @@ const AboutPage = () => {
             We track 18 distinct patterns in total (3 confidence levels × 6 EV
             buckets). As more predictions resolve, the pattern data becomes more
             statistically reliable and the insights become sharper.
-            We also have our own AI model <strong>Hippo AI </strong>which provides alternative market insights and
-            its own independent assessment of the predicted fixture by MK-806.
-           This model is trained for understanding of teams, their strengths, weaknesses and all statistics revolving around the football world.
-           <strong> more info about how Hippo AI operates and ways to use it can be found on the </strong>
-            <Link
-              to="/guide"
-              className="flex items-center gap-1.5 text-gold hover:underline"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Guide Page.
-            </Link>
+           </p>
 
-          </p>
-
+<p>
+  Alongside MK‑806, we built <strong>Hippo AI</strong> — a second intelligence that analyses every match from a different angle. 
+  While MK‑806 delivers a primary prediction, Hippo AI selects <strong>four additional betting markets</strong> (such as Over/Under goals, Both Teams to Score, Asian Handicap, and more) that it considers the safest alternatives for that fixture. 
+  It studies team form, head‑to‑head history, and deep statistics — including expected goals, possession data, and defensive records — to produce a <strong>confidence percentage</strong> for every market it suggests. 
+  <strong>Detailed information about how Hippo AI works, how to interpret its confidence scores, and when to use it can be found on the </strong>
+  <Link to="/guide" className="inline-flex items-center gap-1.5 text-gold hover:underline">
+    <ExternalLink className="h-3.5 w-3.5" />
+    Guide Page.
+  </Link>
+</p>
           <p className="text-xs italic text-muted-foreground/70">
             Pattern insights are strictly informational and do not constitute
             financial advice of any kind.
