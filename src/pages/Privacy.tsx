@@ -44,7 +44,7 @@ function Section({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 const PrivacyPage = () => {
-  const lastUpdated = "18 April 2025";
+  const lastUpdated = "15 May 2026";
 
   return (
     <Layout>
@@ -79,8 +79,10 @@ const PrivacyPage = () => {
           <p className="text-sm text-primary-foreground/80 leading-relaxed">
             At <span className="font-semibold text-gold">10 Odds</span>, your privacy
             matters. This policy explains what data we collect, why we collect it, and
-            how we protect it. We will never sell your personal information to third
-            parties.
+            how we protect it.{" "}
+            <strong className="text-white">
+              We do not collect personal data for advertising or sell your information to anyone.
+            </strong>
           </p>
         </motion.div>
 
@@ -101,7 +103,9 @@ const PrivacyPage = () => {
 
           <Section index={2} number="02" title="Information We Collect">
             <p>
-              We collect the following categories of information:
+              We collect only the minimum information necessary to operate the Site and
+              improve your experience. We do <strong className="text-foreground">not</strong> collect
+              financial details, government IDs, or sensitive personal data.
             </p>
             <div className="space-y-4">
               <div>
@@ -110,11 +114,15 @@ const PrivacyPage = () => {
                 </h3>
                 <ul className="list-disc list-inside space-y-1.5 pl-2">
                   <li>
-                    Email address (if you subscribe to notifications or create an
-                    account).
+                    Email address (only if you choose to subscribe to updates or
+                    create an account).
                   </li>
                   <li>
-                    Any feedback or support messages you send us.
+                    <strong className="text-foreground">Customer Care chat:</strong> When you
+                    report a technical issue via the chat, the description of the
+                    problem is saved to our <em>reported_issues</em> table so we can
+                    investigate and fix it. No other chat history is stored or linked to
+                    your identity.
                   </li>
                 </ul>
               </div>
@@ -133,19 +141,9 @@ const PrivacyPage = () => {
                     Pages visited, time spent on the Site, and referring URLs.
                   </li>
                   <li>
-                    Cookie data and similar tracking technologies (see Section 7).
+                    Cookie data (see Section 7).
                   </li>
                 </ul>
-              </div>
-              <div>
-                <h3 className="text-foreground font-medium mb-1.5">
-                  Information We Do Not Collect
-                </h3>
-                <p>
-                  We do not collect financial information, betting account details,
-                  government IDs, or sensitive personal data. 10 Odds is a free
-                  informational platform and does not process payments.
-                </p>
               </div>
             </div>
           </Section>
@@ -163,7 +161,8 @@ const PrivacyPage = () => {
                 user experience.
               </li>
               <li>
-                Detect and prevent fraudulent activity or abuse of the Site.
+                Investigate and resolve technical issues reported through the
+                Customer Care chat.
               </li>
               <li>Comply with applicable legal obligations.</li>
             </ul>
@@ -183,9 +182,10 @@ const PrivacyPage = () => {
                 <p className="text-foreground font-medium mb-1">Service Providers</p>
                 <p>
                   We use <strong className="text-foreground">Supabase</strong> as our
-                  database and authentication platform. Supabase processes data on our
-                  behalf under strict data processing agreements and does not use your
-                  data for their own purposes. See{" "}
+                  database and backend platform. All data you provide (including
+                  reported issues) is stored on Supabase's secure infrastructure.
+                  Supabase processes data on our behalf under strict data processing
+                  agreements. See{" "}
                   <a
                     href="https://supabase.com/privacy"
                     target="_blank"
@@ -198,10 +198,17 @@ const PrivacyPage = () => {
                 </p>
               </div>
               <div className="bg-muted/40 rounded-lg p-3.5">
-                <p className="text-foreground font-medium mb-1">Analytics</p>
+                <p className="text-foreground font-medium mb-1">AI Processing</p>
                 <p>
-                  We use privacy-focused analytics to understand Site usage. No
-                  personally identifiable data is shared with analytics providers.
+                  To provide Hippo AI's alternative market suggestions and the
+                  Customer Care chat, we use{" "}
+                  <strong className="text-foreground">Groq</strong>, a cloud‑based AI
+                  inference provider, and{" "}
+                  <strong className="text-foreground">Bzzoiro Sports Data</strong> for
+                  match statistics. These services receive only the data necessary for
+                  each request (match details, chat messages) and do not have access to
+                  your personal identity. No user‑identifiable information is stored by
+                  these providers.
                 </p>
               </div>
               <div className="bg-muted/40 rounded-lg p-3.5">
@@ -216,22 +223,21 @@ const PrivacyPage = () => {
 
           <Section index={5} number="05" title="Data Security">
             <p>
-              We take data security seriously and implement appropriate technical and
-              organisational measures to protect your information, including:
+              We implement appropriate technical and organisational measures to
+              protect your information:
             </p>
             <ul className="list-disc list-inside space-y-1.5 pl-2">
               <li>All data in transit is encrypted using TLS (HTTPS).</li>
               <li>
-                Database access is protected by row-level security policies via
-                Supabase.
+                Database access is protected by row‑level security policies and
+                strict access controls.
               </li>
               <li>
                 Service credentials (API keys, database passwords) are stored as
                 encrypted environment variables and are never exposed publicly.
               </li>
               <li>
-                Access to production systems is restricted to authorised personnel
-                only.
+                Access to production systems is restricted to authorised personnel only.
               </li>
             </ul>
             <p>
