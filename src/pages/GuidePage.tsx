@@ -3,10 +3,10 @@ import { Link } from "react-router-dom";
 import { useState, useCallback, useRef } from "react";
 import {
   Zap, MessageSquare, TrendingUp, AlertCircle, BarChart2, ArrowRight,
-  RefreshCw, ShieldCheck, X, ChevronRight, Sparkles, Sun, Moon,
+  RefreshCw, ShieldCheck, X, ChevronRight, Sparkles, Sun, Moon, Brain, Database, Target,
 } from "lucide-react";
 import AnimalIcon from "@/components/AnimalIcon";
-import { PATTERN_ANIMALS } from "@/lib/patternAnimals";   // official source of truth
+import { PATTERN_ANIMALS } from "@/lib/patternAnimals";   
 import Layout from "@/components/Layout";
 
 type PatternAnimal = (typeof PATTERN_ANIMALS)[number];
@@ -575,7 +575,69 @@ const GuidePage = () => {
             <motion.p variants={fadeUp} className="text-[10px] tracking-[0.25em] text-zinc-600 text-center mt-6" style={{ fontFamily: "JetBrains Mono, monospace" }}>
               LIVE PERFORMANCE ON THE PATTERN ANALYSER · PATTERNS EVOLVE — CHECK BACK REGULARLY.
             </motion.p>
-          </Chapter>
+          </Chapter>     
+          
+          {/* More chapters */}
+        
+         <Chapter id="ch-06" num="06" icon={Brain} color="#3b82f6" kicker="Chapter Six" title="Hippo AI — Your Second Opinion">
+  <Prose>
+    Hippo AI is a second intelligence that works alongside MK-806. While MK-806 makes one primary prediction per match, Hippo AI selects <strong className="text-white/90 font-semibold">four additional betting markets</strong> it believes are the safest and most reliable for that same fixture. It's like having another analyst cross‑checking every game.
+  </Prose>
+
+  <motion.div variants={fadeUp} className="rounded-3xl p-6 border border-blue-400/20" style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.06), rgba(59,130,246,0.01))" }}>
+    <div className="flex items-start gap-4">
+      <div className="w-12 h-12 rounded-2xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center shrink-0">
+        <Brain className="h-5 w-5 text-blue-400" />
+      </div>
+      <p className="text-[15px] leading-relaxed text-zinc-300">
+        Hippo AI doesn't replace MK-806. It offers <strong className="text-blue-400">alternative markets</strong> — such as Over/Under goals, Both Teams to Score, Asian Handicap, and many more — that you can use if you want a safer bet or just another angle on the match.
+      </p>
+    </div>
+  </motion.div>
+
+  <Prose>
+    Hippo AI works in two modes, depending on whether detailed team statistics are available for a match:
+  </Prose>
+
+  <motion.div variants={stagger} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+    {[
+      {
+        label: "With BSD Data",
+        color: "#34d399",
+        icon: <Database size={16} />,
+        desc: "When Bzzoiro Sports Data (BSD) is available, Hippo AI analyses head‑to‑head records, recent form, xG, and dozens of other stats. Confidence for each market is shown as a percentage between <strong>60% and 100%</strong> — these are highly confident picks based on real numbers.",
+      },
+      {
+        label: "Without BSD Data",
+        color: "#f59e0b",
+        icon: <AlertCircle size={16} />,
+        desc: "When BSD data isn't available, Hippo AI relies on its general knowledge of the teams and competition. Because the data is less complete, confidence is capped at <strong>60%</strong>. This tells you the pick is worth considering, but with extra caution.",
+      },
+    ].map((mode) => (
+      <motion.div key={mode.label} variants={fadeUp} className="rounded-3xl p-6 border" style={{ background: `${mode.color}07`, borderColor: `${mode.color}25` }}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center border" style={{ background: `${mode.color}1a`, borderColor: `${mode.color}40`, color: mode.color }}>
+            {mode.icon}
+          </div>
+          <span className="text-base font-bold text-white" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{mode.label}</span>
+        </div>
+        <p className="text-sm text-zinc-400 leading-relaxed" dangerouslySetInnerHTML={{ __html: mode.desc }} />
+      </motion.div>
+    ))}
+  </motion.div>
+
+  <Callout icon={Target} color="#3b82f6">
+    The confidence percentage is <strong>specific to each market</strong> — it's Hippo AI's exact assessment of how likely that particular selection is to win, not a generic rating. When you see "85%" next to "Over 2.5 Goals", it means Hippo AI is 85% confident that pick will land.
+  </Callout>
+
+  <Prose>
+    To see Hippo AI's picks, open any active prediction and tap the <strong className="text-white/90 font-semibold">Explore Alternative Markets</strong> button. The four best markets will appear, each with its own confidence score. The highest‑confidence option is highlighted so you can spot it instantly.
+  </Prose>
+
+  <Callout icon={ShieldCheck} color="#34d399">
+    Hippo AI's suggestions are independent of MK-806's main pick. Use them together to build a more balanced bet slip — or stick with one if it matches your style. You're always in control.
+  </Callout>
+</Chapter>
 
           {/* DISCLAIMER */}
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
