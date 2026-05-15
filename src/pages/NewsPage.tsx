@@ -18,7 +18,7 @@ interface NewsMessage {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const TECH_AVATAR = "https://api.dicebear.com/9.x/lorelei/svg?seed=Amie?backgroundColor=ffmfkf";
+const TECH_AVATAR = "https://api.dicebear.com/9.x/lorelei/svg?seed=Amie";
 
 function formatTime(iso: string): string {
   const d   = new Date(iso);
