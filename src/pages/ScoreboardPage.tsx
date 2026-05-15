@@ -548,7 +548,7 @@ const ScoreboardPage = () => {
         className="relative min-h-screen bg-cover bg-center bg-fixed"
         style={{
           backgroundImage:
-            'url("https://images.pexels.com/photos/34201721/pexels-photo-34201721.jpeg?auto=format&fit=crop&w=1920&q=80")',
+            'url("https://images.pexels.com/photos/13830794/pexels-photo-13830794.jpeg?auto=format&fit=crop&w=1920&q=80")',
         }}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/65 to-black/85 pointer-events-none" />
