@@ -397,7 +397,7 @@ const AboutPage = () => {
         {/* ── The Team ─────────────────────────────────────────────────────── */}
         <Section index={6} icon={Users} title="The Team & Partnership">
           <p>
-            10dds is a project by{" "}
+            10 Odds is a project by{" "}
             <strong className="text-foreground">HBOOKS</strong> — an independent
             business dedicated to building thoughtful digital tools that combine
             technology with real-world utility.
@@ -411,7 +411,7 @@ const AboutPage = () => {
           </p>
           <p>
             Your support, feedback, and engagement mean everything. When you share
-            10dds with a friend or drop a message, it makes a real difference to
+            10 Odds with a friend or drop a message, it makes a real difference to
             a solo project like this one.
           </p>
         </Section>
