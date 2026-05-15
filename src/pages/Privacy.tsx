@@ -104,7 +104,7 @@ const PrivacyPage = () => {
           <Section index={2} number="02" title="Information We Collect">
             <p>
               We collect only the minimum information necessary to operate the Site and
-              improve your experience. We do <strong className="text-foreground">not</strong> collect
+              improve your experience. We do <strong className="text-foreground">NOT</strong> collect
               financial details, government IDs, or sensitive personal data.
             </p>
             <div className="space-y-4">
@@ -120,7 +120,7 @@ const PrivacyPage = () => {
                   <li>
                     <strong className="text-foreground">Customer Care chat:</strong> When you
                     report a technical issue via the chat, the description of the
-                    problem is saved to our <em>reported_issues</em> table so we can
+                    problem is saved to our <em>reported Issues</em> database so we can
                     investigate and fix it. No other chat history is stored or linked to
                     your identity.
                   </li>
