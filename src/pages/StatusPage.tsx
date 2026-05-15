@@ -1035,7 +1035,7 @@ const StatusPage = () => {
                   <div>
                     <p className="font-semibold text-white mb-1">Read Before Building Your Betslip</p>
                     <p className="text-slate-300 leading-relaxed">
-                      Understanding how MK-806 and _806 work together can help you make more informed decisions.
+                      Understanding how MK-806, _806 and Hippo AI work together can help you make more informed decisions.
                       We strongly recommend reading our{" "}
                       <Link to="/guide" className="text-gold underline hover:no-underline font-semibold">
                         Pattern & Prediction Guide
