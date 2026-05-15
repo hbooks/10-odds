@@ -611,7 +611,7 @@ const GuidePage = () => {
         label: "Without BSD Data",
         color: "#f59e0b",
         icon: <AlertCircle size={16} />,
-        desc: "When BSD data isn't available, Hippo AI relies on its general knowledge of the teams and competition. Because the data is less complete, confidence is capped at <strong>60%</strong>. This tells you the pick is worth considering, but with extra caution.",
+        desc: "When BSD data isn't available, Hippo AI relies on its general knowledge of the teams and competition. Because the data is less complete, confidence is capped at <strong>60% and below</strong>. This tells you the pick is worth considering, but with extra caution.",
       },
     ].map((mode) => (
       <motion.div key={mode.label} variants={fadeUp} className="rounded-3xl p-6 border" style={{ background: `${mode.color}07`, borderColor: `${mode.color}25` }}>
@@ -637,6 +637,9 @@ const GuidePage = () => {
   <Callout icon={ShieldCheck} color="#34d399">
     Hippo AI's suggestions are independent of MK-806's main pick. Use them together to build a more balanced bet slip — or stick with one if it matches your style. You're always in control.
   </Callout>
+    <motion.p variants={fadeUp} className="text-[10px] tracking-[0.25em] text-zinc-600 text-center mt-6" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+              TO STUDY HIPPO AI'S MARKET PICKS PERFORMANCE GO ON THE ANALYTICS PAGE · CHECK REGULARLY TO SEE IT'S PROGRESS.
+            </motion.p>
 </Chapter>
 
           {/* DISCLAIMER */}
@@ -647,10 +650,10 @@ const GuidePage = () => {
               <div className="w-10 h-10 rounded-xl bg-red-400/12 flex items-center justify-center">
                 <AlertCircle className="w-4.5 h-4.5 text-red-400" />
               </div>
-              <span className="text-base font-bold text-white" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>A reminder</span>
+              <span className="text-base font-bold text-white" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>A REMINDER</span>
             </div>
             <p className="text-[15px] leading-relaxed text-zinc-400 max-w-3xl">
-              10 Odds is for informational purposes only. Neither MK-806 nor _806 constitutes financial or betting advice. Patterns reflect past performance, which does not guarantee future results. Always bet responsibly — only stake what you can afford to lose, and make your own decisions.
+              10 Odds is for informational purposes only. Neither MK-806, _806 nor Hippo AI constitutes financial or betting advice. Patterns reflect past performance, which does not guarantee future results. Always bet responsibly — only stake what you can afford to lose, and make your own decisions.
             </p>
             <div className="flex flex-wrap gap-5 mt-5 pt-5 border-t border-red-400/10">
               {[["Terms of Service", "/terms"], ["Privacy Policy", "/privacy"], ["About 10 Odds", "/about"]].map(([l, to]) => (
@@ -661,13 +664,6 @@ const GuidePage = () => {
             </div>
           </motion.div>
         </main>
-
-        <footer className="relative z-10 border-t border-white/5 mt-12">
-          <div className="max-w-7xl mx-auto px-6 md:px-10 py-10 flex flex-col md:flex-row items-center justify-between gap-3">
-            <span className="text-[10px] tracking-[0.25em] text-zinc-600" style={{ fontFamily: "JetBrains Mono, monospace" }}>10 ODDS · FIELD GUIDE · ISSUE 01</span>
-            <span className="text-[10px] tracking-[0.25em] text-zinc-600" style={{ fontFamily: "JetBrains Mono, monospace" }}>EIGHTEEN ANIMALS. ONE SYSTEM.</span>
-          </div>
-        </footer>
       </div>
     </Layout>
   );

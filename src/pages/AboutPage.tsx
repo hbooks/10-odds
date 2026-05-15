@@ -355,6 +355,18 @@ const AboutPage = () => {
             We track 18 distinct patterns in total (3 confidence levels × 6 EV
             buckets). As more predictions resolve, the pattern data becomes more
             statistically reliable and the insights become sharper.
+            We also have our own AI model <strong>Hippo AI </strong>which provides alternative market insights and
+            its own independent assessment of the predicted fixture by MK-806.
+           This model is trained for understanding of teams, their strengths, weaknesses and all statistics revolving around the football world.
+           <strong> more info about how Hippo AI operates and ways to use it can be found on the </strong>
+            <Link
+              to="/guide"
+              className="flex items-center gap-1.5 text-gold hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Guide Page.
+            </Link>
+
           </p>
 
           <p className="text-xs italic text-muted-foreground/70">
@@ -416,7 +428,7 @@ const AboutPage = () => {
             <p className="text-xs text-muted-foreground leading-relaxed">
               <strong className="text-foreground">10dds is for informational purposes only.</strong>{" "}
               We do not provide financial advice. All predictions are probabilistic
-              estimates — not guarantees. Past performance of the MK-806 engine does
+              estimates — not guarantees. Past performance of the MK-806 engine or Hippo AI does
               not guarantee future results.
             </p>
             <p className="text-xs text-muted-foreground leading-relaxed mt-2">
