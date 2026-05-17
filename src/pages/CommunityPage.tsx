@@ -56,8 +56,297 @@ const BANNED_WORDS = [
   "testicle", "testicles", "tits", "titty", "titties", "tit",
   "tranny", "trannies", "twat", "twats", "vagina", "vaginas",
   "wank", "wanker", "wankers", "wanking", "wetback", "wetbacks", "whore", "whores",
-  // ... full banned-words list preserved (truncated here in source for readability,
-  // keep your original full array in the actual file)
+  "a$$", "a$$hole", "a$$h0le", "a$$holes", "a$$hat", "a$$hats",
+  "a55", "a55hole", "arseh0le", "b1tch", "b1tch3s", "b1tches",
+  "b17ch", "b17ches", "b!tch", "b!tches", "b00b", "b00bs",
+  "b00bies", "b00biez", "c0ck", "c0cks", "c0ckhead", "c0cksucker",
+  "cuntz", "cunts", "d1ck", "d1ckhead", "d1cks", "d0uche", "d0uchebag",
+  "f4g", "f4ggot", "f4gs", "f4ggots", "f@ck", "f@cker", "f@cking",
+  "f*ck", "f*cker", "f*cking", "f*cks", "f#ck", "f#cker", "f#cking",
+  "f_u_c_k", "f u c k", "f-u-c-k", "f.u.c.k", "f u k", "f-u-k",
+  "fuk", "fuker", "fuking", "fuq", "fuqer", "fuqing",
+  "h0m0", "h0m0s", "h0m0sexual", "h0m0sexuals",
+  "j3w", "j3ws", "j3wish", "j3ws",
+  "k1ll", "k1ll yourself", "k1ll yourself", "k1llers",
+  "k1ke", "k1kes", "k1k3", "k1k3s",
+  "l3sbian", "l3sbians", "l3sbo", "l3sb0",
+  "n1gger", "n1ggers", "n1gga", "n1ggas", "n1g", "n1gs",
+  "n@zi", "n@zis", "n@zi", "n@z!",
+  "p3n1s", "p3n1ses", "p3nis", "p3nises",
+  "p0rn", "p0rno", "p0rnography",
+  "r4p3", "r4p3s", "r4pist", "r4pists",
+  "sh1t", "sh1ts", "sh1tter", "sh1tting",
+  "slut", "slutty", "slutz",
+  "t3sticle", "t3sticles", "t3st1cle", "t3st1cles",
+  "v4g1na", "v4g1nas", "v4gina", "v4ginas",
+  "w4nk", "w4nker", "w4nkers",
+  "wh0r3", "wh0r3s", "wh0re",
+  "ch1nk", "ch1nks", "ch1ng", "ch1ngs",
+  "g00k", "g00ks", "g00kz",
+  "b00b", "b00bies", "b00bier", "b00bz",
+  "d0uchebag", "d0uchebags", "d0uche", "d0ushe",
+  "f4g", "f4ggot", "f4ggots", "f4ggy",
+  "h0m0", "h0m0s", "h0m0phobe", "h0m0phobia",
+  "j3w", "j3ws", "j3wish", "j3wz",
+  "k1ke", "k1kes", "k1k3", "k1k3s",
+  "n1gg3r", "n1gg3rs", "n1gga", "n1ggas", "n1gg3rz",
+  "p3d0", "p3dophil3", "p3dophile", "p3dophilia",
+  "r4p3", "r4p3d", "r4pist", "r4pists", "r4p3s",
+  "sh1t", "sh1thead", "sh1ts", "sh1tty",
+  "sl4v3", "sl4very", "sl4ves",
+  "tr4nny", "tr4nnies", "tr4nny",
+  "w3tb4ck", "w3tb4cks", "w3tback", "w3tbacks",
+  "kill yourself", "kill_yourself", "kill.yourself",
+  "k i l l y o u r s e l f", "k i l l yourself",
+  "fuck you", "fuck_you", "fuck.you", "f u c k y o u",
+  "fuck off", "fuck_off", "fuck.off",
+  "suck it", "suck_it", "suck.it",
+  "dick head", "dick_head", "dick.head",
+  "ass hole", "ass_hole", "ass.hole",
+  "pussy boy", "pussy_boy", "pussy.boy",
+  "charlie kirk", "charlie.kirk", "charlie-kirk", "charlie_kirk", "charliekirk", "i_am_charlie_kirk", "kirkcharlie",
+  "isreal", "i hate israel", "fuck jews", "kill jews", "kill_jews", "fuck.jews", "fuck_jews", "jews",
+  "killyourself", "killyourself", "kill your self", "k i l l your self",
+  "k1ll_yourself", "k1ll yourself", "k1ll.yourself",
+  "isis", "al-qaeda", "alqaeda", "boko haram", "taliban", "hamas",
+  "jihad", "jihadi", "jihadist", "jihadists",
+  "white power", "whitepower", "whitepride", "aryan", "aryans",
+  "holocaust", "holohoax", "neonazi", "neonazis", "nazi", "nazis",
+  "stalin", "hitler", "mussolini", "pol pot", "mao", "che guevara", "bin laden",
+  "terrorist", "terrorists", "terrorism", "terror", "bomb", "explosive",
+  "chemical weapon", "biological weapon", "attack", "massacre",
+  "genocide", "ethnic cleansing",
+  "cancer", "autism", "autistic", "cripple", "cripples",
+  "zombie", "zombies", "dead", "corpse", "coffin",
+  "suicide", "suicidal", "hang yourself", "jump off a bridge",
+  "starvation", "hunger", "homeless",
+  "slave", "slavery", "slaves", "master race", "supremacy",
+  "abortion", "pro-choice", "pro-life",
+  "vaccine", "vaccination", "anti-vax", "vax",
+  "pedophile", "pedophilia", "pedo", "pedophile", "child molester",
+  "rapist", "rape", "sexual assault", "molest", "molestation",
+  "incest", "incestuous",
+  "drug", "drugs", "marijuana", "cocaine", "heroin", "meth", "ecstasy", "lsd",
+  "overdose", "addict", "addiction", "alcoholic", "alcoholism",
+  "porn", "porno", "pornography", "xxx", "adult content",
+  "🖕", "🖕🏻", "🖕🏼", "🖕🏽", "🖕🏾", "🖕🏿",
+  "💀", "💣", "🔞", "💩", "🍆", "🍑", "👹", "👿", "👽", "🤡",
+  "f*ck", "f**k", "f***", "f****", "sh*t", "sh*ts", "sh*t", "sh*tting",
+  "a$$", "a$$hole", "a$$h0le", "a$$holes", "a$$hat", "a$$hats",
+  "c*nt", "c*nts", "c*nty",
+  "f*ggot", "f*ggots", "f*ggotry",
+  "n*gga", "n*ggas", "n*gger", "n*ggers",
+  "k*ke", "k*kes", "k*kes",
+  "w*tback", "w*tbacks",
+  "g**k", "g**ks",
+  "r*tard", "r*tards", "r*tarded",
+  "sp*z", "sp*stic",
+  "tr*nny", "tr*nnies",
+  "fuuuuck", "fuuuuuck", "shiiiit", "shiiiiit", "biiiitch",
+  "nigg---", "nigg___", "nigg...", "nigg   ",
+  "f*ck1ng", "f*ck1ng", "f*ck3r", "f*ck3d",
+  "sh1t", "sh1thead", "sh1ts", "sh1tty",
+  "bastardos", "bastinado", "bollocks", "bollox", "bolloxed",
+  "bugger", "buggered", "buggery", "bullsh*t", "bullsh1t",
+  "cocksucker", "cocksuckers", "cocksucking", "cowshit", "crapola",
+  "crapper", "crapulence", "cuntface", "cuntfucker", "cuntlicker",
+  "damn", "damned", "damnit", "darn", "darned", "dickhead", "dickheads",
+  "dickwad", "dickwads", "dipshit", "dipshits", "dipstick", "dipsticks",
+  "douche", "douchebag", "douchebags", "dumbass", "dumbasses", "dumbfuck",
+  "dumbfucks", "dumbshit", "dumbshits", "dyke", "dykes", "effing",
+  "fart", "farts", "fatass", "fatasses", "felch", "felcher", "fellate",
+  "fellatio", "fisting", "flogging", "frig", "frigger", "frigging",
+  "fuckboy", "fuckboys", "fuckers", "fuckhead", "fuckheads", "fuckin",
+  "fucknut", "fucknuts", "fucktard", "fucktards", "fuckup", "fuckups",
+  "god damn", "goddamn", "god-damn", "godam", "godamned", "godammit",
+  "gosh darn", "gosh-darn", "gosh dam",
+  "hard-on", "hardon", "hell", "hells", "jackass", "jackasses",
+  "jap", "japs", "jerkface", "jerkfaces", "jerkoff", "jerkoffs",
+  "jism", "jiz", "jizm", "jizz", "jizzed", "jizzing",
+  "kike", "kikes", "kunt", "kunts", "kyke", "kykes",
+  "lesbian", "lesbians", "lesbo", "lesbos",
+  "lezzie", "lezzies", "lezzy",
+  "masturbator", "masturbators", "milf", "milfs", "minge", "minger",
+  "mingers", "motherfucker", "motherfuckers", "motherfuckin", "motherfucking",
+  "muff", "muffin", "muffins", "mung", "munging", "murder", "murderer",
+  "murderers", "murdering", "murderous",
+  "negro", "negros", "nigger", "niggerz", "nigguh", "nigguhs",
+  "numbnuts", "nutjob", "nutjobs", "nutsack", "nutsacks",
+  "orgy", "orgies", "paki", "pakis", "pecker", "peckerhead",
+  "peckers", "pedo", "pedophile", "pedophilia", "pedophilic",
+  "penis", "penises", "penishead", "penisheads", "peon", "peons",
+  "pikey", "pikeys", "pillock", "pillocks", "pimp", "pimping",
+  "pimps", "pissed", "pisser", "pissers", "pisshead", "pissheads",
+  "pissin", "pissing", "pissoff", "piss off", "pissed off",
+  "playboy", "playboys", "pleb", "plebs", "plonker", "plonkers",
+  "pornographic", "pornography", "pornstar", "pornstars",
+  "poxy", "prick", "prickhead", "pricks", "prostitute", "prostitutes",
+  "prostitution", "punani", "punany", "punkass", "punkasses",
+  "punta", "punters", "pusse", "pussies", "pussy", "pussycat",
+  "pussycats", "queef", "queefs", "queer", "queers", "quim", "quims",
+  "raghead", "ragheads", "randy", "raped", "raper", "rapers", "rapes",
+  "raping", "rapist", "rapists", "ratfink", "ratfinks", "rectum",
+  "rectums", "redneck", "rednecks", "renob", "renobs", "retard",
+  "retarded", "retardedly", "retards", "rimjob", "rimjobs", "rimming",
+  "sadomasochism", "sadomasochist", "screw", "screwed", "screwing",
+  "screws", "scrotum", "scrotums", "scum", "scumbag", "scumbags",
+  "sex", "sexism", "sexist", "sexual", "sexually", "shack", "shagged",
+  "shagging", "shemale", "shemales", "shitface", "shitfaced",
+  "shithead", "shitheads", "shithole", "shitholes", "shitload",
+  "shitloads", "shits", "shitter", "shitters", "shittiest", "shitting",
+  "shitty", "shocker", "shockers", "skank", "skanks", "slag", "slags",
+  "slimeball", "slimeballs", "slutbag", "slutbags", "slutted",
+  "sluttier", "sluttiest", "slutting", "slutty", "smeg", "smeghead",
+  "smegheads", "snatch", "snatches", "son-of-a-bitch", "son-of-a-bitch",
+  "sonofabitch", "sonofabitches", "spaz", "spazzed", "spazzes", "spastic",
+  "spastics", "spineless", "spinster", "spunk", "spunks", "stfu",
+  "stiffy", "stiffys", "stoner", "stoners", "strip", "stripped",
+  "stripper", "strippers", "stripping", "stroke", "stroked", "strokes",
+  "stroking", "stud", "studs", "stupid", "stupider", "stupidest",
+  "suck", "sucked", "sucker", "suckers", "sucking", "sucks",
+  "tampon", "tampons", "tard", "tards", "testes", "testicle",
+  "testicles", "threesome", "threesomes", "tit", "tits", "titties",
+  "titty", "toerag", "toerags", "tosm", "tosser", "tossers",
+  "tramp", "tramps", "transvestite", "transvestites", "trash",
+  "trashed", "trashy", "troll", "trolls", "twat", "twats", "twatting",
+  "urine", "urinate", "urination", "vagina", "vaginas", "vibrator",
+  "vibrators", "virgin", "virgins", "vomit", "vomiting", "vulva",
+  "vulvas", "wank", "wanked", "wanker", "wankers", "wanking",
+  "wanks", "weed", "weeds", "weirdo", "weirdos", "whack", "whacked",
+  "whacker", "whackers", "whacking", "whacks", "whore", "whored",
+  "whorehouse", "whores", "whoring", "willie", "willies", "willy",
+  "winey", "wino", "winos", "witless", "witlessly", "wog", "wogs",
+  "wombat", "wombats", "wop", "wops", "x-rated", "xxx", "yank",
+  "yankee", "yankees", "yanks", "yob", "yobs", "yuk", "yuks",
+  "zero", "zeros", "zipperhead", "zipperheads", "zoophile", "zoophiles",
+  "f_u_c_k_e_r", "f_u_c_k_i_n_g", "m_o_t_h_e_r_f_u_c_k_e_r",
+  "k_i_l_l", "k_i_l_l_j_e_w_s", "k_i_l_l_y_o_u_r_s_e_l_f",
+  "h_i_t_l_e_r", "n_a_z_i", "r_a_p_e", "c_h_i_l_d_m_o_l_e_s_t_e_r",
+  "b_i_t_c_h", "c_u_n_t", "d_i_c_k", "p_u_s_s_y", "s_h_i_t",
+  "d_a_m_n", "h_e_l_l", "d_a_m_n_i_t", "g_o_d_d_a_m_n",
+  "a_s_s_h_o_l_e", "f_a_g_g_o_t", "n_i_g_g_e_r", "n_i_g_g_a",
+  "p_e_d_o", "p_e_d_o_p_h_i_l_e", "r_a_p_i_s_t",
+  "t_r_a_n_n_y", "w_h_o_r_e", "w_a_n_k_e_r", "s_l_u_t",
+  "b_a_s_t_a_r_d", "b_i_t_c_h_e_r", "b_i_t_c_h_i_n_g",
+  "c_o_c_k_s_u_c_k_e_r", "d_i_c_k_h_e_a_d", "d_o_u_c_h_e_b_a_g",
+  "f_u_c_k_b_o_y", "f_u_c_k_t_a_r_d", "j_a_c_k_a_s_s",
+  "m_o_t_h_e_r_f_u_c_k_i_n_g", "p_r_i_c_k", "s_o_n_o_f_a_b_i_t_c_h",
+    "Fuck", "FUCK", "Fuk", "FUK", "Shit", "SHIT", "Ass", "ASS",
+  "Bitch", "BITCH", "Cunt", "CUNT", "Dick", "DICK", "Pussy", "PUSSY",
+  "Nigger", "NIGGER", "Nigga", "NIGGA", "Faggot", "FAGGOT",
+  "ffuucckk", "shhiitt", "bbiittcchh", "aassss", "nniiggeerr", "ffaaggggoott",
+  "ppuussyy", "ccuunntt", "ddiicckk", "ppoorrnn", "rraappee",
+  "kkiillll", "jjeeeeewwss", "hhiittlleerr", "nnaazzii",
+  ".fuck", "fuck.", "_fuck_", "-fuck-", "+fuck+", "=fuck=", "#fuck#",
+  "@fuck", "fuck@", "!fuck!", "~fuck~", "`fuck`", "'fuck'",
+  "fuxk", "fuxing", "fuxker", "sh1t", "sh!t", "sh!tty", "sh!tface",
+  "b1tch", "b1tche", "b1tchn", "c0ck", "c0ckhead", "c0cky",
+  "d1ck", "d1ckhead", "d1ckwad", "d0uche", "d0ush", "d0ushey",
+  "f4g", "f4gs", "f4gg", "f4gg0t", "f4ggy", "f4g3t",
+  "g00k", "g00ker", "g00kz", "g00ky",
+  "h0m0", "h0m0sexual", "h0m0phobe", "h0m0phobic",
+  "j3w", "j3wish", "j3w3d", "j3wz", "k1k3", "k1k3s", "k1k3r",
+  "l3z", "l3zb0", "l3zb1an", "l3zbians",
+  "m0nk3y", "m0nk3ys", "m0nkey", "m0nkeys",
+  "n1gga", "n1ggas", "n1gger", "n1ggers", "n1gg3r", "n1gg3rs", "n1gg4",
+  "p3d0", "p3d0s", "p3dophil3", "p3dophilic", "p3dophil1a",
+  "r4p3", "r4p3d", "r4p1st", "r4pists", "r4p3s", "r4p3r",
+  "sh1t", "sh1ts", "sh1tty", "sh1thead", "sh1tface",
+  "tr4nny", "tr4nnies", "tr4n5", "tr4n5vestite",
+  "v4gina", "v4ginas", "v4g1na", "v4g1nas",
+  "w4nk", "w4nk3r", "w4nker", "w4nking",
+  "w3tb4ck", "w3tb4cks", "w3tback", "w3tbacks",
+  "wh0r3", "wh0r3s", "wh0re", "wh0r3d",
+  "beaner", "beaners", "borderhopper", "wetbag", "wetbacky",
+  "chinaman", "chinamen", "ching chong", "chingchong", "jap", "japs", "nip", "nips",
+  "coon", "coons", "coonass", "camel jockey", "sand nigger", "towelhead", "raghead",
+  "redskin", "redskins", "injun", "injuns",
+  "papist", "fenian", "taig", "taigs", "hun", "huns",
+  "yid", "yids", "heeb", "heebs",
+  "spick", "spicks", "spic", "spics",
+  "wop", "wops", "guinea", "guineas", "dago", "dagos",
+  "mick", "micks", "paddy", "paddies",
+  "kraut", "krauts", "jerry", "jerries",
+  "frog", "frogs", "frenchy",
+  "ruski", "ruskies", "commie", "commies",
+  "slope", "slopes", "gooky", "gooks", "gooker",
+  "jungle bunny", "porch monkey", "spade", "spades", "darkie", "darkies",
+  "abo", "abos", "jacky", "jackies",
+  "curry muncher", "raghead", "turbanator",
+  "cholo", "cholos", "ese",
+  "gypsy", "gypsies", "pikey", "pikies",
+  "wigger", "wiggers", "whigger", "whiggers",
+  "trashy", "white trash", "redneck", "hillbilly", "trailer trash",
+  "jesus freak", "bible basher", "christ-tard",
+  "mohammedan", "muzzie", "muzzie", "muslime", "moslem",
+  "cult", "cultist", "satan", "satanist", "666", "mark of the beast",
+  "god hater", "godhater", "religiot", "religious nut",
+  "cripple", "cripples", "gimp", "gimpy", "freak", "freaks",
+  "lame", "lamer", "invalid",
+  "psycho", "psychos", "schizo", "schizos", "sicko", "sickos",
+  "nutter", "nutters", "wacko", "wackos", "kook", "kooks",
+  "deranged", "insane", "lunatic", "lunatics",
+  "short bus", "special bus", "window licker",
+  "mong", "mongol", "mongoloid", "downie", "downy", "downs",
+  "spacker", "spackers", "spakker", "spazmo", "spazmoid",
+  "thicko", "thickos", "dimwit", "dimwits", "ignoramus",
+  "a$$h0l3", "a$$h0l3s", "a$$h0le", "a$$h0les",
+  "b!+ch", "b!tch3s", "b!tch3z",
+  "c0cksuck3r", "c0cksuck3rs", "c0cksuck1ng",
+  "d4mn", "d4mned", "d4mmit",
+  "f4gg0t", "f4gg0ts", "f4gg0try",
+  "g0dd4mn", "g0dd4mn1t",
+  "h3ll", "h3lls", "h3llish",
+  "j3rk", "j3rks", "j3rkface",
+  "k1ll3r", "k1ll3rs", "k1llj0y",
+  "l4m3", "l4m3r", "l4m3st",
+  "m0r0n", "m0r0ns", "m0r0nic",
+  "n1ghtm4r3", "n0th1ng", "n00b", "n00bs",
+  "p3rv", "p3rv3rt", "p3rv3rts",
+  "q33r", "q33rs", "qu33r",
+  "r3t4rd", "r3t4rd3d", "r3t4rds",
+  "s3x", "s3xual", "s3xuality",
+  "t3rr0r", "t3rr0rist", "t3rr0rists",
+  "v1rgin", "v1rgins", "v1rg1n",
+  "w1mp", "w1mps", "w1mpy",
+  "z3r0", "z3r0s", "z3r0ed",
+  "f_u_c_k_e_r", "f_u_c_k_i_n_g", "m_o_t_h_e_r_f_u_c_k_e_r",
+  "k_i_l_l", "k_i_l_l_j_e_w_s", "k_i_l_l_y_o_u_r_s_e_l_f",
+  "h_i_t_l_e_r", "n_a_z_i", "r_a_p_e", "c_h_i_l_d_m_o_l_e_s_t_e_r",
+  "b_i_t_c_h", "c_u_n_t", "d_i_c_k", "p_u_s_s_y", "s_h_i_t",
+  "d_a_m_n", "h_e_l_l", "d_a_m_n_i_t", "g_o_d_d_a_m_n",
+  "a_s_s_h_o_l_e", "f_a_g_g_o_t", "n_i_g_g_e_r", "n_i_g_g_a",
+  "p_e_d_o", "p_e_d_o_p_h_i_l_e", "r_a_p_i_s_t",
+  "t_r_a_n_n_y", "w_h_o_r_e", "w_a_n_k_e_r", "s_l_u_t",
+  "b_a_s_t_a_r_d", "b_i_t_c_h_e_r", "b_i_t_c_h_i_n_g",
+  "c_o_c_k_s_u_c_k_e_r", "d_i_c_k_h_e_a_d", "d_o_u_c_h_e_b_a_g",
+  "f_u_c_k_b_o_y", "f_u_c_k_t_a_r_d", "j_a_c_k_a_s_s",
+  "m_o_t_h_e_r_f_u_c_k_i_n_g", "p_r_i_c_k", "s_o_n_o_f_a_b_i_t_c_h",
+  "assface", "assclown", "asshat", "asshead", "assmaster",
+  "buttface", "butthead", "buttmunch", "dirtbag", "dirtbags",
+  "douchenozzle", "douchenozzles", "dumbfuck", "dumbfucks",
+  "fuckface", "fuckhead", "fuckstick", "fuckwad", "fuckwads",
+  "jerkwad", "jerkwads", "pisshead", "pissbrain", "shitbag",
+  "shitbags", "shitbird", "shitbirds", "shitcan", "shitcans",
+  "shitforbrains", "shitshow", "shitshows", "skanky", "skankier",
+  "skankiest", "sleazebag", "sleazebags", "sleazeball", "sleazeballs",
+  "slutbucket", "slutbuckets", "slutface", "slutfest", "slutmaster",
+  "twatwaffle", "twatwaffles", "douchecanoe", "douchecanoes",
+  "merde", "scheisse", "mafi", "Kuma", "Makende", "kuma", "makende",
+  "kut", "kanker", "tyfus", "tering", "Matako", "matako", "paska", "perse",
+  "perkele", "saatana", "vittu", "joder", "coño", "mierda", "puta",
+  "putain", "bordel", "merde", "kurva", "kurwa", "pizda", "huj", "chuj",
+  "chuja", "kurwa", "cyka", "blyat", "suka", "ebat", "ebal", "jebat",
+  "debil", "idiota", "idioti", "kretin", "kretini", "debil",
+  "g4s the k1kes", "gas the jews", "kill all n1ggers", "kill all jews",
+  "white genocide", "great replacement", "hitler was right",
+  "sieg heil", "heil hitler", "14 words", "88", "heil",
+  "kukluxklan", "kkk", "white power", "whitepower", "aryan pride",
+  "south will rise again", "confederate forever",
+  "rape all women", "kill all men", "fuck feminism", "feminazi",
+  "feminazis", "meninist", "mgow", "incel", "incels", "redpill",
+  "blackpill", "bluepilled", "mgtow", "men going their own way",
+ 
 ];
 
 const containsBannedWord = (str: string) => {
@@ -106,7 +395,7 @@ const T = {
   inkFaint:  "rgba(244,239,228,0.38)",
   hairline:  "rgba(244,239,228,0.10)",
   hairline2: "rgba(244,239,228,0.18)",
-  accent:    "#7CC5A1",            // pitch mint
+  accent:    "#79edb3ff",            // pitch mint
   accentDeep:"#0E4D3C",            // deep emerald
   gold:      "#D4A85A",             // muted gold (HBOOKS only)
   goldDeep:  "#8A6A2E",
@@ -364,14 +653,14 @@ const CommunityPage = () => {
 
         {/* ── Top bar ─────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-20">
-          <Link to="/" className="inline-flex items-center gap-2 text-xs font-mono tracking-[0.2em] uppercase group transition-colors"
+          <Link to="/games" className="inline-flex items-center gap-2 text-xs font-mono tracking-[0.2em] uppercase group transition-colors"
                 style={{ color: T.inkDim }}>
             <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
             Back
           </Link>
           <div className="flex items-center gap-3 font-mono text-[10px] tracking-[0.25em] uppercase" style={{ color: T.inkFaint }}>
             <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: T.accent }} />
-            Live · 10 Odds Board
+            Live · 10 Odds Community Board
           </div>
         </div>
 
@@ -379,7 +668,7 @@ const CommunityPage = () => {
         <header className="grid grid-cols-12 gap-6 mb-20 sm:mb-28">
           <div className="col-span-12 lg:col-span-9">
             <div className="font-mono text-[11px] tracking-[0.35em] uppercase mb-8" style={{ color: T.accent }}>
-              — Vol. 01 / The Supporters
+              — The Legends all in one place.
             </div>
             <h1 className="font-display leading-[0.92] tracking-tight"
                 style={{ fontSize: "clamp(3rem, 9vw, 8rem)", fontWeight: 400, color: T.ink }}>
@@ -471,32 +760,34 @@ const CommunityPage = () => {
         </section>
       </div>
 
-      {/* ── Floating action ─────────────────────────────────────────────── */}
-      {alreadySubmitted ? (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-3 rounded-sm backdrop-blur-md"
-          style={{ background: `${T.bgRaised}E6`, border: `1px solid ${T.hairline2}`, color: T.ink }}
-        >
-          <ShieldCheck className="h-4 w-4" style={{ color: T.accent }} />
-          <span className="text-xs font-mono tracking-wider uppercase">Submission received</span>
-        </motion.div>
-      ) : (
-        <motion.button
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
-          onClick={openModal}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-3 pl-5 pr-6 py-4 rounded-sm group"
-          style={{
-            background: T.ink, color: T.bg,
-            boxShadow: `0 20px 40px -10px ${T.ink}30, 0 0 0 1px ${T.ink}`,
-          }}
-        >
-          <Plus className="h-4 w-4 transition-transform group-hover:rotate-90 duration-300" strokeWidth={2.5} />
-          <span className="font-mono text-[11px] tracking-[0.25em] uppercase font-semibold">Join the board</span>
-        </motion.button>
-      )}
+{/* ── Floating action ─────────────────────────────────────────────── */}
+{alreadySubmitted ? (
+  <motion.div
+    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+    // ⬇️ raised from bottom-6 to bottom-24
+    className="fixed bottom-24 right-6 z-40 flex items-center gap-2.5 px-4 py-3 rounded-sm backdrop-blur-md"
+    style={{ background: `${T.bgRaised}E6`, border: `1px solid ${T.hairline2}`, color: T.ink }}
+  >
+    <ShieldCheck className="h-4 w-4" style={{ color: T.accent }} />
+    <span className="text-xs font-mono tracking-wider uppercase">Submission received</span>
+  </motion.div>
+) : (
+  <motion.button
+    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.3 }}
+    whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
+    onClick={openModal}
+    // ⬇️ raised from bottom-6 to bottom-24
+    className="fixed bottom-24 right-6 z-40 flex items-center gap-3 pl-5 pr-6 py-4 rounded-sm group"
+    style={{
+      background: T.ink, color: T.bg,
+      boxShadow: `0 20px 40px -10px ${T.ink}30, 0 0 0 1px ${T.ink}`,
+    }}
+  >
+    <Plus className="h-4 w-4 transition-transform group-hover:rotate-90 duration-300" strokeWidth={2.5} />
+    <span className="font-mono text-[11px] tracking-[0.25em] uppercase font-semibold">Join the board</span>
+  </motion.button>
+)}
 
       {/* ══ JOIN MODAL ══════════════════════════════════════════════════ */}
       <AnimatePresence>
