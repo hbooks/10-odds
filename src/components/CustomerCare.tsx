@@ -808,8 +808,8 @@ const CustomerCare = () => {
     setIsTyping(false);
 
     const totalDelay = 7000 + Math.random() * 2000;
-    const minTyping = 2000;
-    const seenDelay = 1000 + Math.random() * 2000;
+    const minTyping = 4000;
+    const seenDelay = 2000 + Math.random() * 5000;
     await delayMs(seenDelay);
     setVisibleMessages(p => p.map(m => m.id === userMsgId ? { ...m, status: "seen" as const } : m));
 
