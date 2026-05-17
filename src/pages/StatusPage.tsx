@@ -438,6 +438,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
           Authorization: `Bearer ${import.meta.env.VITE_HIPPO_PUBLIC_TOKEN}`,
         },
         body: JSON.stringify({ prediction_id: prediction.id }),
+        signal: AbortSignal.timeout(30_000), // add a timeout to prevent hanging requests
       });
 
       if (!res.ok) {
