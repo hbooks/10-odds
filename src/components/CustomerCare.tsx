@@ -1079,7 +1079,7 @@ const CustomerCare = () => {
             animate={{ scale: 1, opacity: 1 }}
             onClick={() => setOpen(true)}
             style={{
-              position: "fixed", bottom: 20, right: 20,
+              position: "fixed", bottom: 24, right: 20,
               width: 56, height: 56, borderRadius: "50%",
               background: `linear-gradient(135deg, ${currentPersonaColor}dd, ${currentPersonaColor}99)`,
               border: `1.5px solid ${currentPersonaColor}55`,
@@ -1097,7 +1097,7 @@ const CustomerCare = () => {
                   position: "absolute", top: 8, right: 8,
                   width: 9, height: 9, borderRadius: "50%",
                   background: "#4ade80",
-                  border: "1.5px solid #0c0c12",
+                  border: "1.5px solid #272f1eff",
                   animation: "ccPing 1.5s ease-in-out infinite",
                 }}
               />
