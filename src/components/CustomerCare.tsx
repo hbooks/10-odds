@@ -1073,37 +1073,44 @@ const CustomerCare = () => {
       ════════════════════════════════ */}
       <div className="cc-mobile-only">
         {/* FAB */}
-        {!open && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            onClick={() => setOpen(true)}
-            style={{
-              position: "fixed", bottom: 24, right: 20,
-              width: 56, height: 56, borderRadius: "50%",
-              background: `linear-gradient(135deg, ${currentPersonaColor}dd, ${currentPersonaColor}99)`,
-              border: `1.5px solid ${currentPersonaColor}55`,
-              boxShadow: `0 6px 24px ${currentPersonaColor}55`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              zIndex: 9997, cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
-              touchAction: "manipulation",
-            }}
-          >
-            <span style={{ fontSize: 22 }}>💬</span>
-            {stage === "chat" && (
-              <span
-                style={{
-                  position: "absolute", top: 8, right: 8,
-                  width: 9, height: 9, borderRadius: "50%",
-                  background: "#4ade80",
-                  border: "1.5px solid #272f1eff",
-                  animation: "ccPing 1.5s ease-in-out infinite",
-                }}
-              />
-            )}
-          </motion.button>
-        )}
+{!open && (
+  <motion.button
+    initial={{ scale: 0, opacity: 0 }}
+    animate={{ scale: 1, opacity: 1 }}
+    onClick={() => setOpen(true)}
+    style={{
+      position: "fixed",
+      bottom: 120,   // ⬆️ was 24 – now sits above the Support Project & Community buttons
+      right: 16,     // slightly left of the other buttons for extra breathing room
+      width: 56,
+      height: 56,
+      borderRadius: "50%",
+      background: `linear-gradient(135deg, ${currentPersonaColor}dd, ${currentPersonaColor}99)`,
+      border: `1.5px solid ${currentPersonaColor}55`,
+      boxShadow: `0 6px 24px ${currentPersonaColor}55`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9997,
+      cursor: "pointer",
+      WebkitTapHighlightColor: "transparent",
+      touchAction: "manipulation",
+    }}
+  >
+    <span style={{ fontSize: 22 }}>💬</span>
+    {stage === "chat" && (
+      <span
+        style={{
+          position: "absolute", top: 8, right: 8,
+          width: 9, height: 9, borderRadius: "50%",
+          background: "#4ade80",
+          border: "1.5px solid #272f1eff",
+          animation: "ccPing 1.5s ease-in-out infinite",
+        }}
+      />
+    )}
+  </motion.button>
+)}
 
         {/* Bottom sheet */}
         <AnimatePresence>
