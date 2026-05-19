@@ -13,8 +13,10 @@ const navLinks = [
   { to: "/news",      label: "News & Updates", hasBadge: true },
   { to: "/guide",     label: "Guide" },
   { to: "/games",     label: "Fixtures" },
+  // basketball is currently disabled, but we want to keep the nav item for it
   { to: "/scoreboard",label: "Live Matches" },
   { to: "/status",    label: "Predictions" },
+  { to: "/live-markets", label: "Live Markets" },
   { to: "/previous",  label: "Previous Bets" },
   { to: "/analytics", label: "Analytics" },
 ];
