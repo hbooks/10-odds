@@ -5,6 +5,7 @@ import LiveMarketModal, {
   type AvailableMatch,
 } from "@/components/LiveMarketModal";
 import CandlestickChart from "@/components/CandlestickChart";
+import { useNavigate } from "react-router-dom";
 
 // ── Supabase client ──────────────────────────────────────────────
 const supabase = createClient(
@@ -66,7 +67,8 @@ export default function LiveMarkets() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selected, setSelected] = useState<SelectedMarket | null>(null);
-
+  const navigate = useNavigate();
+  
   const fetchMatches = async () => {
     setLoading(true);
     setError(null);
@@ -128,28 +130,52 @@ export default function LiveMarkets() {
       style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-        {/* Header */}
-        <motion.header
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <h1
-            className="text-3xl sm:text-4xl font-bold tracking-tight"
-            style={{
-              background:
-                "linear-gradient(90deg, #D4AF37 0%, #f5d878 50%, #D4AF37 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            Live Market Monitor
-          </h1>
-          <p className="mt-2 text-white/60 text-sm sm:text-base">
-            Watch betting markets move in real‑time – like a stock chart for
-            football.
-          </p>
-        </motion.header>
+
+
+// ── Header with back button ──────────────────────────────────────
+<motion.header
+  initial={{ opacity: 0, y: -8 }}
+  animate={{ opacity: 1, y: 0 }}
+  className="relative text-center mb-8"
+>
+  {/* Back button – top left on mobile, left of the title on desktop */}
+  <button
+    onClick={() => navigate(-1)}
+    className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition-colors"
+    aria-label="Go back"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+    >
+      <path d="M19 12H5M12 19l-7-7 7-7" />
+    </svg>
+    <span className="hidden sm:inline">Back</span>
+  </button>
+
+  <h1
+    className="text-3xl sm:text-4xl font-bold tracking-tight"
+    style={{
+      background:
+        "linear-gradient(90deg, #D4AF37 0%, #f5d878 50%, #D4AF37 100%)",
+      WebkitBackgroundClip: "text",
+      WebkitTextFillColor: "transparent",
+    }}
+  >
+    10 Odds Live Market Monitor
+  </h1>
+  <p className="mt-2 text-white/60 text-sm sm:text-base">
+    Watch betting markets move in real‑time – like a stock chart for football.
+  </p>
+</motion.header>
 
         {/* Instructions */}
         <div className="mb-6">
