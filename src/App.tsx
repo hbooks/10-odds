@@ -10,6 +10,7 @@ import SupportPortal from "@/components/SupportPortal";
 import AdminCommunity from "@/pages/AdminCommunity";
 import { PageTracker } from "@/hooks/usePageTracking";
 import CustomerCare from "@/components/CustomerCare";
+import ChartPage from "./pages/ChartPage";
 
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
@@ -30,6 +31,8 @@ const GuidePage        = lazy(() => import("@/pages/GuidePage"));
 const NotFound         = lazy(() => import("@/pages/NotFound"));
 const AdminAnalyticsPage = lazy(() => import("@/pages/AdminAnalytics"));
 const LiveMarketsPage   = lazy(() => import("@/pages/LiveMarkets"));
+const MarketsPage       = lazy(() => import("@/pages/Markets"));
+const ClosedMarketsPage = lazy(() => import("@/pages/ClosedMarkets"));
 
 interface LoadingCtx {
   isLoading: boolean;
@@ -106,6 +109,9 @@ function App() {
                 <Route path="/community"       element={<CommunityPage />} />
                 <Route path="/news"            element={<NewsPage />} />
                 <Route path="/live-markets"   element={<LiveMarketsPage />} />
+                <Route path="/markets"        element={<MarketsPage />} />
+                <Route path="/closed-markets" element={<ClosedMarketsPage />} />
+                <Route path="/chart"          element={<ChartPage />} />
                 <Route path="/admin/news"      element={<AdminCommunity />} />
                 <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
                 <Route path="*"               element={<NotFound />} />

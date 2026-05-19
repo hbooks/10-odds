@@ -2,10 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 
-// ── Supabase client (matches rest of your project) ──────────────
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
-  import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+  import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
 
 export type AvailableMatch = {
@@ -14,7 +13,7 @@ export type AvailableMatch = {
   competition_name?: string | null;
 };
 
-type SelectedMarket = {
+export type SelectedMarket = {
   bsd_match_id: number;
   market_type: string;
   market_selection: string;
@@ -29,7 +28,7 @@ type Props = {
 };
 
 const selectClasses =
-  "w-full rounded-xl bg-[#0a0a0e] border border-white/15 text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/60 focus:border-[#D4AF37] transition disabled:opacity-40";
+  "w-full rounded-xl bg-[#0a0a0e] border border-white/15 text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/60 focus:border-[#D4AF37] transition disabled:opacity-40 appearance-none";
 
 export default function LiveMarketModal({
   isOpen,
@@ -47,14 +46,14 @@ export default function LiveMarketModal({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // De-dupe matches by id
+  // De-dupe matches
   const matches = useMemo(() => {
     const seen = new Map<number, AvailableMatch>();
     availableMatches.forEach((m) => seen.set(m.bsd_match_id, m));
     return [...seen.values()];
   }, [availableMatches]);
 
-  // Reset state on open/close
+  // Reset on close
   useEffect(() => {
     if (!isOpen) {
       setMatchId("");
@@ -104,7 +103,7 @@ export default function LiveMarketModal({
 
   const marketTypes = useMemo(
     () => Array.from(new Set(rows.map((r) => r.market_type))).sort(),
-    [rows],
+    [rows]
   );
   const selections = useMemo(
     () =>
@@ -112,20 +111,31 @@ export default function LiveMarketModal({
         new Set(
           rows
             .filter((r) => r.market_type === marketType)
-            .map((r) => r.market_selection),
-        ),
+            .map((r) => r.market_selection)
+        )
       ).sort(),
-    [rows, marketType],
+    [rows, marketType]
   );
 
   const canConfirm =
     matchId !== "" && marketType !== "" && selection !== "" && !loading;
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!canConfirm) return;
     const match = matches.find((m) => m.bsd_match_id === matchId);
     if (!match) return;
     setSuccess(true);
+    try {
+      // Call RPC to create/get the market
+      const { error } = await supabase.rpc("save_user_request", {
+        p_bsd_match_id: match.bsd_match_id,
+        p_market_type: marketType,
+        p_market_selection: selection,
+      });
+      if (error) console.warn("RPC error (non‑blocking):", error.message);
+    } catch (e) {
+      console.warn("RPC call failed (non‑blocking):", e);
+    }
     setTimeout(() => {
       onSelect({
         bsd_match_id: match.bsd_match_id,
@@ -156,7 +166,7 @@ export default function LiveMarketModal({
             transition={{ type: "spring", damping: 22, stiffness: 280 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button + title */}
+            {/* Close button & title */}
             <div className="flex items-start justify-between mb-5">
               <div>
                 <h2 className="text-lg font-semibold text-white">
@@ -192,7 +202,9 @@ export default function LiveMarketModal({
                   >
                     ✓
                   </motion.div>
-                  <p className="mt-3 text-white font-medium">Locked in</p>
+                  <p className="mt-3 text-white font-medium">
+                    Locked in – opening your chart…
+                  </p>
                 </motion.div>
               ) : (
                 <motion.div key="form" className="space-y-4">
@@ -287,7 +299,7 @@ export default function LiveMarketModal({
                         : undefined,
                     }}
                   >
-                    Confirm
+                    Complete
                   </button>
                 </motion.div>
               )}
