@@ -68,7 +68,7 @@ export default function LiveMarkets() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selected, setSelected] = useState<SelectedMarket | null>(null);
   const navigate = useNavigate();
-  
+
   const fetchMatches = async () => {
     setLoading(true);
     setError(null);
@@ -132,7 +132,6 @@ export default function LiveMarkets() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
 
 
-// ── Header with back button ──────────────────────────────────────
 <motion.header
   initial={{ opacity: 0, y: -8 }}
   animate={{ opacity: 1, y: 0 }}
@@ -158,7 +157,7 @@ export default function LiveMarkets() {
     >
       <path d="M19 12H5M12 19l-7-7 7-7" />
     </svg>
-    <span className="hidden sm:inline">Back</span>
+    <span className="hidden sm:inline">Back to Matches</span>
   </button>
 
   <h1
