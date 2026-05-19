@@ -110,7 +110,7 @@ function App() {
                 <Route path="/news"            element={<NewsPage />} />
                 <Route path="/live-markets"   element={<LiveMarketsPage />} />
                 <Route path="/markets"        element={<MarketsPage />} />
-                <Route path="/closed-markets" element={<ClosedMarketsPage />} />
+                <Route path="/closed" element={<ClosedMarketsPage />} />
                 <Route path="/chart"          element={<ChartPage />} />
                 <Route path="/admin/news"      element={<AdminCommunity />} />
                 <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
