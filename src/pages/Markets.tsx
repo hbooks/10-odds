@@ -332,11 +332,11 @@ export default function Markets() {
             <span className="hidden sm:inline">Closed</span>
           </Link>
           <Link
-            to="/guide&terms"
+            to="/guide#ch-07"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 transition"
           >
             <BookOpen className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Guide & Terms</span>
+            <span className="hidden sm:inline">Guide</span>
           </Link>
         </div>
       </header>

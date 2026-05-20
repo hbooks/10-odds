@@ -56,6 +56,8 @@ const CHAPTERS = [
   { num: "03", title: "Using Insights", id: "ch-03" },
   { num: "04", title: "Two Minds", id: "ch-04" },
   { num: "05", title: "The Cast", id: "ch-05" },
+  { num: "06", title: "The Analyser", id: "ch-06" },
+  { num: "07", title: "Live Market Monitor", id: "ch-07" },
 ];
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
@@ -135,7 +137,7 @@ function ModalBody({ pa, onClose }: { pa: PatternAnimal; onClose: () => void }) 
         <div className="mt-6 pt-5 border-t border-white/5 flex items-center justify-between">
           <span className="text-[10px] tracking-[0.22em] text-zinc-600" style={{ fontFamily: "ui-monospace, monospace" }}>UPDATED DAILY</span>
           <button onClick={onClose} className="text-[11px] font-bold tracking-wide flex items-center gap-1.5 hover:opacity-70 transition" style={{ color: tier.color, fontFamily: "ui-monospace, monospace" }}>
-            VIEW ANALYSER <ArrowRight size={12} />
+            CLOSE <ArrowRight size={12} />
           </button>
         </div>
       </div>
@@ -396,11 +398,7 @@ const GuidePage = () => {
           <motion.div style={{ y: heroY, opacity: heroOpacity }}>
             <motion.div initial="hidden" animate="visible" variants={stagger}>
               <motion.div variants={fadeUp} className="flex items-center gap-3 mb-8">
-                <span className="inline-flex items-center gap-2 text-[10px] tracking-[0.25em] text-amber-400 bg-amber-400/10 border border-amber-400/25 px-3 py-1.5 rounded-full" style={{ fontFamily: "JetBrains Mono, monospace" }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  ISSUE 01 · BEGINNER'S FIELD GUIDE
-                </span>
-                <span className="hidden sm:inline text-[10px] tracking-[0.22em] text-zinc-600" style={{ fontFamily: "JetBrains Mono, monospace" }}>EST. 2024 · 18 PATTERNS · 5 CHAPTERS</span>
+              <span className="hidden sm:inline text-[10px] tracking-[0.22em] text-zinc-600" style={{ fontFamily: "JetBrains Mono, monospace" }}>EST. 2024 · 18 PATTERNS · 7 CHAPTERS</span>
               </motion.div>
 
               <motion.h1 variants={fadeUp}
@@ -415,7 +413,7 @@ const GuidePage = () => {
               <motion.div variants={fadeUp} className="grid grid-cols-12 gap-6 mb-14">
                 <div className="col-span-12 md:col-span-7">
                   <p className="text-lg md:text-xl text-zinc-400 leading-relaxed max-w-2xl">
-                    Plain-English patterns, predictions, and what <strong className="text-zinc-200 font-semibold">_806</strong> is actually telling you. No jargon. No maths. Just the wild things hiding inside the data.
+                    Plain-English patterns, predictions, and what <strong className="text-zinc-200 font-semibold">_806, Hippo AI and the Live Market</strong> is actually telling you. No jargon. No maths. Just the wild things hiding inside the data.
                   </p>
                 </div>
                 <div className="col-span-12 md:col-span-5 flex md:justify-end items-end">
@@ -426,6 +424,13 @@ const GuidePage = () => {
                     <a href="#ch-05" className="inline-flex items-center gap-2 border border-white/15 text-zinc-200 text-xs font-bold tracking-wider px-5 py-3 rounded-full hover:bg-white/5 transition" style={{ fontFamily: "JetBrains Mono, monospace" }}>
                       MEET THE CAST
                     </a>
+                                        <a href="#ch-07" className="inline-flex items-center gap-2 border border-white/15 text-zinc-200 text-xs font-bold tracking-wider px-5 py-3 rounded-full hover:bg-white/5 transition" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                      UNDERSTAND THE LIVE MARKET
+                    </a>
+                                                            <a href="#ch-06" className="inline-flex items-center gap-2 border border-white/15 text-zinc-200 text-xs font-bold tracking-wider px-5 py-3 rounded-full hover:bg-white/5 transition" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                      HIPPO AI EXPLAINED
+                    </a>
+
                   </div>
                 </div>
               </motion.div>
