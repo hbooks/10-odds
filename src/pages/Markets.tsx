@@ -17,6 +17,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
 
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MarketRow = {
   bsd_match_id: number;
@@ -219,6 +220,7 @@ export default function Markets() {
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  
 
   const fetchMarkets = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -306,7 +308,7 @@ export default function Markets() {
       >
         <div className="flex items-center gap-3">
           <Link
-            to="/"
+            to="/games"
             className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition"
             aria-label="Back"
           >
