@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useEffect } from "react";
 
 const NotFound = () => {
-  // ── Background style (abstract football pitch) ─────────────────
+  // ─── Background style (abstract football pitch) ─────────────────
   const backgroundStyle = {
     background: `
       radial-gradient(circle at 50% 120%, rgba(212,175,55,0.12) 0%, transparent 45%),
@@ -10,6 +11,27 @@ const NotFound = () => {
     `,
     backgroundSize: "cover",
   };
+
+  // Hide the floating Customer Care & Support buttons on this page
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "no-float-buttons-on-404";
+    style.textContent = `
+      Hide Customer Care floating button */
+      button[class*="z-[9998]"],
+      /* Hide Support Portal floating button */
+      a[class*="bottom-6"][class*="right-6"],
+      a[class*="bottom-"] {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      const el = document.getElementById("no-float-buttons-on-404");
+      if (el) el.remove();
+    };
+  }, []);
 
   return (
     <div
@@ -72,7 +94,7 @@ const NotFound = () => {
           transition={{ delay: 0.55, duration: 0.5 }}
           className="mt-1.5 max-w-md text-sm text-white/45"
         >
-          Hmmm... this page doesn't exist – but the predictions do. Let’s get you back to
+          This page doesn't exist – but the predictions do. Let’s get you back to
           the action.
         </motion.p>
 
@@ -100,7 +122,7 @@ const NotFound = () => {
             >
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
-            Return Home
+            Return to 10 Odds
           </Link>
         </motion.div>
       </motion.div>
