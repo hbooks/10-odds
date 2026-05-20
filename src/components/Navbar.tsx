@@ -16,7 +16,7 @@ const navLinks = [
   // basketball is currently disabled, but we want to keep the nav item for it
   { to: "/scoreboard",label: "Live Matches" },
   { to: "/status",    label: "Predictions" },
-  { to: "/markets", label: "Watch Markets" },
+  { to: "/markets", label: "Markets" },
   { to: "/previous",  label: "Previous Bets" },
   { to: "/analytics", label: "Analytics" },
 ];
