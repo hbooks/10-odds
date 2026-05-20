@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 import { Link, useNavigate } from "react-router-dom";
-import LiveMarketModal from "@/components/LiveMarketModal";
+import LiveMarketModal, { type AvailableMatch } from "@/components/LiveMarketModal";
 import {
   RefreshCw,
   TrendingUp,
@@ -16,7 +16,6 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
   import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
-
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MarketRow = {
@@ -32,6 +31,17 @@ type MarketRow = {
   away_score: number;
   current_minute: number;
   last_updated: string;
+};
+
+type LiveStatsRow = {
+  bsd_match_id: number;
+  match_name: string;
+  competition_name: string | null;
+  kickoff_utc: string;
+  home_score: number;
+  away_score: number;
+  current_minute: number;
+  period: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,13 +102,8 @@ function MatchCard({
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
       }}
     >
-      {/* Match header */}
-      <div
-        className="px-5 py-4"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-      >
+      <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="flex items-start justify-between gap-3">
-          {/* Teams + score */}
           <div>
             {away ? (
               <div className="flex items-center gap-2 flex-wrap">
@@ -134,7 +139,6 @@ function MatchCard({
             </div>
           </div>
 
-          {/* Live indicator */}
           {match.current_minute > 0 && (
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shrink-0"
@@ -154,51 +158,45 @@ function MatchCard({
         </div>
       </div>
 
-      {/* Market pills */}
-      <div className="px-5 py-3">
-        <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-2.5">
-          Tracked markets
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {match.markets.map((m) => (
-            <button
-              key={`${m.market_type}-${m.market_selection}`}
-              onClick={() => onPickMarket(m)}
-              className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-              style={{
-                background: confidenceBg(m.confidence),
-                border: `1px solid ${confidenceColor(m.confidence)}22`,
-                color: "rgba(255,255,255,0.75)",
-              }}
-            >
-              <span className="text-white/50">{m.market_type}</span>
-              <span
-                className="font-bold"
-                style={{ color: confidenceColor(m.confidence) }}
+      {match.markets.length > 0 && (
+        <div className="px-5 py-3">
+          <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-2.5">
+            Tracked markets
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {match.markets.map((m) => (
+              <button
+                key={`${m.market_type}-${m.market_selection}`}
+                onClick={() => onPickMarket(m)}
+                className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                style={{
+                  background: confidenceBg(m.confidence),
+                  border: `1px solid ${confidenceColor(m.confidence)}22`,
+                  color: "rgba(255,255,255,0.75)",
+                }}
               >
-                {m.market_selection}
-              </span>
-              <span
-                className="text-[10px] font-mono ml-0.5"
-                style={{ color: confidenceColor(m.confidence) }}
-              >
-                {m.confidence.toFixed(0)}%
-              </span>
-            </button>
-          ))}
+                <span className="text-white/50">{m.market_type}</span>
+                <span className="font-bold" style={{ color: confidenceColor(m.confidence) }}>
+                  {m.market_selection}
+                </span>
+                <span
+                  className="text-[10px] font-mono ml-0.5"
+                  style={{ color: confidenceColor(m.confidence) }}
+                >
+                  {m.confidence.toFixed(0)}%
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </motion.div>
   );
 }
 
-// ─── Skeleton cards ───────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-    >
+    <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
       <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="h-5 w-48 rounded-lg bg-white/5 animate-pulse mb-2" />
         <div className="h-3.5 w-32 rounded-lg bg-white/5 animate-pulse" />
@@ -215,29 +213,41 @@ function SkeletonCard() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Markets() {
   const navigate = useNavigate();
-  const [rows, setRows] = useState<MarketRow[]>([]);
+  const [marketRows, setMarketRows] = useState<MarketRow[]>([]);
+  const [liveMatches, setLiveMatches] = useState<LiveStatsRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
 
-  const fetchMarkets = async (silent = false) => {
+  const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase
+      // Fetch tracked markets
+      const { data: markets, error: marketErr } = await supabase
         .from("live_market_data")
         .select(
           "bsd_match_id, market_type, market_selection, match_name, competition_name, kickoff_utc, status, confidence, home_score, away_score, current_minute, last_updated"
         )
         .eq("status", "active")
         .order("kickoff_utc", { ascending: true });
-      if (err) throw err;
-      setRows((data as MarketRow[]) ?? []);
+
+      // Fetch all live matches from live_stats (exclude finished matches)
+      const { data: stats, error: statsErr } = await supabase
+        .from("live_stats")
+        .select("bsd_match_id, match_name, competition_name, kickoff_utc, home_score, away_score, current_minute, period")
+        .neq("period", "FT")
+        .order("kickoff_utc", { ascending: true });
+
+      if (marketErr) throw marketErr;
+      if (statsErr) throw statsErr;
+
+      setMarketRows((markets as MarketRow[]) ?? []);
+      setLiveMatches((stats as LiveStatsRow[]) ?? []);
     } catch (e: any) {
-      setError(e?.message ?? "Failed to load markets");
+      setError(e?.message ?? "Failed to load data");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -245,24 +255,24 @@ export default function Markets() {
   };
 
   useEffect(() => {
-    fetchMarkets();
-    // Subscribe to any changes in live_market_data to keep the list fresh
+    fetchData();
     const channel = supabase
       .channel("markets-list")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "live_market_data" },
-        () => {
-          fetchMarkets(true);
-        }
+        () => fetchData(true)
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel).catch(() => {}); };
+    return () => {
+      supabase.removeChannel(channel).catch(() => {});
+    };
   }, []);
 
-  const grouped = useMemo(() => {
+  // Group tracked markets by match
+  const trackedMatches = useMemo(() => {
     const map = new Map<number, MarketRow[]>();
-    rows.forEach((r) => {
+    marketRows.forEach((r) => {
       const list = map.get(r.bsd_match_id) ?? [];
       list.push(r);
       map.set(r.bsd_match_id, list);
@@ -280,7 +290,44 @@ export default function Markets() {
         markets,
       };
     });
-  }, [rows]);
+  }, [marketRows]);
+
+  // List of all live matches (from live_stats) that may or may not have tracked markets.
+  // Merge with trackedMatches to avoid duplicates, but we want to show all live matches.
+  const allLiveMatches = useMemo(() => {
+    const map = new Map<number, LiveStatsRow>();
+    // First add tracked matches so they show with their markets
+    trackedMatches.forEach((m) => {
+      map.set(m.bsd_match_id, {
+        bsd_match_id: m.bsd_match_id,
+        match_name: m.match_name,
+        competition_name: m.competition_name,
+        kickoff_utc: m.kickoff_utc,
+        home_score: m.home_score,
+        away_score: m.away_score,
+        current_minute: m.current_minute,
+        period: "1H", // not perfect but okay
+      });
+    });
+    // Then add untracked live matches
+    liveMatches.forEach((m) => {
+      if (!map.has(m.bsd_match_id)) {
+        map.set(m.bsd_match_id, m);
+      }
+    });
+    return Array.from(map.values());
+  }, [trackedMatches, liveMatches]);
+
+  // For the modal, we pass the full list of live matches (so user can select any).
+  const modalMatches: AvailableMatch[] = useMemo(
+    () =>
+      allLiveMatches.map((m) => ({
+        bsd_match_id: m.bsd_match_id,
+        match_name: m.match_name,
+        competition_name: m.competition_name,
+      })),
+    [allLiveMatches]
+  );
 
   const handleSelectMarket = (market: {
     bsd_match_id: number;
@@ -342,7 +389,6 @@ export default function Markets() {
       </header>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-7">
-        {/* ── Page title ── */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1
@@ -356,7 +402,7 @@ export default function Markets() {
             </p>
           </div>
           <button
-            onClick={() => fetchMarkets(true)}
+            onClick={() => fetchData(true)}
             disabled={refreshing}
             className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 hover:bg-white/10 transition"
             aria-label="Refresh"
@@ -367,7 +413,6 @@ export default function Markets() {
           </button>
         </div>
 
-        {/* ── Content ── */}
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -384,13 +429,13 @@ export default function Markets() {
           >
             <p className="text-rose-300 text-sm mb-3">{error}</p>
             <button
-              onClick={() => fetchMarkets()}
+              onClick={() => fetchData()}
               className="px-4 py-2 rounded-xl bg-[#3b82f6] text-white text-sm font-medium hover:bg-blue-500 transition"
             >
               Retry
             </button>
           </div>
-        ) : grouped.length === 0 ? (
+        ) : trackedMatches.length === 0 && liveMatches.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center"
@@ -399,39 +444,63 @@ export default function Markets() {
               <Wifi className="h-7 w-7 text-white/20" />
             </div>
             <div>
-              <p className="text-white/50 font-medium">No tracked markets yet</p>
+              <p className="text-white/50 font-medium">No live matches right now</p>
               <p className="text-white/25 text-sm mt-1">
-                Use the button below to start tracking a live match.
+                Check back when the games kick off.
               </p>
             </div>
-            <button
-              onClick={() => setModalOpen(true)}
-              className="px-5 py-2.5 rounded-xl font-semibold text-sm text-black transition"
-              style={{
-                background: "linear-gradient(135deg, #D4AF37, #b8972a)",
-                boxShadow: "0 0 24px rgba(212,175,55,0.3)",
-              }}
-            >
-              Choose a Market
-            </button>
           </div>
         ) : (
           <AnimatePresence initial={false}>
             <div className="space-y-3">
-              {grouped.map((match) => (
+              {trackedMatches.map((match) => (
                 <MatchCard
                   key={match.bsd_match_id}
                   match={match}
                   onPickMarket={handleSelectMarket}
                 />
               ))}
+              {/* Show untracked live matches as simple cards with a "Track" button */}
+              {liveMatches
+                .filter((m) => !trackedMatches.some((t) => t.bsd_match_id === m.bsd_match_id))
+                .map((m) => (
+                  <motion.div
+                    key={m.bsd_match_id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-2xl overflow-hidden"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    <div className="px-5 py-4 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-white text-sm">{m.match_name}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          {m.competition_name && (
+                            <span className="text-[11px] text-white/35">{m.competition_name}</span>
+                          )}
+                          <span className="text-[11px] text-white/35">
+                            {m.home_score} – {m.away_score} · {m.current_minute}′
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setModalOpen(true)}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#3b82f6] text-white hover:bg-blue-500 transition"
+                      >
+                        Track
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
             </div>
           </AnimatePresence>
         )}
       </div>
 
-      {/* ── Floating CTA ── */}
-      {!loading && grouped.length > 0 && (
+      {!loading && (
         <button
           onClick={() => setModalOpen(true)}
           className="fixed bottom-24 right-5 z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm text-black transition-all"
@@ -449,11 +518,7 @@ export default function Markets() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSelect={handleSelectMarket}
-        availableMatches={grouped.map((g) => ({
-          bsd_match_id: g.bsd_match_id,
-          match_name: g.match_name,
-          competition_name: g.competition_name,
-        }))}
+        availableMatches={modalMatches}
       />
     </div>
   );
