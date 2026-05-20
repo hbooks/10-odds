@@ -643,7 +643,7 @@ const GuidePage = () => {
 </Chapter>
 
 
-<Chapter id="ch-07" num="07" icon={Activity} color="#3b82f6" kicker="Chapter Seven" title="Live Market Monitor — Watch Markets Move">
+<Chapter id="ch-07" num="07" icon={Activity} color="#b5f63bff" kicker="Chapter Seven" title="Live Market Monitor — Watch Markets Move">
   <Prose>
     The <strong className="text-white/90 font-semibold">Live Market Monitor</strong> is a real‑time betting dashboard that lets you watch how a specific betting market’s winning chances are and how they change during an ongoing match – just like a stock chart. You pick a live fixture, choose a market (e.g. Over 2.5 Goals, Home Win, BTTS), and see the confidence rise and fall minute‑by‑minute.
   </Prose>
