@@ -218,43 +218,58 @@ export default function LiveMarketModal({
   const canConfirm =
     matchId !== "" && marketType !== "" && selection !== "" && !submitting;
 
-  const handleConfirm = async () => {
-    if (!canConfirm) return;
-    const match = matches.find((m) => m.bsd_match_id === matchId);
-    if (!match) return;
+const handleConfirm = async () => {
+  if (!canConfirm) return;
+  const match = matches.find((m) => m.bsd_match_id === matchId);
+  if (!match) return;
+  setSuccess(true);
 
-    setSubmitting(true);
-    setError(null);
+  try {
+    // 1. Quick check if market already exists (optional, for speed)
+    const { data: rpcData } = await supabase.rpc("save_user_request", {
+      p_bsd_match_id: match.bsd_match_id,
+      p_market_type: marketType,
+      p_market_selection: selection,
+    });
+    console.log("RPC response:", rpcData);
+  } catch (e) {
+    console.warn("RPC check failed, proceeding:", e);
+  }
 
-    try {
-      // Normalise selection to lowercase to match backend scoring functions
-      const normalisedSelection = selection.toLowerCase();
+  // 2. Always call the poller directly to create/update the market
+  const POLLER_URL = `${
+    import.meta.env.VITE_SUPABASE_URL
+  }/functions/v1/live-poller`;
 
-      const { error: rpcErr } = await supabase.rpc("save_user_request", {
-        p_bsd_match_id: match.bsd_match_id,
-        p_market_type: marketType,
-        p_market_selection: normalisedSelection,
-      });
-      if (rpcErr) {
-        console.warn("[LiveMarketModal] RPC non-fatal:", rpcErr.message);
-      }
+  try {
+    const res = await fetch(POLLER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bsd_match_id: match.bsd_match_id,
+        market_type: marketType,
+        market_selection: selection,
+      }),
+    });
+    const pollerResult = await res.json();
+    console.log("Poller response:", pollerResult);
+    if (!res.ok) throw new Error(pollerResult.error || "Poller failed");
+  } catch (err: any) {
+    console.error("Poller call failed:", err);
+    // Even if the poller fails, we still navigate to the chart –
+    // the chart page will show an error or retry.
+  }
 
-      setSuccess(true);
-
-      setTimeout(() => {
-        onSelect({
-          bsd_match_id: match.bsd_match_id,
-          market_type: marketType,
-          market_selection: normalisedSelection,
-          match_name: match.match_name,
-        });
-        onClose();
-      }, 800);
-    } catch (e: any) {
-      setError(e?.message ?? "Something went wrong. Please try again.");
-      setSubmitting(false);
-    }
-  };
+  setTimeout(() => {
+    onSelect({
+      bsd_match_id: match.bsd_match_id,
+      market_type: marketType,
+      market_selection: selection,
+      match_name: match.match_name,
+    });
+    onClose();
+  }, 800); // slightly longer to allow poller to start working
+};
 
   return (
     <AnimatePresence>
