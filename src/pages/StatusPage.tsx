@@ -1057,25 +1057,49 @@ const StatusPage = () => {
           )}
         </AnimatePresence>
 
-        {loading && (
-          <div className="flex justify-center py-20">
-            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
+{loading && (
+  <div className="flex justify-center py-20">
+    <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+  </div>
+)}
 
-        {!loading && error && (
-          <div className="flex flex-col items-center gap-4 py-16 text-center">
-            <AlertCircle className="h-10 w-10 text-muted-foreground" />
-            <p className="text-muted-foreground">{error}</p>
-            <button onClick={fetchActivePredictions} className="text-sm text-gold hover:underline">Try again</button>
-          </div>
-        )}
+{!loading && error && (
+  <div className="flex flex-col items-center gap-4 py-16 text-center">
+    <AlertCircle className="h-10 w-10 text-muted-foreground" />
+    <p className="text-muted-foreground">{error}</p>
+    <button onClick={fetchActivePredictions} className="text-sm text-gold hover:underline">Try again</button>
+  </div>
+)}
 
-        {!loading && !error && predictions.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <p>No active predictions at the moment.</p>
-          </div>
-        )}
+{!loading && !error && predictions.length === 0 && (
+  <div className="text-center py-16 text-muted-foreground">
+    <p>No active predictions at the moment.</p>
+  </div>
+)}
+
+{/* New fallback: predictions exist but none in the three‑day window */}
+{!loading && !error && predictions.length > 0 && groupedPredictions.length === 0 && (
+  <div className="text-center py-16 text-muted-foreground">
+    <Calendar className="h-8 w-8 mx-auto mb-3 opacity-50" />
+    <p>Predictions are available, but none for today, tomorrow, or the day after.</p>
+    <p className="text-sm mt-1 opacity-60">
+      Check back closer to match day, or visit the Guide to understand our prediction schedule.
+    </p>
+  </div>
+)}
+
+{!loading && !error && groupedPredictions.length > 0 && (
+  <div className="space-y-6">
+    {groupedPredictions.map((group, i) => (
+      <PredictionGroup
+        key={group.label}
+        group={group}
+        index={i}
+        onSelect={setSelectedPrediction}
+      />
+    ))}
+  </div>
+)}
 
         {!loading && !error && groupedPredictions.length > 0 && (
           <div className="space-y-6">
