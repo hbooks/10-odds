@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useState, useCallback, useRef } from "react";
 import {
   Zap, MessageSquare, TrendingUp, AlertCircle, BarChart2, ArrowRight,
-  RefreshCw, ShieldCheck, X, ChevronRight, Sparkles, Sun, Moon, Brain, Database, Target,
+  RefreshCw, ShieldCheck, X, ChevronRight, Sparkles, Sun, Moon, Brain, Database, Target, Activity
 } from "lucide-react";
 import AnimalIcon from "@/components/AnimalIcon";
 import { PATTERN_ANIMALS } from "@/lib/patternAnimals";   
@@ -641,6 +641,51 @@ const GuidePage = () => {
               TO STUDY HIPPO AI'S MARKET PICKS PERFORMANCE GO ON THE ANALYTICS PAGE · CHECK REGULARLY TO SEE IT'S PROGRESS.
             </motion.p>
 </Chapter>
+
+
+<Chapter id="ch-07" num="07" icon={Activity} color="#3b82f6" kicker="Chapter Seven" title="Live Market Monitor — Watch Markets Move">
+  <Prose>
+    The <strong className="text-white/90 font-semibold">Live Market Monitor</strong> is a real‑time betting dashboard that lets you watch how a specific betting market’s winning chances are and how they change during an ongoing match – just like a stock chart. You pick a live fixture, choose a market (e.g. Over 2.5 Goals, Home Win, BTTS), and see the confidence rise and fall minute‑by‑minute.
+  </Prose>
+
+  <motion.div variants={fadeUp} className="rounded-3xl p-6 border border-blue-400/20" style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.06), rgba(59,130,246,0.01))" }}>
+    <div className="flex items-start gap-4">
+      <div className="w-12 h-12 rounded-2xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center shrink-0">
+        <TrendingUp className="h-5 w-5 text-blue-400" />
+      </div>
+      <p className="text-[15px] leading-relaxed text-zinc-300">
+        Think of the dashed 50% line as the “win zone.” If the confidence stays above 50%, the market is leaning your way. Green candles mean confidence is rising; red candles mean it’s falling. The chart updates automatically – no refresh needed.
+      </p>
+    </div>
+  </motion.div>
+
+  <Prose>
+    Here’s how to use it, step by step:
+  </Prose>
+
+  <motion.div variants={stagger} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <StepCard num="01" title="Open the Markets page" desc='Head to "Markets" from the nav bar. You’ll see every live match with available markets listed as clickable pills.' color="#f5a623" />
+    <StepCard num="02" title="Pick a market" desc='Tap any market pill to jump straight to its chart, or use the "Choose a Market" button for full dropdown selection (no typing required).' color="#34d399" />
+    <StepCard num="03" title="Read the chart" desc='Green candles = momentum up, red = down. The current minute is highlighted. If the market is already settled, you’ll see "WON" or "LOST".' color="#60a5fa" />
+  </motion.div>
+
+  <Callout icon={Target} color="#3b82f6">
+    Only markets you explicitly select are tracked – this keeps things fast and saves resources. The system calculates confidence using live stats like xG, shots, corners, cards, and goals.
+  </Callout>
+
+  <Prose>
+    You can also view all settled markets on the <strong className="text-white/90 font-semibold">Closed Markets</strong> page – a clean list showing what won and what lost, so you can review past picks.
+  </Prose>
+
+  <Callout icon={ShieldCheck} color="#34d399">
+    The monitor covers these competitions: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, Saudi Pro League, and the World Cup. More leagues will be added as the project grows.
+  </Callout>
+
+  <Prose>
+    The charts update in real‑time while the match is live, and they freeze once the market is decided. You can switch markets at any time using the back button, and a guide link is always available on the Markets page.
+  </Prose>
+</Chapter>
+
 
           {/* DISCLAIMER */}
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
