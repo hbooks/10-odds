@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 
@@ -7,7 +7,6 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
 
-// Base URL for edge functions – same as used elsewhere in your project
 const FUNCTIONS_BASE =
   (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string) ??
   `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
@@ -32,10 +31,8 @@ type Props = {
   availableMatches: AvailableMatch[];
 };
 
-const selectClasses =
-  "w-full rounded-xl bg-[#0a0a0e] border border-white/15 text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/60 focus:border-[#D4AF37] transition disabled:opacity-40 appearance-none";
+// ─── Market catalogue ────────────────────────────────────────────────────────
 
-// Static list of all market types and selections
 const ALL_MARKET_TYPES: Record<string, string[]> = {
   "1X2": ["home", "draw", "away"],
   DC: ["1x", "12", "x2"],
@@ -58,68 +55,113 @@ const ALL_MARKET_TYPES: Record<string, string[]> = {
   EXACT_TOTAL_GOALS: ["0", "1", "2", "3", "4", "5", "6+"],
 };
 
-export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMatches }: Props) {
-  const [matchId, setMatchId] = useState<number | "">("");
-  const [marketType, setMarketType] = useState<string>("");
-  const [selection, setSelection] = useState<string>("");
-  const [dynamicSelections, setDynamicSelections] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [creating, setCreating] = useState(false); // ← building chart state
+// ─── Shared style tokens ─────────────────────────────────────────────────────
 
-  // Deduplicate matches
+const GOLD = "#C9A84C";
+const GOLD_GLOW = "rgba(201,168,76,0.35)";
+
+const selectBase = [
+  "w-full rounded-lg",
+  "bg-[#0d0d12] border border-white/10",
+  "text-white/90 text-sm px-3.5 py-2.5",
+  "appearance-none cursor-pointer",
+  "transition-all duration-150",
+  "focus:outline-none focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/40",
+  "disabled:opacity-30 disabled:cursor-not-allowed",
+  "hover:border-white/20",
+].join(" ");
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35 mb-1.5 select-none">
+      {children}
+    </label>
+  );
+}
+
+function SelectWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      {children}
+      {/* Custom chevron */}
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/30">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+type Phase = "idle" | "creating" | "success";
+
+export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMatches }: Props) {
+  const [matchId, setMatchId] = useState<number | null>(null);
+  const [marketType, setMarketType] = useState("");
+  const [selection, setSelection] = useState("");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  // Focus trap: first focusable element
+  const firstSelectRef = useRef<HTMLSelectElement>(null);
+
+  // Deduplicate matches by bsd_match_id
   const matches = useMemo(() => {
     const seen = new Map<number, AvailableMatch>();
     availableMatches.forEach((m) => seen.set(m.bsd_match_id, m));
     return [...seen.values()];
   }, [availableMatches]);
 
-  // Reset when modal opens/closes
+  // Derived selections — no redundant state
+  const availableSelections = useMemo(
+    () => (marketType ? (ALL_MARKET_TYPES[marketType] ?? []) : []),
+    [marketType]
+  );
+
+  // Reset all state when modal is dismissed
   useEffect(() => {
     if (!isOpen) {
-      setMatchId("");
+      setMatchId(null);
       setMarketType("");
       setSelection("");
-      setDynamicSelections([]);
+      setPhase("idle");
       setError(null);
-      setSuccess(false);
-      setCreating(false);
-      setLoading(false);
+    } else {
+      // Focus the first control when modal opens
+      setTimeout(() => firstSelectRef.current?.focus(), 80);
     }
   }, [isOpen]);
 
-  // Escape key
+  // Escape key — locked during create
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && phase === "idle") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isOpen, phase, onClose]);
 
-  // When market type changes, populate selections
+  // When market type changes, reset selection
   useEffect(() => {
-    if (marketType) {
-      setSelection("");
-      setDynamicSelections(ALL_MARKET_TYPES[marketType] ?? []);
-    } else {
-      setDynamicSelections([]);
-    }
+    setSelection("");
   }, [marketType]);
 
-  const canConfirm = matchId !== "" && marketType !== "" && selection !== "" && !creating;
+  const canConfirm = matchId !== null && marketType !== "" && selection !== "" && phase === "idle";
 
   const handleConfirm = async () => {
     if (!canConfirm) return;
     const match = matches.find((m) => m.bsd_match_id === matchId);
     if (!match) return;
 
-    // 1. Show "building" state
-    setCreating(true);
+    setPhase("creating");
     setError(null);
 
     try {
-      // 2. Call the new create‑market edge function
       const res = await fetch(`${FUNCTIONS_BASE}/create-market`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,17 +178,17 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
       }
 
       const data = await res.json();
-      console.log("[LiveMarketModal] create‑market response:", data);
-    } catch (e: any) {
-      console.error("[LiveMarketModal] create‑market failed:", e);
-      setError(e?.message ?? "Failed to create market");
-      setCreating(false);
+      console.log("[LiveMarketModal] create-market response:", data);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to create market";
+      console.error("[LiveMarketModal] create-market failed:", e);
+      setError(msg);
+      setPhase("idle");
       return;
     }
 
-    // 3. Success animation
-    setCreating(false);
-    setSuccess(true);
+    // Atomic transition to success — no intermediate flash
+    setPhase("success");
 
     setTimeout(() => {
       onSelect({
@@ -156,143 +198,245 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
         match_name: match.match_name,
       });
       onClose();
-    }, 800);
+    }, 900);
+  };
+
+  // Backdrop click should be a no-op when creating
+  const handleBackdropClick = () => {
+    if (phase === "idle") onClose();
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pick a Market"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.72)" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          transition={{ duration: 0.18 }}
+          onClick={handleBackdropClick}
         >
+          {/* Backdrop blur layer */}
+          <div className="absolute inset-0 backdrop-blur-md -z-10" />
+
           <motion.div
-            className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0a0e] p-6 shadow-2xl"
-            style={{ boxShadow: "0 0 60px rgba(212,175,55,0.15)" }}
-            initial={{ scale: 0.9, opacity: 0, y: 8 }}
+            className="relative w-full max-w-[420px] rounded-2xl border border-white/[0.08] bg-[#08080d] overflow-hidden"
+            style={{
+              boxShadow: `0 0 0 1px rgba(255,255,255,0.04), 0 24px 64px rgba(0,0,0,0.6), 0 0 80px ${GOLD_GLOW}`,
+            }}
+            initial={{ scale: 0.93, opacity: 0, y: 12 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            transition={{ type: "spring", damping: 22, stiffness: 280 }}
+            exit={{ scale: 0.96, opacity: 0, y: 4 }}
+            transition={{ type: "spring", damping: 26, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Pick a Market</h2>
-                <p className="text-xs text-white/50 mt-0.5">
-                  Three quick choices and you're watching it live.
-                </p>
-              </div>
-              <button onClick={onClose} aria-label="Close" className="text-white/50 hover:text-white transition text-xl leading-none">
-                ×
-              </button>
-            </div>
+            {/* Subtle top accent line */}
+            <div
+              className="absolute top-0 left-0 right-0 h-px"
+              style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }}
+            />
 
-            <AnimatePresence mode="wait">
-              {creating ? (
-                <motion.div
-                  key="creating"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex flex-col items-center justify-center py-10 gap-4"
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <h2 className="text-base font-semibold tracking-tight text-white">
+                    Pick a Market
+                  </h2>
+                  <p className="text-xs text-white/35 mt-0.5 leading-relaxed">
+                    Select a match, type, and outcome to track live.
+                  </p>
+                </div>
+                <button
+                  onClick={onClose}
+                  disabled={phase === "creating"}
+                  aria-label="Close modal"
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/6 transition disabled:opacity-20 disabled:pointer-events-none -mt-0.5 -mr-1"
                 >
-                  <div className="w-10 h-10 border-2 border-t-[#D4AF37] border-white/10 rounded-full animate-spin" />
-                  <p className="text-white/80 font-medium">Building your chart…</p>
-                  <p className="text-white/40 text-xs">This may take a few seconds</p>
-                </motion.div>
-              ) : success ? (
-                <motion.div
-                  key="success"
-                  initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex flex-col items-center justify-center py-10"
-                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Body — phase-driven */}
+              <AnimatePresence mode="wait">
+                {phase === "creating" && (
                   <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: [0, 1.2, 1] }}
-                    transition={{ duration: 0.5 }}
-                    className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-400 text-3xl"
+                    key="creating"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18 }}
+                    className="flex flex-col items-center justify-center py-12 gap-3"
                   >
-                    ✓
+                    <div
+                      className="w-9 h-9 rounded-full border-2 border-t-transparent animate-spin"
+                      style={{ borderColor: `${GOLD} transparent transparent transparent` }}
+                    />
+                    <p className="text-white/75 text-sm font-medium">Opening Live chart…</p>
+                    <p className="text-white/30 text-xs">This takes a moment</p>
                   </motion.div>
-                  <p className="mt-3 text-white font-medium">Chart ready – opening now…</p>
-                </motion.div>
-              ) : (
-                <motion.div key="form" className="space-y-4">
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-white/40 mb-1.5">Match</label>
-                    <select
-                      className={selectClasses}
-                      value={matchId}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setMatchId(v === "" ? "" : Number(v));
-                        setMarketType("");
+                )}
+
+                {phase === "success" && (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 240 }}
+                    className="flex flex-col items-center justify-center py-12 gap-3"
+                  >
+                    <motion.div
+                      initial={{ scale: 0, rotate: -12 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: "spring", damping: 16, stiffness: 260, delay: 0.05 }}
+                      className="w-14 h-14 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "rgba(52,211,153,0.12)",
+                        border: "1px solid rgba(52,211,153,0.4)",
+                        boxShadow: "0 0 28px rgba(52,211,153,0.2)",
                       }}
                     >
-                      <option value="">Select a match…</option>
-                      {matches.map((m) => (
-                        <option key={m.bsd_match_id} value={m.bsd_match_id}>
-                          {m.match_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                        <path d="M4 11L9 16L18 6" stroke="#34D399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </motion.div>
+                    <p className="text-white/90 text-sm font-medium">Chart ready — opening now…</p>
+                  </motion.div>
+                )}
 
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-white/40 mb-1.5">Market Type</label>
-                    <select
-                      className={selectClasses}
-                      value={marketType}
-                      onChange={(e) => setMarketType(e.target.value)}
-                      disabled={matchId === ""}
-                    >
-                      <option value="">Select market type…</option>
-                      {Object.keys(ALL_MARKET_TYPES).map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-white/40 mb-1.5">Selection</label>
-                    <select
-                      className={selectClasses}
-                      value={selection}
-                      onChange={(e) => setSelection(e.target.value)}
-                      disabled={!marketType}
-                    >
-                      <option value="">Select selection…</option>
-                      {dynamicSelections.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {error && (
-                    <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300 flex items-center justify-between gap-3">
-                      <span>{error}</span>
-                      <button onClick={() => setError(null)} className="text-rose-200 hover:text-white">
-                        Dismiss
-                      </button>
-                    </div>
-                  )}
-
-                  <button
-                    disabled={!canConfirm}
-                    onClick={handleConfirm}
-                    className="w-full mt-2 rounded-xl bg-[#D4AF37] text-black font-semibold py-3 text-sm uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition"
-                    style={{ boxShadow: canConfirm ? "0 0 24px rgba(212,175,55,0.35)" : undefined }}
+                {phase === "idle" && (
+                  <motion.div
+                    key="form"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="space-y-4"
                   >
-                    Complete
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    {/* Match */}
+                    <div>
+                      <FieldLabel>Match</FieldLabel>
+                      <SelectWrapper>
+                        <select
+                          ref={firstSelectRef}
+                          className={selectBase}
+                          value={matchId ?? ""}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setMatchId(raw === "" ? null : Number(raw));
+                            setMarketType("");
+                            setSelection("");
+                          }}
+                        >
+                          <option value="">Select a match…</option>
+                          {matches.map((m) => (
+                            <option key={m.bsd_match_id} value={m.bsd_match_id}>
+                              {m.match_name}
+                              {m.competition_name ? ` — ${m.competition_name}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </SelectWrapper>
+                    </div>
+
+                    {/* Market Type */}
+                    <div>
+                      <FieldLabel>Market Type</FieldLabel>
+                      <SelectWrapper>
+                        <select
+                          className={selectBase}
+                          value={marketType}
+                          onChange={(e) => setMarketType(e.target.value)}
+                          disabled={matchId === null}
+                        >
+                          <option value="">Select market type…</option>
+                          {Object.keys(ALL_MARKET_TYPES).map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </SelectWrapper>
+                    </div>
+
+                    {/* Selection */}
+                    <div>
+                      <FieldLabel>Selection</FieldLabel>
+                      <SelectWrapper>
+                        <select
+                          className={selectBase}
+                          value={selection}
+                          onChange={(e) => setSelection(e.target.value)}
+                          disabled={!marketType}
+                        >
+                          <option value="">Select outcome…</option>
+                          {availableSelections.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </SelectWrapper>
+                    </div>
+
+                    {/* Error banner */}
+                    <AnimatePresence>
+                      {error && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="rounded-lg border border-rose-500/25 bg-rose-500/8 px-3.5 py-2.5 text-xs text-rose-300/90 flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2 min-w-0">
+                              <svg className="shrink-0 mt-0.5" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <circle cx="6" cy="6" r="5" stroke="#F87171" strokeWidth="1.2"/>
+                                <path d="M6 3.5V6.5M6 8H6.01" stroke="#F87171" strokeWidth="1.2" strokeLinecap="round"/>
+                              </svg>
+                              <span className="break-words">{error}</span>
+                            </div>
+                            <button
+                              onClick={() => setError(null)}
+                              aria-label="Dismiss error"
+                              className="shrink-0 text-rose-300/50 hover:text-rose-200 transition"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* CTA */}
+                    <button
+                      disabled={!canConfirm}
+                      onClick={handleConfirm}
+                      className="w-full mt-1 rounded-lg py-2.5 text-xs font-semibold uppercase tracking-[0.1em] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed"
+                      style={
+                        canConfirm
+                          ? {
+                              background: `linear-gradient(135deg, #D4A843, ${GOLD} 50%, #B8922A)`,
+                              color: "#0a0805",
+                              boxShadow: `0 0 20px ${GOLD_GLOW}, 0 2px 8px rgba(0,0,0,0.4)`,
+                            }
+                          : {
+                              background: "#1a1a22",
+                              color: "#ffffff40",
+                            }
+                      }
+                    >
+                      Confirm Selection
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </motion.div>
         </motion.div>
       )}
