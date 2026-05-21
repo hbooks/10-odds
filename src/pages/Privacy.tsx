@@ -44,7 +44,7 @@ function Section({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 const PrivacyPage = () => {
-  const lastUpdated = "15 May 2026";
+  const lastUpdated = "21 May 2026";
 
   return (
     <Layout>
@@ -172,7 +172,44 @@ const PrivacyPage = () => {
             </p>
           </Section>
 
-          <Section index={4} number="04" title="Sharing Your Information">
+          <Section index={4} number="04" title="Live Market Requests">
+  <p>
+    When you use the Live Market Monitor to track a betting market, we store the match identifier, market type, 
+    and your selected outcome in our database. This information is used solely to generate and update the 
+    probability chart you requested.
+  </p>
+  <p>
+    <strong className="text-foreground">This data is not linked to your personal identity.</strong> No 
+    account is required to use the feature, and we do not associate market requests with your device, IP address, 
+    or any other identifiable information.
+  </p>
+  <p>
+    Once the match ends and the market is settled, the data remains in our system for analytical purposes 
+    but is no longer actively updated.
+  </p>
+</Section>
+
+<Section index={5} number="05" title="Data Processors for Live Features">
+  <p>
+    To provide the Live Market Monitor, we share limited match information with the following data processors:
+  </p>
+  <ul className="list-disc list-inside space-y-1.5 pl-2">
+    <li>
+      <strong className="text-foreground">Bzzoiro Sports Data (BSD)</strong> – receives match identifiers to 
+      return live statistics and incidents. No personal data is shared.
+    </li>
+    <li>
+      <strong className="text-foreground">Groq</strong> – receives match statistics and incident data to 
+      generate probability charts. No user‑identifiable information is included in these requests.
+    </li>
+  </ul>
+  <p>
+    These processors are used only for the purpose of delivering the Live Market feature and do not have access 
+    to your personal information.
+  </p>
+</Section>
+
+          <Section index={6} number="06" title="Sharing Your Information">
             <p>
               We do not sell, rent, or trade your personal information. We may share
               limited data only in the following circumstances:
@@ -221,7 +258,7 @@ const PrivacyPage = () => {
             </div>
           </Section>
 
-          <Section index={5} number="05" title="Data Security">
+          <Section index={7} number="07" title="Data Security">
             <p>
               We implement appropriate technical and organisational measures to
               protect your information:
@@ -247,7 +284,7 @@ const PrivacyPage = () => {
             </p>
           </Section>
 
-          <Section index={6} number="06" title="Your Rights">
+          <Section index={8} number="08" title="Your Rights">
             <p>
               Depending on your location, you may have the following rights regarding
               your personal data:
@@ -282,7 +319,7 @@ const PrivacyPage = () => {
             </p>
           </Section>
 
-          <Section index={7} number="07" title="Cookies and Tracking">
+          <Section index={9} number="09" title="Cookies and Tracking">
             <p>
               We use cookies and similar tracking technologies to enhance your
               experience on the Site. Cookies are small files stored on your device.
@@ -317,7 +354,7 @@ const PrivacyPage = () => {
             </p>
           </Section>
 
-          <Section index={8} number="08" title="Children's Privacy">
+          <Section index={10} number="10" title="Children's Privacy">
             <p>
               10 Odds is not directed at individuals under the age of 18. We do not
               knowingly collect personal information from anyone under 18. Football
@@ -331,7 +368,7 @@ const PrivacyPage = () => {
             </p>
           </Section>
 
-          <Section index={9} number="09" title="Changes to This Policy">
+          <Section index={11} number="11" title="Changes to This Policy">
             <p>
               We may update this Privacy Policy from time to time to reflect changes in
               our practices or applicable law. The "last updated" date at the top of
@@ -344,7 +381,7 @@ const PrivacyPage = () => {
             </p>
           </Section>
 
-          <Section index={10} number="10" title="Contact Us">
+          <Section index={12} number="12" title="Contact Us">
             <p>
               If you have questions, concerns, or requests regarding this Privacy
               Policy or your personal data, please reach out:

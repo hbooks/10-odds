@@ -22,7 +22,8 @@ const Footer = () => {
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Football predictions by MK-806. Smart picks, better odds.
+                10 Odds is an independent football prediction project powered by MK‑806 and also our very own Hippo AI.
+                10 Odds was built by a fan, and it's meant for fans who want honest, sharp, and smart insights.
             </p>
           </div>
 
@@ -31,6 +32,7 @@ const Footer = () => {
             <h4 className="font-heading font-semibold mb-3">Quick Links</h4>
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <Link to="/games" className="hover:text-foreground transition-colors">Games</Link>
+              <Link to="/markets" className="hover:text-foreground transition-colors">Live Market Monitor</Link>
               <Link to="/analytics" className="hover:text-foreground transition-colors">Analytics</Link>
               <Link to="/patterns" className="hover:text-foreground transition-colors">Live Patterns</Link>
               <Link to="/community" className="hover:text-foreground transition-colors">Join our Community Board</Link>

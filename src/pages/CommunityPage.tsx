@@ -658,10 +658,7 @@ const CommunityPage = () => {
             <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
             Back
           </Link>
-          <div className="flex items-center gap-3 font-mono text-[10px] tracking-[0.25em] uppercase" style={{ color: T.inkFaint }}>
-            <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: T.accent }} />
-            Live · 10 Odds Community Board
-          </div>
+
         </div>
 
         {/* ══ EDITORIAL HERO ══════════════════════════════════════════════ */}
@@ -724,7 +721,7 @@ const CommunityPage = () => {
         {/* ══ MEMBER WALL ═════════════════════════════════════════════════ */}
         <section>
           <div className="flex items-baseline justify-between mb-6 pb-4 border-b" style={{ borderColor: T.hairline }}>
-            <h2 className="font-display text-2xl" style={{ fontWeight: 500 }}>The Wall</h2>
+            <h2 className="font-display text-2xl" style={{ fontWeight: 500 }}>The Legends' Wall</h2>
             <span className="font-mono text-[10px] tracking-[0.25em] uppercase" style={{ color: T.inkFaint }}>
               {loadingMembers ? "Loading…" : `${totalCount} entries`}
             </span>

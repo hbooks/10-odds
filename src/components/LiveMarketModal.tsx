@@ -1,3 +1,4 @@
+// src/components/LiveMarketModal.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
@@ -32,15 +33,15 @@ type Props = {
 };
 
 // ─── Market catalogue ────────────────────────────────────────────────────────
-
 const ALL_MARKET_TYPES: Record<string, string[]> = {
   "1X2": ["home", "draw", "away"],
   DC: ["1x", "12", "x2"],
   DNB: ["home", "away"],
   BTTS: ["yes", "no"],
   OVER_UNDER: [
-    "over 0.5", "over 1.5", "over 2.5", "over 3.5", "over 4.5", "over 5.5", "over 6.5",
-    "under 0.5", "under 1.5", "under 2.5", "under 3.5", "under 4.5", "under 5.5", "under 6.5",
+    "over 0.5", "over 1.5", "over 2.5", "over 3.5", "over 4.5", "over 5.5",
+    "over 6.5", "under 0.5", "under 1.5", "under 2.5", "under 3.5", "under 4.5",
+    "under 5.5", "under 6.5",
   ],
   CORNERS: ["over 8.5", "over 9.5", "over 10.5", "under 8.5", "under 9.5", "under 10.5"],
   CARDS: ["over 3.5", "over 4.5", "over 5.5", "under 3.5", "under 4.5", "under 5.5"],
@@ -56,7 +57,6 @@ const ALL_MARKET_TYPES: Record<string, string[]> = {
 };
 
 // ─── Shared style tokens ─────────────────────────────────────────────────────
-
 const GOLD = "#C9A84C";
 const GOLD_GLOW = "rgba(201,168,76,0.35)";
 
@@ -71,8 +71,7 @@ const selectBase = [
   "hover:border-white/20",
 ].join(" ");
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
+// ─── Sub‑components ──────────────────────────────────────────────────────────
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35 mb-1.5 select-none">
@@ -85,18 +84,16 @@ function SelectWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative">
       {children}
-      {/* Custom chevron */}
       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/30">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
     </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
+// ─── Main component ──────────────────────────────────────────────────────────
 type Phase = "idle" | "creating" | "success";
 
 export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMatches }: Props) {
@@ -106,23 +103,56 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  // Focus trap: first focusable element
+  // ─── Cooldown state (persisted in localStorage) ──────────────────────────
+  const [cooldownUntil, setCooldownUntil] = useState<number>(() => {
+    const saved = localStorage.getItem("lm_cooldown_until");
+    const ts = saved ? parseInt(saved, 10) : 0;
+    return ts > Date.now() ? ts : 0;
+  });
+  const [cooldownSec, setCooldownSec] = useState<number>(0);
+  const [submissionCount, setSubmissionCount] = useState<number>(() => {
+    const saved = localStorage.getItem("lm_submission_count");
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
+  // Update countdown every second
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) {
+      setCooldownSec(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setCooldownUntil(0);
+        setCooldownSec(0);
+        localStorage.removeItem("lm_cooldown_until");
+        setSubmissionCount(0);
+        localStorage.setItem("lm_submission_count", "0");
+        clearInterval(interval);
+      } else {
+        setCooldownSec(remaining);
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
+
   const firstSelectRef = useRef<HTMLSelectElement>(null);
 
-  // Deduplicate matches by bsd_match_id
   const matches = useMemo(() => {
     const seen = new Map<number, AvailableMatch>();
     availableMatches.forEach((m) => seen.set(m.bsd_match_id, m));
     return [...seen.values()];
   }, [availableMatches]);
 
-  // Derived selections — no redundant state
   const availableSelections = useMemo(
     () => (marketType ? (ALL_MARKET_TYPES[marketType] ?? []) : []),
     [marketType]
   );
 
-  // Reset all state when modal is dismissed
+  // Reset on close
   useEffect(() => {
     if (!isOpen) {
       setMatchId(null);
@@ -131,12 +161,11 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
       setPhase("idle");
       setError(null);
     } else {
-      // Focus the first control when modal opens
       setTimeout(() => firstSelectRef.current?.focus(), 80);
     }
   }, [isOpen]);
 
-  // Escape key — locked during create
+  // Escape key
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
@@ -146,12 +175,12 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen, phase, onClose]);
 
-  // When market type changes, reset selection
   useEffect(() => {
     setSelection("");
   }, [marketType]);
 
-  const canConfirm = matchId !== null && marketType !== "" && selection !== "" && phase === "idle";
+  const inCooldown = cooldownUntil > Date.now();
+  const canConfirm = matchId !== null && marketType !== "" && selection !== "" && phase === "idle" && !inCooldown;
 
   const handleConfirm = async () => {
     if (!canConfirm) return;
@@ -177,8 +206,19 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
 
-      const data = await res.json();
-      console.log("[LiveMarketModal] create-market response:", data);
+      // ─── Track submission & apply cooldown ──────────────────────────
+      const newCount = submissionCount + 1;
+      if (newCount >= 3) {
+        const until = Date.now() + 60_000;
+        setCooldownUntil(until);
+        localStorage.setItem("lm_cooldown_until", String(until));
+        setSubmissionCount(0);
+        localStorage.setItem("lm_submission_count", "0");
+        setCooldownSec(60);
+      } else {
+        setSubmissionCount(newCount);
+        localStorage.setItem("lm_submission_count", String(newCount));
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to create market";
       console.error("[LiveMarketModal] create-market failed:", e);
@@ -187,9 +227,7 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
       return;
     }
 
-    // Atomic transition to success — no intermediate flash
     setPhase("success");
-
     setTimeout(() => {
       onSelect({
         bsd_match_id: match.bsd_match_id,
@@ -201,7 +239,6 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
     }, 900);
   };
 
-  // Backdrop click should be a no-op when creating
   const handleBackdropClick = () => {
     if (phase === "idle") onClose();
   };
@@ -221,7 +258,6 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
           transition={{ duration: 0.18 }}
           onClick={handleBackdropClick}
         >
-          {/* Backdrop blur layer */}
           <div className="absolute inset-0 backdrop-blur-md -z-10" />
 
           <motion.div
@@ -235,7 +271,7 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
             transition={{ type: "spring", damping: 26, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Subtle top accent line */}
+            {/* Top accent */}
             <div
               className="absolute top-0 left-0 right-0 h-px"
               style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }}
@@ -245,9 +281,7 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
               {/* Header */}
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <h2 className="text-base font-semibold tracking-tight text-white">
-                    Pick a Market
-                  </h2>
+                  <h2 className="text-base font-semibold tracking-tight text-white">Pick a Market</h2>
                   <p className="text-xs text-white/35 mt-0.5 leading-relaxed">
                     Select a match, type, and outcome to track live.
                   </p>
@@ -259,12 +293,12 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
                   className="w-7 h-7 rounded-md flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/6 transition disabled:opacity-20 disabled:pointer-events-none -mt-0.5 -mr-1"
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>
                 </button>
               </div>
 
-              {/* Body — phase-driven */}
+              {/* Body phases */}
               <AnimatePresence mode="wait">
                 {phase === "creating" && (
                   <motion.div
@@ -305,7 +339,7 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
                       }}
                     >
                       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                        <path d="M4 11L9 16L18 6" stroke="#34D399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M4 11L9 16L18 6" stroke="#34D399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </motion.div>
                     <p className="text-white/90 text-sm font-medium">Chart ready — opening now…</p>
@@ -383,7 +417,7 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
                       </SelectWrapper>
                     </div>
 
-                    {/* Error banner */}
+                    {/* Error */}
                     <AnimatePresence>
                       {error && (
                         <motion.div
@@ -396,8 +430,8 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
                           <div className="rounded-lg border border-rose-500/25 bg-rose-500/8 px-3.5 py-2.5 text-xs text-rose-300/90 flex items-start justify-between gap-3">
                             <div className="flex items-start gap-2 min-w-0">
                               <svg className="shrink-0 mt-0.5" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                <circle cx="6" cy="6" r="5" stroke="#F87171" strokeWidth="1.2"/>
-                                <path d="M6 3.5V6.5M6 8H6.01" stroke="#F87171" strokeWidth="1.2" strokeLinecap="round"/>
+                                <circle cx="6" cy="6" r="5" stroke="#F87171" strokeWidth="1.2" />
+                                <path d="M6 3.5V6.5M6 8H6.01" stroke="#F87171" strokeWidth="1.2" strokeLinecap="round" />
                               </svg>
                               <span className="break-words">{error}</span>
                             </div>
@@ -413,26 +447,42 @@ export default function LiveMarketModal({ isOpen, onClose, onSelect, availableMa
                       )}
                     </AnimatePresence>
 
-                    {/* CTA */}
-                    <button
-                      disabled={!canConfirm}
-                      onClick={handleConfirm}
-                      className="w-full mt-1 rounded-lg py-2.5 text-xs font-semibold uppercase tracking-[0.1em] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed"
-                      style={
-                        canConfirm
-                          ? {
-                              background: `linear-gradient(135deg, #D4A843, ${GOLD} 50%, #B8922A)`,
-                              color: "#0a0805",
-                              boxShadow: `0 0 20px ${GOLD_GLOW}, 0 2px 8px rgba(0,0,0,0.4)`,
-                            }
-                          : {
-                              background: "#1a1a22",
-                              color: "#ffffff40",
-                            }
-                      }
-                    >
-                      Confirm Selection
-                    </button>
+                    {/* CTA with cooldown */}
+                    <div className="mt-2">
+                      {inCooldown ? (
+                        <button
+                          disabled
+                          className="w-full rounded-lg py-2.5 text-xs font-semibold uppercase tracking-[0.1em] transition-all duration-150"
+                          style={{
+                            background: "#1a1a22",
+                            color: "#ffffff40",
+                            cursor: "not-allowed",
+                          }}
+                        >
+                          Cool down — wait {cooldownSec}s
+                        </button>
+                      ) : (
+                        <button
+                          disabled={!canConfirm}
+                          onClick={handleConfirm}
+                          className="w-full rounded-lg py-2.5 text-xs font-semibold uppercase tracking-[0.1em] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed"
+                          style={
+                            canConfirm
+                              ? {
+                                  background: `linear-gradient(135deg, #D4A843, ${GOLD} 50%, #B8922A)`,
+                                  color: "#0a0805",
+                                  boxShadow: `0 0 20px ${GOLD_GLOW}, 0 2px 8px rgba(0,0,0,0.4)`,
+                                }
+                              : {
+                                  background: "#1a1a22",
+                                  color: "#ffffff40",
+                                }
+                          }
+                        >
+                          Confirm Selection
+                        </button>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
