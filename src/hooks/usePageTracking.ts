@@ -12,7 +12,7 @@ const supabase = createClient(
 const SESSION_KEY        = '10odds_session_id';
 const SESSION_TS_KEY     = '10odds_session_ts';   // last activity timestamp
 const SESSION_BOOT_KEY   = '10odds_boot';          // sessionStorage – upserted this tab?
-const SESSION_TIMEOUT_MS = 120 * 60 * 1000;        // 120 min inactivity = new session {fits a full soccer match!}
+const SESSION_TIMEOUT_MS = 120 * 60 * 1000;        // 120 min inactivity = new session {fits a full soccer match! and saves session storage from old sessions piling up}
 
 // Skip our own analytics URLs to prevent infinite error loops
 const ANALYTICS_TABLE_NAMES = [
