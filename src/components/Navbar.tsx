@@ -18,7 +18,7 @@ const navLinks = [
   { to: "/status",    label: "Predictions" },
   { to: "/previous",  label: "Previous Bets" },
   { to: "/analytics", label: "Analytics" },
-  { to: "/markets", label: "Markets" },
+  { to: "/markets", label: "Monitor" },
 ];
 
 async function fetchUnreadCount(): Promise<number> {
