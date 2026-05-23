@@ -1080,8 +1080,8 @@ const CustomerCare = () => {
     onClick={() => setOpen(true)}
     style={{
       position: "fixed",
-      bottom: 130,   // ⬆️ was 24 – now sits above the Support Project & Community buttons
-      right: 16,     // slightly left of the other buttons for extra breathing room
+      bottom: 145,   // ⬆️ was 24 – now sits above the Support Project & Community buttons
+      right: 15,     // slightly left of the other buttons for extra breathing room
       width: 56,
       height: 56,
       borderRadius: "50%",

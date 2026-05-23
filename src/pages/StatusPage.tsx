@@ -1077,7 +1077,6 @@ const StatusPage = () => {
   </div>
 )}
 
-{/* New fallback: predictions exist but none in the three‑day window */}
 {!loading && !error && predictions.length > 0 && groupedPredictions.length === 0 && (
   <div className="text-center py-16 text-muted-foreground">
     <Calendar className="h-8 w-8 mx-auto mb-3 opacity-50" />
@@ -1101,18 +1100,7 @@ const StatusPage = () => {
   </div>
 )}
 
-        {!loading && !error && groupedPredictions.length > 0 && (
-          <div className="space-y-6">
-            {groupedPredictions.map((group, i) => (
-              <PredictionGroup
-                key={group.label}
-                group={group}
-                index={i}
-                onSelect={setSelectedPrediction}
-              />
-            ))}
-          </div>
-        )}
+
 
         <PredictionModal
           prediction={selectedPrediction}

@@ -866,7 +866,7 @@ const PatternQuickLook = () => {
         whileHover={{ scale: 1.06, boxShadow: "0 12px 40px rgba(99,102,241,0.55)" }}
         whileTap={{ scale: 0.97 }}
         onClick={() => setOpen(true)}
-        className="fixed bottom-32 right-6 z-40 flex items-center gap-2 text-sm font-bold px-5 py-3.5 rounded-2xl shadow-2xl"
+        className="fixed bottom-24 right-12 z-41 flex items-center gap-2 text-sm font-bold px-5 py-3.5 rounded-2xl shadow-2xl"
         style={{
           background: "linear-gradient(135deg,#6366f1,#4f46e5)",
           boxShadow: "0 8px 32px rgba(99,102,241,0.4)",

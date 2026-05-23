@@ -634,7 +634,7 @@ export default function Markets() {
                 10 Odds
               </h1>
               <p className="text-white/35 text-xs mt-1.5 leading-relaxed">
-                Real-time probability for live football markets.
+                Real-time Win rate for live football markets.
               </p>
             </div>
 
@@ -759,7 +759,7 @@ export default function Markets() {
               transition={{ duration: 0.22, ease: "easeOut" }}
               onClick={() => setModalOpen(true)}
               aria-label="Track a new market"
-              className="fixed bottom-6 right-5 z-40 flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50"
+              className="fixed bottom-24 right-10 z-40 flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50"
               style={{
                 background: `linear-gradient(135deg, #D4A843 0%, ${GOLD} 50%, #A8892A 100%)`,
                 color: "#0a0703",
