@@ -1,16 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 import { Link, useNavigate } from "react-router-dom";
-import LiveMarketModal, { type AvailableMatch } from "@/components/LiveMarketModal";
-import {
-  RefreshCw,
-  TrendingUp,
-  BookOpen,
-  CheckCircle,
-  ArrowLeft,
-  Wifi,
-} from "lucide-react";
+import LiveMarketModal, { type AvailableMatch, type SelectedMarket } from "@/components/LiveMarketModal";
+import { RefreshCw, TrendingUp, BookOpen, CheckCircle, ArrowLeft, Radio, Plus } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -18,6 +11,7 @@ const supabase = createClient(
 );
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
 type MarketRow = {
   bsd_match_id: number;
   market_type: string;
@@ -44,11 +38,18 @@ type LiveStatsRow = {
   period: string;
 };
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const GOLD = "#C9A535";
+const SURFACE = "rgba(255,255,255,0.03)";
+const BORDER = "rgba(255,255,255,0.07)";
+const BORDER_HOVER = "rgba(255,255,255,0.13)";
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function formatKenyaTime(iso: string) {
   try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString("en-KE", {
+    return new Date(iso).toLocaleTimeString("en-KE", {
       hour: "2-digit",
       minute: "2-digit",
       timeZone: "Africa/Nairobi",
@@ -58,20 +59,123 @@ function formatKenyaTime(iso: string) {
   }
 }
 
-function confidenceBg(conf: number): string {
-  if (conf >= 65) return "rgba(34,197,94,0.12)";
-  if (conf <= 35) return "rgba(239,68,68,0.12)";
-  return "rgba(212,175,55,0.10)";
-}
-function confidenceColor(conf: number): string {
-  if (conf >= 65) return "#22c55e";
-  if (conf <= 35) return "#ef4444";
-  return "#D4AF37";
+/** Split "Team A vs Team B" safely */
+function splitMatchName(name: string): [string, string] {
+  const idx = name.indexOf(" vs ");
+  if (idx === -1) return [name, ""];
+  return [name.slice(0, idx), name.slice(idx + 4)];
 }
 
-// ─── Match card ───────────────────────────────────────────────────────────────
+function confidenceColor(conf: number): string {
+  if (conf >= 65) return "#4ade80";
+  if (conf <= 35) return "#f87171";
+  return GOLD;
+}
+
+function confidenceBg(conf: number): string {
+  if (conf >= 65) return "rgba(74,222,128,0.08)";
+  if (conf <= 35) return "rgba(248,113,113,0.08)";
+  return "rgba(201,165,53,0.08)";
+}
+
+function confidenceBorder(conf: number): string {
+  if (conf >= 65) return "rgba(74,222,128,0.2)";
+  if (conf <= 35) return "rgba(248,113,113,0.2)";
+  return "rgba(201,165,53,0.2)";
+}
+
+// ─── Live badge ───────────────────────────────────────────────────────────────
+
+function LiveBadge({ minute }: { minute: number }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold tabular-nums shrink-0"
+      style={{
+        background: "rgba(74,222,128,0.1)",
+        border: "1px solid rgba(74,222,128,0.22)",
+        color: "#4ade80",
+      }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
+        style={{ animation: "livePulse 2s ease-in-out infinite" }}
+      />
+      {minute}′
+    </div>
+  );
+}
+
+// ─── Confidence bar ───────────────────────────────────────────────────────────
+
+function ConfBar({ value }: { value: number }) {
+  const color = confidenceColor(value);
+  return (
+    <div className="w-full h-0.5 rounded-full bg-white/5 overflow-hidden">
+      <motion.div
+        className="h-full rounded-full"
+        style={{ background: color }}
+        initial={{ width: 0 }}
+        animate={{ width: `${value}%` }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      />
+    </div>
+  );
+}
+
+// ─── Market pill ──────────────────────────────────────────────────────────────
+
+function MarketPill({
+  market,
+  onClick,
+}: {
+  market: MarketRow;
+  onClick: (m: MarketRow) => void;
+}) {
+  const color = confidenceColor(market.confidence);
+  const bg = confidenceBg(market.confidence);
+  const border = confidenceBorder(market.confidence);
+
+  return (
+    <button
+      onClick={() => onClick(market)}
+      title={`${market.market_type} · ${market.market_selection} · ${market.confidence.toFixed(0)}% confidence`}
+      className="group flex flex-col gap-1.5 px-3 py-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+      style={{
+        background: bg,
+        border: `1px solid ${border}`,
+        minWidth: "96px",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = color + "55";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = border;
+      }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+          {market.market_type}
+        </span>
+        <span
+          className="text-[11px] font-bold tabular-nums"
+          style={{ color }}
+        >
+          {market.confidence.toFixed(0)}%
+        </span>
+      </div>
+      <span className="text-xs font-semibold capitalize" style={{ color: "rgba(255,255,255,0.85)" }}>
+        {market.market_selection}
+      </span>
+      <ConfBar value={market.confidence} />
+    </button>
+  );
+}
+
+// ─── Tracked match card ───────────────────────────────────────────────────────
+
 function MatchCard({
   match,
+  index,
   onPickMarket,
 }: {
   match: {
@@ -84,133 +188,238 @@ function MatchCard({
     current_minute: number;
     markets: MarketRow[];
   };
+  index: number;
   onPickMarket: (m: MarketRow) => void;
 }) {
-  const teamParts = match.match_name.split(" vs ");
-  const home = teamParts[0] ?? match.match_name;
-  const away = teamParts[1] ?? "";
+  const [home, away] = splitMatchName(match.match_name);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
+    <motion.article
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="rounded-2xl overflow-hidden"
+      transition={{ duration: 0.28, delay: index * 0.045, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="rounded-xl overflow-hidden group/card"
       style={{
-        background: "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+        background: "linear-gradient(160deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)",
+        border: `1px solid ${BORDER}`,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)",
+        transition: "border-color 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = BORDER_HOVER;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = BORDER;
       }}
     >
-      <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            {away ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-white text-sm leading-tight">{home}</span>
+      {/* Card header */}
+      <div
+        className="px-4 py-3.5 flex items-center justify-between gap-3"
+        style={{ borderBottom: `1px solid ${BORDER}` }}
+      >
+        <div className="min-w-0 flex-1">
+          {/* Teams + score row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-white/95 text-sm leading-snug truncate">{home}</span>
+            {away && (
+              <>
                 <div
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono text-sm font-black"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-sm font-black shrink-0"
                   style={{
-                    background: "rgba(255,255,255,0.06)",
+                    background: "rgba(255,255,255,0.07)",
                     border: "1px solid rgba(255,255,255,0.1)",
                     color: "white",
-                    letterSpacing: "0.08em",
+                    letterSpacing: "0.06em",
                   }}
                 >
                   <span>{match.home_score}</span>
-                  <span className="text-white/30">–</span>
+                  <span className="text-white/25 mx-0.5">:</span>
                   <span>{match.away_score}</span>
                 </div>
-                <span className="font-bold text-white text-sm leading-tight">{away}</span>
-              </div>
-            ) : (
-              <span className="font-bold text-white text-sm">{match.match_name}</span>
+                <span className="font-bold text-white/95 text-sm leading-snug truncate">{away}</span>
+              </>
             )}
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              {match.competition_name && (
-                <span className="text-[11px] text-white/35 font-medium">
-                  {match.competition_name}
-                </span>
-              )}
-              <span className="text-white/15 text-[10px]">·</span>
-              <span className="text-[11px] text-white/35">
-                KO {formatKenyaTime(match.kickoff_utc)}
-              </span>
-            </div>
           </div>
 
-          {match.current_minute > 0 && (
-            <div
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shrink-0"
-              style={{
-                background: "rgba(34,197,94,0.12)",
-                border: "1px solid rgba(34,197,94,0.25)",
-                color: "#4ade80",
-              }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                style={{ animation: "pulse 1.5s infinite" }}
-              />
-              {match.current_minute}′
-            </div>
-          )}
+          {/* Meta row */}
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {match.competition_name && (
+              <span className="text-[11px] text-white/35 font-medium truncate">
+                {match.competition_name}
+              </span>
+            )}
+            {match.competition_name && (
+              <span className="text-white/15 text-[10px] select-none">·</span>
+            )}
+            <span className="text-[11px] text-white/30 tabular-nums">
+              KO {formatKenyaTime(match.kickoff_utc)}
+            </span>
+          </div>
         </div>
+
+        {match.current_minute > 0 && <LiveBadge minute={match.current_minute} />}
       </div>
 
+      {/* Markets grid */}
       {match.markets.length > 0 && (
-        <div className="px-5 py-3">
-          <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-2.5">
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/22 mb-2.5 select-none">
             Tracked markets
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {match.markets.map((m) => (
-              <button
+              <MarketPill
                 key={`${m.market_type}-${m.market_selection}`}
-                onClick={() => onPickMarket(m)}
-                className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-                style={{
-                  background: confidenceBg(m.confidence),
-                  border: `1px solid ${confidenceColor(m.confidence)}22`,
-                  color: "rgba(255,255,255,0.75)",
-                }}
-              >
-                <span className="text-white/50">{m.market_type}</span>
-                <span className="font-bold" style={{ color: confidenceColor(m.confidence) }}>
-                  {m.market_selection}
-                </span>
-                <span
-                  className="text-[10px] font-mono ml-0.5"
-                  style={{ color: confidenceColor(m.confidence) }}
-                >
-                  {m.confidence.toFixed(0)}%
-                </span>
-              </button>
+                market={m}
+                onClick={onPickMarket}
+              />
             ))}
           </div>
         </div>
       )}
+    </motion.article>
+  );
+}
+
+// ─── Untracked match card ─────────────────────────────────────────────────────
+
+function UntrackedCard({
+  match,
+  index,
+  onTrack,
+}: {
+  match: LiveStatsRow;
+  index: number;
+  onTrack: () => void;
+}) {
+  const [home, away] = splitMatchName(match.match_name);
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: index * 0.04 }}
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: SURFACE,
+        border: `1px solid ${BORDER}`,
+        transition: "border-color 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = BORDER_HOVER;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = BORDER;
+      }}
+    >
+      <div className="px-4 py-3.5 flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-white/80 truncate">{home}</span>
+            {away && (
+              <>
+                <span
+                  className="font-mono text-xs font-bold shrink-0 px-1.5 py-0.5 rounded"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    color: "rgba(255,255,255,0.6)",
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  {match.home_score}:{match.away_score}
+                </span>
+                <span className="text-sm font-semibold text-white/80 truncate">{away}</span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            {match.competition_name && (
+              <span className="text-[11px] text-white/30">{match.competition_name}</span>
+            )}
+            {match.current_minute > 0 && (
+              <>
+                {match.competition_name && (
+                  <span className="text-white/15 text-[10px]">·</span>
+                )}
+                <span className="text-[11px] text-emerald-400/70 font-medium tabular-nums">
+                  {match.current_minute}′
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <button
+          onClick={onTrack}
+          aria-label={`Track a market for ${match.match_name}`}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+          style={{
+            background: `rgba(201,165,53,0.1)`,
+            border: `1px solid rgba(201,165,53,0.25)`,
+            color: GOLD,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(201,165,53,0.18)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(201,165,53,0.1)";
+          }}
+        >
+          <Plus className="w-3 h-3" />
+          Track
+        </button>
+      </div>
+    </motion.article>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SkeletonCard({ delay = 0 }: { delay?: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay }}
+      className="rounded-xl overflow-hidden"
+      style={{ border: `1px solid ${BORDER}` }}
+    >
+      <div className="px-4 py-3.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="h-4 w-32 rounded bg-white/5 animate-pulse" />
+          <div className="h-6 w-12 rounded-md bg-white/5 animate-pulse" />
+          <div className="h-4 w-28 rounded bg-white/5 animate-pulse" />
+        </div>
+        <div className="h-3 w-40 rounded bg-white/4 animate-pulse" />
+      </div>
+      <div className="px-4 py-3 flex gap-2">
+        {[80, 96, 88].map((w, i) => (
+          <div
+            key={i}
+            className="h-16 rounded-xl bg-white/4 animate-pulse"
+            style={{ width: w, animationDelay: `${i * 100}ms` }}
+          />
+        ))}
+      </div>
     </motion.div>
   );
 }
 
-function SkeletonCard() {
+// ─── Section label ────────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-      <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-        <div className="h-5 w-48 rounded-lg bg-white/5 animate-pulse mb-2" />
-        <div className="h-3.5 w-32 rounded-lg bg-white/5 animate-pulse" />
-      </div>
-      <div className="px-5 py-3 flex gap-2">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-7 w-24 rounded-xl bg-white/5 animate-pulse" />
-        ))}
-      </div>
+    <div className="flex items-center gap-3 mb-3">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30 select-none">
+        {children}
+      </span>
+      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
     </div>
   );
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function Markets() {
   const navigate = useNavigate();
   const [marketRows, setMarketRows] = useState<MarketRow[]>([]);
@@ -220,56 +429,59 @@ export default function Markets() {
   const [modalOpen, setModalOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchData = async (silent = false) => {
+  // useCallback so it's stable for useEffect deps
+  const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     setError(null);
     try {
-      // Fetch tracked markets
-      const { data: markets, error: marketErr } = await supabase
-        .from("live_market_data")
-        .select(
-          "bsd_match_id, market_type, market_selection, match_name, competition_name, kickoff_utc, status, confidence, home_score, away_score, current_minute, last_updated"
-        )
-        .eq("status", "active")
-        .order("kickoff_utc", { ascending: true });
+      const [{ data: markets, error: mErr }, { data: stats, error: sErr }] =
+        await Promise.all([
+          supabase
+            .from("live_market_data")
+            .select(
+              "bsd_match_id,market_type,market_selection,match_name,competition_name,kickoff_utc,status,confidence,home_score,away_score,current_minute,last_updated"
+            )
+            .eq("status", "active")
+            .order("kickoff_utc", { ascending: true }),
+          supabase
+            .from("live_stats")
+            .select(
+              "bsd_match_id,match_name,competition_name,kickoff_utc,home_score,away_score,current_minute,period"
+            )
+            .neq("period", "FT")
+            .order("kickoff_utc", { ascending: true }),
+        ]);
 
-      // Fetch all live matches from live_stats (exclude finished matches)
-      const { data: stats, error: statsErr } = await supabase
-        .from("live_stats")
-        .select("bsd_match_id, match_name, competition_name, kickoff_utc, home_score, away_score, current_minute, period")
-        .neq("period", "FT")
-        .order("kickoff_utc", { ascending: true });
-
-      if (marketErr) throw marketErr;
-      if (statsErr) throw statsErr;
+      // Throw the first error encountered
+      if (mErr) throw mErr;
+      if (sErr) throw sErr;
 
       setMarketRows((markets as MarketRow[]) ?? []);
       setLiveMatches((stats as LiveStatsRow[]) ?? []);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to load data");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Failed to load data";
+      setError(msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
     const channel = supabase
       .channel("markets-list")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "live_market_data" },
-        () => fetchData(true)
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_market_data" }, () =>
+        fetchData(true)
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel).catch(() => {});
     };
-  }, []);
+  }, [fetchData]);
 
-  // Group tracked markets by match
+  // Group market rows by match
   const trackedMatches = useMemo(() => {
     const map = new Map<number, MarketRow[]>();
     marketRows.forEach((r) => {
@@ -292,234 +504,290 @@ export default function Markets() {
     });
   }, [marketRows]);
 
-  // List of all live matches (from live_stats) that may or may not have tracked markets.
-  // Merge with trackedMatches to avoid duplicates, but we want to show all live matches.
-  const allLiveMatches = useMemo(() => {
-    const map = new Map<number, LiveStatsRow>();
-    // First add tracked matches so they show with their markets
-    trackedMatches.forEach((m) => {
-      map.set(m.bsd_match_id, {
-        bsd_match_id: m.bsd_match_id,
-        match_name: m.match_name,
-        competition_name: m.competition_name,
-        kickoff_utc: m.kickoff_utc,
-        home_score: m.home_score,
-        away_score: m.away_score,
-        current_minute: m.current_minute,
-        period: "1H", // not perfect but okay
-      });
-    });
-    // Then add untracked live matches
-    liveMatches.forEach((m) => {
-      if (!map.has(m.bsd_match_id)) {
-        map.set(m.bsd_match_id, m);
-      }
-    });
-    return Array.from(map.values());
-  }, [trackedMatches, liveMatches]);
+  // Untracked live matches (in live_stats but no tracked market)
+  const untrackedMatches = useMemo(
+    () => liveMatches.filter((m) => !trackedMatches.some((t) => t.bsd_match_id === m.bsd_match_id)),
+    [liveMatches, trackedMatches]
+  );
 
-  // For the modal, we pass the full list of live matches (so user can select any).
+  // All matches fed to the modal
   const modalMatches: AvailableMatch[] = useMemo(
     () =>
-      allLiveMatches.map((m) => ({
+      liveMatches.map((m) => ({
         bsd_match_id: m.bsd_match_id,
         match_name: m.match_name,
         competition_name: m.competition_name,
       })),
-    [allLiveMatches]
+    [liveMatches]
   );
 
-  const handleSelectMarket = (market: {
-    bsd_match_id: number;
-    market_type: string;
-    market_selection: string;
-    match_name: string;
-  }) => {
+  const handleSelectMarket = (market: SelectedMarket) => {
     navigate(
       `/chart?match=${market.bsd_match_id}&type=${encodeURIComponent(market.market_type)}&sel=${encodeURIComponent(market.market_selection)}&name=${encodeURIComponent(market.match_name)}`
     );
   };
 
+  const handlePickTrackedMarket = (m: MarketRow) => {
+    navigate(
+      `/chart?match=${m.bsd_match_id}&type=${encodeURIComponent(m.market_type)}&sel=${encodeURIComponent(m.market_selection)}&name=${encodeURIComponent(m.match_name)}`
+    );
+  };
+
+  const isEmpty = !loading && !error && trackedMatches.length === 0 && liveMatches.length === 0;
+  const liveCount = liveMatches.length;
+
   return (
-    <div
-      className="min-h-screen bg-[#05050a] text-white"
-      style={{ fontFamily: "'DM Sans','Segoe UI',sans-serif" }}
-    >
-      {/* ── Navbar ── */}
-      <header
-        className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 py-3 backdrop-blur-md"
+    <>
+      {/* Global pulse keyframe */}
+      <style>{`
+        @keyframes livePulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.45; transform: scale(0.8); }
+        }
+      `}</style>
+
+      <div
+        className="min-h-screen text-white"
         style={{
-          background: "rgba(5,5,10,0.85)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "#060609",
+          fontFamily: "'Sora', 'DM Sans', 'Segoe UI', sans-serif",
         }}
       >
-        <div className="flex items-center gap-3">
-          <Link
-            to="/games"
-            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition"
-            aria-label="Back"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <Link
-            to="/markets"
-            className="flex items-center gap-1.5 text-sm font-bold"
-            style={{ color: "#D4AF37" }}
-          >
-            <TrendingUp className="h-4 w-4" />
-            Live Markets
-          </Link>
-        </div>
-        <div className="flex items-center gap-1 sm:gap-4">
-          <Link
-            to="/closed"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 transition"
-          >
-            <CheckCircle className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Closed</span>
-          </Link>
-          <Link
-            to="/guide#ch-07"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 transition"
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Guide</span>
-          </Link>
-        </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-7">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1
-              className="text-2xl sm:text-3xl font-black tracking-tight"
-              style={{ color: "#D4AF37", letterSpacing: "-0.02em" }}
-            >
-              10 Odds Live Markets
-            </h1>
-            <p className="text-white/40 text-sm mt-0.5">
-              Real-time probability charts for live football markets.
-            </p>
-          </div>
-          <button
-            onClick={() => fetchData(true)}
-            disabled={refreshing}
-            className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 hover:bg-white/10 transition"
-            aria-label="Refresh"
-          >
-            <RefreshCw
-              className={`h-4 w-4 text-white/60 ${refreshing ? "animate-spin" : ""}`}
-            />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : error ? (
-          <div
-            className="rounded-2xl p-6 text-center"
-            style={{
-              background: "rgba(239,68,68,0.08)",
-              border: "1px solid rgba(239,68,68,0.2)",
-            }}
-          >
-            <p className="text-rose-300 text-sm mb-3">{error}</p>
-            <button
-              onClick={() => fetchData()}
-              className="px-4 py-2 rounded-xl bg-[#3b82f6] text-white text-sm font-medium hover:bg-blue-500 transition"
-            >
-              Retry
-            </button>
-          </div>
-        ) : trackedMatches.length === 0 && liveMatches.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              <Wifi className="h-7 w-7 text-white/20" />
-            </div>
-            <div>
-              <p className="text-white/50 font-medium">No live matches right now</p>
-              <p className="text-white/25 text-sm mt-1">
-                Check back when the games kick off.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <AnimatePresence initial={false}>
-            <div className="space-y-3">
-              {trackedMatches.map((match) => (
-                <MatchCard
-                  key={match.bsd_match_id}
-                  match={match}
-                  onPickMarket={handleSelectMarket}
-                />
-              ))}
-              {/* Show untracked live matches as simple cards with a "Track" button */}
-              {liveMatches
-                .filter((m) => !trackedMatches.some((t) => t.bsd_match_id === m.bsd_match_id))
-                .map((m) => (
-                  <motion.div
-                    key={m.bsd_match_id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl overflow-hidden"
-                    style={{
-                      background: "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    <div className="px-5 py-4 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-white text-sm">{m.match_name}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          {m.competition_name && (
-                            <span className="text-[11px] text-white/35">{m.competition_name}</span>
-                          )}
-                          <span className="text-[11px] text-white/35">
-                            {m.home_score} – {m.away_score} · {m.current_minute}′
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setModalOpen(true)}
-                        className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#3b82f6] text-white hover:bg-blue-500 transition"
-                      >
-                        Track
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-            </div>
-          </AnimatePresence>
-        )}
-      </div>
-
-      {!loading && (
-        <button
-          onClick={() => setModalOpen(true)}
-          className="fixed bottom-24 right-5 z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm text-black transition-all"
+        {/* ── Navbar ── */}
+        <header
+          className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 h-13"
           style={{
-            background: "linear-gradient(135deg, #D4AF37, #b8972a)",
-            boxShadow: "0 4px 24px rgba(212,175,55,0.4), 0 0 0 1px rgba(212,175,55,0.3)",
+            height: "52px",
+            background: "rgba(6,6,9,0.9)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
           }}
         >
-          <TrendingUp className="h-4 w-4" />
-          Track a Market
-        </button>
-      )}
+          <div className="flex items-center gap-2.5">
+            <Link
+              to="/games"
+              aria-label="Back to Games"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 transition-all duration-150"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Link>
 
-      <LiveMarketModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSelect={handleSelectMarket}
-        availableMatches={modalMatches}
-      />
-    </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-6 h-6 rounded-md flex items-center justify-center"
+                style={{ background: `rgba(201,165,53,0.12)`, border: `1px solid rgba(201,165,53,0.25)` }}
+              >
+                <TrendingUp className="h-3 w-3" style={{ color: GOLD }} />
+              </div>
+              <span className="text-sm font-bold text-white/90 tracking-tight">
+                Live Markets
+              </span>
+              {liveCount > 0 && !loading && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
+                  style={{
+                    background: "rgba(74,222,128,0.1)",
+                    border: "1px solid rgba(74,222,128,0.2)",
+                    color: "#4ade80",
+                  }}
+                >
+                  {liveCount} live
+                </span>
+              )}
+            </div>
+          </div>
+
+          <nav className="flex items-center gap-0.5">
+            <Link
+              to="/closed"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/40 hover:text-white/75 transition-all duration-150 hover:bg-white/4"
+            >
+              <CheckCircle className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Closed</span>
+            </Link>
+            <Link
+              to="/guide#ch-07"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/40 hover:text-white/75 transition-all duration-150 hover:bg-white/4"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Guide</span>
+            </Link>
+          </nav>
+        </header>
+
+        {/* ── Page content ── */}
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-7">
+
+          {/* Page heading */}
+          <div className="flex items-start justify-between mb-7">
+            <div>
+              <h1
+                className="text-2xl sm:text-[28px] font-black tracking-tight leading-none"
+                style={{
+                  color: GOLD,
+                  letterSpacing: "-0.025em",
+                  fontFamily: "'Sora', sans-serif",
+                }}
+              >
+                10 Odds
+              </h1>
+              <p className="text-white/35 text-xs mt-1.5 leading-relaxed">
+                Real-time probability for live football markets.
+              </p>
+            </div>
+
+            <button
+              onClick={() => fetchData(true)}
+              disabled={refreshing || loading}
+              aria-label="Refresh data"
+              className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 text-white/50 ${refreshing ? "animate-spin" : ""}`}
+              />
+            </button>
+          </div>
+
+          {/* ── States ── */}
+
+          {loading ? (
+            <div className="space-y-3">
+              {[0, 0.06, 0.12].map((d, i) => (
+                <SkeletonCard key={i} delay={d} />
+              ))}
+            </div>
+          ) : error ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl p-5 text-center"
+              style={{
+                background: "rgba(248,113,113,0.06)",
+                border: "1px solid rgba(248,113,113,0.18)",
+              }}
+            >
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3"
+                style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)" }}
+              >
+                <Radio className="h-5 w-5 text-rose-400" />
+              </div>
+              <p className="text-rose-300/90 text-sm mb-1 font-medium">Failed to load</p>
+              <p className="text-rose-300/50 text-xs mb-4">{error}</p>
+              <button
+                onClick={() => fetchData()}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-rose-200 transition-all duration-150"
+                style={{
+                  background: "rgba(248,113,113,0.1)",
+                  border: "1px solid rgba(248,113,113,0.25)",
+                }}
+              >
+                Try again
+              </button>
+            </motion.div>
+          ) : isEmpty ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center py-24 text-center gap-3"
+            >
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1"
+                style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}` }}
+              >
+                <Radio className="h-6 w-6 text-white/15" />
+              </div>
+              <p className="text-white/45 font-semibold text-sm">No live matches</p>
+              <p className="text-white/22 text-xs leading-relaxed max-w-[200px]">
+                Check back when the games kick off.
+              </p>
+            </motion.div>
+          ) : (
+            <div className="space-y-6">
+              {/* Tracked matches */}
+              {trackedMatches.length > 0 && (
+                <section>
+                  <SectionLabel>Tracked</SectionLabel>
+                  <AnimatePresence initial={false}>
+                    <div className="space-y-2.5">
+                      {trackedMatches.map((match, i) => (
+                        <MatchCard
+                          key={match.bsd_match_id}
+                          match={match}
+                          index={i}
+                          onPickMarket={handlePickTrackedMarket}
+                        />
+                      ))}
+                    </div>
+                  </AnimatePresence>
+                </section>
+              )}
+
+              {/* Untracked live matches */}
+              {untrackedMatches.length > 0 && (
+                <section>
+                  <SectionLabel>Live — not yet tracked</SectionLabel>
+                  <div className="space-y-2">
+                    {untrackedMatches.map((m, i) => (
+                      <UntrackedCard
+                        key={m.bsd_match_id}
+                        match={m}
+                        index={i}
+                        onTrack={() => setModalOpen(true)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── FAB ── */}
+        <AnimatePresence>
+          {!loading && (
+            <motion.button
+              initial={{ opacity: 0, y: 16, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              onClick={() => setModalOpen(true)}
+              aria-label="Track a new market"
+              className="fixed bottom-6 right-5 z-40 flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50"
+              style={{
+                background: `linear-gradient(135deg, #D4A843 0%, ${GOLD} 50%, #A8892A 100%)`,
+                color: "#0a0703",
+                boxShadow: `0 0 0 1px rgba(201,165,53,0.4), 0 8px 28px rgba(201,165,53,0.28), 0 2px 8px rgba(0,0,0,0.4)`,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.boxShadow =
+                  `0 0 0 1px rgba(201,165,53,0.55), 0 12px 36px rgba(201,165,53,0.38), 0 2px 8px rgba(0,0,0,0.4)`;
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.boxShadow =
+                  `0 0 0 1px rgba(201,165,53,0.4), 0 8px 28px rgba(201,165,53,0.28), 0 2px 8px rgba(0,0,0,0.4)`;
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Track a Market
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        {/* ── Modal ── */}
+        <LiveMarketModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSelect={handleSelectMarket}
+          availableMatches={modalMatches}
+        />
+      </div>
+    </>
   );
 }
