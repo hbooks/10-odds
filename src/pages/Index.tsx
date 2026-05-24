@@ -151,14 +151,7 @@ desc: "Watch betting markets move in real‑time — just like a stock chart. Ti
   },
 ];
 
-// Upcoming fixtures (tour-dates equivalent) - change to use real time fixtures
-const FIXTURES = [
-  { home: "Arsenal",   away: "Man City",  league: "Premier League", date: "Sat 24 May", time: "17:30", status: "Predicted" },
-  { home: "Barcelona", away: "Real Madrid",league: "La Liga",       date: "Sat 24 May", time: "20:00", status: "Predicted" },
-  { home: "Bayern",    away: "Dortmund",  league: "Bundesliga",     date: "Sun 25 May", time: "15:30", status: "Coming" },
-  { home: "Juventus",  away: "AC Milan",  league: "Serie A",        date: "Sun 25 May", time: "20:45", status: "Coming" },
-  { home: "PSG",       away: "Lyon",      league: "Ligue 1",        date: "Mon 26 May", time: "21:00", status: "Coming" },
-];
+
 
 const HOW_IT_WORKS = [
   {
@@ -185,7 +178,6 @@ const TRUST = [
 ];
 
 
-// ─── Fixtures list component (fetch from Supabase) ─────────────────
 // ─── Fixtures list component (fetch tomorrow & day‑after‑tomorrow from Supabase) ───
 function FixturesList() {
   const [fixtures, setFixtures] = useState<any[]>([]);
@@ -548,80 +540,52 @@ const IndexPage = () => {
         </motion.div>
       </section>
 
-      {/* ══════════════════════════════════════════════════════
-          FEATURES — large cards (Sonorx releases style)
-      ══════════════════════════════════════════════════════ */}
-      <section className="py-28 bg-black">
-        <div className="container mx-auto px-6 max-w-7xl">
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} variants={stagger}
-          >
-            <motion.div variants={fadeUp} className="mb-16">
-              <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-amber-400/70 mb-4">Platform</p>
-              <h2 className="text-[clamp(2.4rem,5vw,4rem)] font-black text-white leading-tight tracking-tight"
-                style={{ fontFamily: "'Bebas Neue', Impact, sans-serif" }}>
-                Everything in one place.
-              </h2>
-              <p className="mt-3 text-white/40 max-w-lg text-base leading-relaxed">
-                10 Odds isn't a tipster. It's a data platform built on the same
-                statistical foundations professional traders use.
-              </p>
-            </motion.div>
+     {/* ═══════════════════════════════════════════════════════════
+   FIXTURES — Live from Supabase
+═══════════════════════════════════════════════════════════ */}
+<section className="py-28 relative overflow-hidden" style={{ background: "#050505" }}>
+  {/* Ambient "FIXTURES" text behind */}
+  <div
+    className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden"
+    aria-hidden
+  >
+    <span
+      className="text-[22vw] font-black text-white/[0.018] tracking-tighter whitespace-nowrap"
+      style={{ fontFamily: "'Bebas Neue', Impact, sans-serif" }}
+    >
+      FIXTURES
+    </span>
+  </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 auto-rows-[300px]">
-              {FEATURES.map((card) => (
-                <motion.div
-                  key={card.title}
-                  variants={fadeUp}
-                  whileHover={{ y: -6 }}
-                  transition={{ type: "spring", stiffness: 280, damping: 22 }}
-                  className={`group relative rounded-2xl overflow-hidden cursor-pointer border border-white/6 ${card.wide ? "md:col-span-2" : ""}`}
-                  style={{ background: "#0a0a0a" }}
-                >
-                  <Link to={card.link} className="absolute inset-0 z-20" />
+  <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6">
+    {/* Section header */}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.5 }}
+      className="text-center mb-12"
+    >
+      <h2 className="text-3xl md:text-4xl font-heading font-black text-white tracking-tight">
+        Upcoming{" "}
+        <span
+          className="text-transparent bg-clip-text"
+          style={{
+            backgroundImage: "linear-gradient(135deg, #D4AF37 0%, #f5d878 50%, #D4AF37 100%)",
+          }}
+        >
+          Fixtures
+        </span>
+      </h2>
+      <p className="text-white/40 mt-2 max-w-md mx-auto text-sm">
+        Matches we’re tracking across the top leagues. Predictions land the morning of each matchday.
+      </p>
+    </motion.div>
 
-                  {/* Photo */}
-                  <img
-                    src={card.img}
-                    alt={card.title}
-                    className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-55 group-hover:scale-105 transition-all duration-700"
-                  />
-                  <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)" }} />
-
-                  {/* Accent glow corner */}
-                  <div
-                    className="absolute -top-16 -right-16 w-44 h-44 rounded-full blur-3xl opacity-0 group-hover:opacity-30 transition-opacity duration-500"
-                    style={{ background: card.accent }}
-                  />
-
-                  {/* Content */}
-                  <div className="absolute inset-0 p-7 flex flex-col justify-end z-10">
-                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] mb-2"
-                      style={{ color: card.accent }}>
-                      {card.tag}
-                    </span>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-                        style={{ background: `${card.accent}18`, border: `1px solid ${card.accent}25` }}>
-                        <card.icon className="h-4 w-4" style={{ color: card.accent }} />
-                      </div>
-                      <h3 className="font-black text-white text-xl tracking-tight"
-                        style={{ fontFamily: "'Bebas Neue', Impact, sans-serif", letterSpacing: "0.01em" }}>
-                        {card.title}
-                      </h3>
-                    </div>
-                    <p className="text-sm text-white/45 leading-relaxed">{card.desc}</p>
-                    <div className="flex items-center gap-1.5 mt-4 text-xs font-semibold opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300"
-                      style={{ color: card.accent }}>
-                      Explore <ArrowRight className="h-3.5 w-3.5" />
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
+    {/* Fixtures list – fetched from DB */}
+    <FixturesList />
+  </div>
+</section>
 
       {/* ══════════════════════════════════════════════════════════════════
           HOW IT WORKS — sticky scroll steps
