@@ -35,3 +35,8 @@ coverage
 # Misc
 *.local
 bun.lockb
+
+# Add error lines to .gitignore
+public/assets/vd.mp4
+public/assets/backg.mp4public/assets/vd.mp4
+public/assets/backg.mp4
