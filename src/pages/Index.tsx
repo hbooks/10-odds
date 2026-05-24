@@ -744,7 +744,7 @@ const IndexPage = () => {
                 </h2>
                 <p className="text-white/40 max-w-lg leading-relaxed mb-7 text-sm">
                   Every supporter who helps keep 10 Odds running gets their name permanently displayed
-                  on our Community Board. Your support is what makes this free for everyone.
+                  on our Community Board. Your support is what makes this project accessible for everyone.
                 </p>
                 <Link to="/community">
                   <motion.button
