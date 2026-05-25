@@ -392,61 +392,75 @@ const IndexPage = () => {
       {/* ══════════════════════════════════════════════════════
           HERO — full-viewport video background (Sonorx style)
       ══════════════════════════════════════════════════════ */}
-      <section
-        className="relative min-h-[100svh] flex flex-col items-center justify-center overflow-hidden bg-black"
-        onMouseMove={handleMouseMove}
-      >
-        {/* Video background */}
-        <div className="absolute inset-0 z-0">
-          <video
-            autoPlay muted loop playsInline
-            className="w-full h-full object-cover"
-            style={{ filter: "brightness(0.38) saturate(1.1)" }}
-          >
-            <source src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/vd.mp4" type="video/mp4" />
-            {/* Fallback stadium image */}
-            <img
-              src="https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1800&q=90"
-              alt="Stadium"
-              className="w-full h-full object-cover"
-            />
-          </video>
-          {/* Bottom vignette fade to black */}
-          <div className="absolute inset-0" style={{
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.85) 85%, #000 100%)"
-          }} />
-          {/* Warm gold radial on centre */}
-          <div className="absolute inset-0" style={{
-            background: "radial-gradient(ellipse 70% 55% at 50% 45%, rgba(245,158,11,0.08) 0%, transparent 65%)"
-          }} />
-        </div>
+<section
+  className="relative min-h-[100svh] flex flex-col items-center justify-center overflow-hidden bg-black"
+  onMouseMove={handleMouseMove}
+>
+  {/* ── Video background (all devices, instant) ─────────────── */}
+  <div className="absolute inset-0 z-0">
+    <video
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      className="w-full h-full object-cover"
+      style={{ filter: "brightness(0.38) saturate(1.1)" }}
+    >
+      <source
+        src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/instal.mp4"
+        type="video/mp4"
+      />
+    </video>
 
-        {/* Interactive mouse glow */}
-        <motion.div
-          className="absolute w-[700px] h-[700px] rounded-full pointer-events-none z-[1]"
-          style={{
-            left: glowX, top: glowY,
-            background: "radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 65%)",
-            transform: "translate(-50%,-50%)",
-          }}
-        />
+    {/* Bottom vignette fade to black */}
+    <div
+      className="absolute inset-0"
+      style={{
+        background:
+          "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.85) 85%, #000 100%)",
+      }}
+    />
+    {/* Warm gold radial on centre */}
+    <div
+      className="absolute inset-0"
+      style={{
+        background:
+          "radial-gradient(ellipse 70% 55% at 50% 45%, rgba(245,158,11,0.08) 0%, transparent 65%)",
+      }}
+    />
+  </div>
 
-        {/* Noise grain overlay */}
-        <div className="absolute inset-0 z-[1] opacity-[0.04]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-            backgroundSize: "200px 200px",
-          }}
-        />
+  {/* ── Interactive mouse glow ───────────────────────────────── */}
+  <motion.div
+    className="absolute w-[700px] h-[700px] rounded-full pointer-events-none z-[1]"
+    style={{
+      left: glowX,
+      top: glowY,
+      background:
+        "radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 65%)",
+      transform: "translate(-50%,-50%)",
+    }}
+  />
 
-        {/* Hero content */}
-        <motion.div
-          className="relative z-10 container mx-auto px-6 max-w-6xl flex flex-col items-center text-center gap-8"
-          style={{ y: textY, opacity: opac }}
-          initial="hidden"
-          animate="visible"
-          variants={stagger}
-        >
+  {/* ── Noise grain overlay ──────────────────────────────────── */}
+  <div
+    className="absolute inset-0 z-[1] opacity-[0.04]"
+    style={{
+      backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+      backgroundSize: "200px 200px",
+    }}
+  />
+
+  {/* ── Hero content ─────────────────────────────────────────── */}
+  <motion.div
+    className="relative z-10 container mx-auto px-6 max-w-6xl flex flex-col items-center text-center gap-8"
+    style={{ y: textY, opacity: opac }}
+    initial="hidden"
+    animate="visible"
+    variants={stagger}
+  >
+
    {/* ────── LEFT COLUMN — Text + CTAs ────── */}
     <motion.div
       initial={{ opacity: 0, x: -30 }}

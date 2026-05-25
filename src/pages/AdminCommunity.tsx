@@ -16,6 +16,7 @@ import {
   Check,
   Ban,
   Newspaper,
+  Wrench,
 } from "lucide-react";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ interface CommunityMember {
   created_at: string;
 }
 
-type Tab = "news" | "community";
+type Tab = "news" | "community" | "settings";
 type CommunityFilter = "pending" | "approved" | "rejected" | "banned";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -86,6 +87,40 @@ const AdminCommunity = () => {
   const showToast = (type: "ok" | "err", msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  // ── Maintenance mode state ──────────────────────────────────────────────
+  const [maintenanceOn, setMaintenanceOn] = useState(false);
+  const [togglingMaintenance, setTogglingMaintenance] = useState(false);
+
+  // Fetch current maintenance state on mount
+  useEffect(() => {
+    supabase
+      .from("site_settings")
+      .select("maintenance_mode")
+      .eq("id", 1)
+      .single()
+      .then(({ data }) => {
+        if (data) setMaintenanceOn(data.maintenance_mode);
+      });
+  }, []);
+
+  const handleToggleMaintenance = async () => {
+    setTogglingMaintenance(true);
+    const next = !maintenanceOn;
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert({ id: 1, maintenance_mode: next }, { onConflict: "id" })
+      .select("maintenance_mode")
+      .single();
+
+    if (!error) {
+      setMaintenanceOn(next);
+      showToast("ok", next ? "Maintenance mode enabled. Site locked." : "Maintenance mode disabled. Site open.");
+    } else {
+      showToast("err", "Failed to toggle maintenance mode.");
+    }
+    setTogglingMaintenance(false);
   };
 
   // ════════════════════════════════════════════════════════════════════════
@@ -186,7 +221,6 @@ const AdminCommunity = () => {
   ];
 
   return (
-    // No Layout – standalone admin panel with a plain container
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
 
@@ -207,6 +241,7 @@ const AdminCommunity = () => {
             [
               { key: "news",      label: "News",      icon: <Newspaper className="h-3.5 w-3.5" /> },
               { key: "community", label: "Community", icon: <Users className="h-3.5 w-3.5" /> },
+              { key: "settings",  label: "Settings",  icon: <Wrench className="h-3.5 w-3.5" /> },
             ] as const
           ).map((t) => (
             <button
@@ -491,6 +526,53 @@ const AdminCommunity = () => {
             )}
           </>
         )}
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SETTINGS TAB – Maintenance Mode Toggle                           */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {activeTab === "settings" && (
+          <div className="rounded-xl border border-border bg-card p-6 space-y-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Wrench className="h-4 w-4 text-gold" />
+              <p className="text-sm font-semibold text-foreground">Site Settings</p>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm font-medium text-foreground">Maintenance Mode</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  When enabled, all visitors see a "We'll be right back" screen.
+                  You can still access the site with the admin key.
+                </p>
+              </div>
+              <button
+                disabled={togglingMaintenance}
+                onClick={handleToggleMaintenance}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-all disabled:opacity-60 ${
+                  maintenanceOn
+                    ? "bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25"
+                    : "bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25"
+                }`}
+              >
+                {togglingMaintenance ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : maintenanceOn ? (
+                  <Ban className="h-4 w-4" />
+                ) : (
+                  <CheckCircle className="h-4 w-4" />
+                )}
+                {maintenanceOn ? "Disable Maintenance" : "Enable Maintenance"}
+              </button>
+            </div>
+
+            {maintenanceOn && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/25 px-4 py-3 text-xs text-amber-300">
+                <strong>Maintenance is currently ON.</strong> Visitors are locked out. Turn it off when you're done.
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* ── Toast ──────────────────────────────────────────────────────────── */}

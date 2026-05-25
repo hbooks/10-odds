@@ -1,5 +1,5 @@
 import { Suspense, lazy, createContext, useContext, useState, useEffect, useRef } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useSearchParams } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -11,7 +11,8 @@ import AdminCommunity from "@/pages/AdminCommunity";
 import { PageTracker } from "@/hooks/usePageTracking";
 import CustomerCare from "@/components/CustomerCare";
 import ChartPage from "./pages/ChartPage";
-
+import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
+import MaintenancePage from "@/pages/Maintenance";
 
 const IndexPage        = lazy(() => import("@/pages/Index"));
 const GamesPage        = lazy(() => import("@/pages/GamesPage"));
@@ -34,6 +35,7 @@ const LiveMarketsPage   = lazy(() => import("@/pages/LiveMarkets"));
 const MarketsPage       = lazy(() => import("@/pages/Markets"));
 const ClosedMarketsPage = lazy(() => import("@/pages/ClosedMarkets"));
 
+// ── Loading context (unchanged) ───────────────────────────────────────────────
 interface LoadingCtx {
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
@@ -44,20 +46,46 @@ export const useLoading = () => useContext(LoadingContext);
 const LazyFallback = () => <GlobalLoader />;
 const queryClient = new QueryClient();
 
-// ── Minimum display time for the boot loader (ms) ────────────────────────────
-const BOOT_LOADER_MS = 4500; 
+const BOOT_LOADER_MS = 4500;
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  MaintenanceGuard – allows admin key bypass
+// ══════════════════════════════════════════════════════════════════════════════
+function MaintenanceGuard({ children }: { children: React.ReactNode }) {
+  const { isMaintenance, isChecking } = useMaintenanceMode();
+  const [searchParams] = useSearchParams();
+  const adminKey = searchParams.get("key");
+  const bypassMaintenance = adminKey === import.meta.env.VITE_ADMIN_SECRET;
+
+  // While the maintenance flag is being fetched, render normally to avoid
+  // a blank screen during the boot loader.
+  if (isChecking) return <>{children}</>;
+
+  // Maintenance is ON and no admin key → show the locked screen
+  if (isMaintenance && !bypassMaintenance) {
+    return (
+      <AnimatePresence mode="wait">
+        <MaintenancePage key="maintenance" />
+      </AnimatePresence>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  App
+// ══════════════════════════════════════════════════════════════════════════════
 function App() {
   const [isLoading, setIsLoading] = useState(false);
   const loaderStartRef = useRef<number>(0);
 
-  // ── Delayed hide function for manual loading states ────────────────────────
   const delayedSetIsLoading = (v: boolean) => {
     if (v) {
       loaderStartRef.current = Date.now();
       setIsLoading(true);
     } else {
-      const elapsed = Date.now() - loaderStartRef.current;
+      const elapsed   = Date.now() - loaderStartRef.current;
       const remaining = Math.max(0, BOOT_LOADER_MS - elapsed);
       if (remaining > 0) {
         setTimeout(() => setIsLoading(false), remaining);
@@ -67,16 +95,11 @@ function App() {
     }
   };
 
-  // ── One‑time boot loader ───────────────────────────────────────────────────
   const [showBootLoader, setShowBootLoader] = useState(true);
-
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowBootLoader(false);
-    }, BOOT_LOADER_MS);
-
+    const timer = setTimeout(() => setShowBootLoader(false), BOOT_LOADER_MS);
     return () => clearTimeout(timer);
-  }, []); // runs only once when the app mounts
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -85,38 +108,42 @@ function App() {
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
           <BrowserRouter>
-             <PageTracker />
+            <PageTracker />
+
             <AnimatePresence>
-              {showBootLoader && <GlobalLoader key="boot-loader" />}
+              {showBootLoader          && <GlobalLoader key="boot-loader"   />}
               {!showBootLoader && isLoading && <GlobalLoader key="global-loader" />}
             </AnimatePresence>
 
-            <Suspense fallback={<LazyFallback />}>
-              <Routes>
-                <Route path="/"                element={<IndexPage />} />
-                <Route path="/games"           element={<GamesPage />} />
-                <Route path="/ten-odds"        element={<TenOddsPage />} />
-                <Route path="/status"          element={<StatusPage />} />
-                <Route path="/previous"        element={<PreviousPage />} />
-                <Route path="/analytics"       element={<AnalyticsPage />} />
-                <Route path="/scoreboard"      element={<ScoreboardPage />} />
-                <Route path="/patterns"        element={<PatternPage />} />
-                <Route path="/about"           element={<AboutPage />} />
-                <Route path="/terms"           element={<TermsPage />} />
-                <Route path="/community-terms" element={<CommunityTermsPage />} />    
-                <Route path="/privacy"         element={<PrivacyPage />} />
-                <Route path="/guide"           element={<GuidePage />} /> 
-                <Route path="/community"       element={<CommunityPage />} />
-                <Route path="/news"            element={<NewsPage />} />
-                <Route path="/live-markets"   element={<LiveMarketsPage />} />
-                <Route path="/markets"        element={<MarketsPage />} />
-                <Route path="/closed" element={<ClosedMarketsPage />} />
-                <Route path="/chart"          element={<ChartPage />} />
-                <Route path="/admin/news"      element={<AdminCommunity />} />
-                <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-                <Route path="*"               element={<NotFound />} />
-              </Routes>
-            </Suspense>
+            {/* ── Maintenance guard — wraps everything below the loaders ── */}
+            <MaintenanceGuard>
+              <Suspense fallback={<LazyFallback />}>
+                <Routes>
+                  <Route path="/"                element={<IndexPage />} />
+                  <Route path="/games"           element={<GamesPage />} />
+                  <Route path="/ten-odds"        element={<TenOddsPage />} />
+                  <Route path="/status"          element={<StatusPage />} />
+                  <Route path="/previous"        element={<PreviousPage />} />
+                  <Route path="/analytics"       element={<AnalyticsPage />} />
+                  <Route path="/scoreboard"      element={<ScoreboardPage />} />
+                  <Route path="/patterns"        element={<PatternPage />} />
+                  <Route path="/about"           element={<AboutPage />} />
+                  <Route path="/terms"           element={<TermsPage />} />
+                  <Route path="/community-terms" element={<CommunityTermsPage />} />
+                  <Route path="/privacy"         element={<PrivacyPage />} />
+                  <Route path="/guide"           element={<GuidePage />} />
+                  <Route path="/community"       element={<CommunityPage />} />
+                  <Route path="/news"            element={<NewsPage />} />
+                  <Route path="/live-markets"    element={<LiveMarketsPage />} />
+                  <Route path="/markets"         element={<MarketsPage />} />
+                  <Route path="/closed"          element={<ClosedMarketsPage />} />
+                  <Route path="/chart"           element={<ChartPage />} />
+                  <Route path="/admin/news"      element={<AdminCommunity />} />
+                  <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+                  <Route path="*"               element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </MaintenanceGuard>
 
             <CustomerCare />
             <SupportPortal />
