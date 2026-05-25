@@ -55,7 +55,7 @@ export default function MaintenancePage() {
     style={{ filter: "brightness(0.30) saturate(0.9)" }}
   >
     <source
-      src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/bk.mp4"
+      src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/404.mp4"
       type="video/mp4"
     />
   </video>
@@ -164,7 +164,7 @@ export default function MaintenancePage() {
   </div>
 
   {/* ── Footer — absolutely positioned near the bottom ────────────────────── */}
-  <div className="absolute bottom-16 left-0 right-5 text-center z-10">
+  <div className="absolute bottom-9 left-0 right-0 text-center z-10">
     <p
       className="text-[9px] font-mono tracking-wide"
       style={{ color: "rgba(255, 255, 255, 0.69)" }}
