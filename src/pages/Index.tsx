@@ -403,7 +403,7 @@ const IndexPage = () => {
             className="w-full h-full object-cover"
             style={{ filter: "brightness(0.38) saturate(1.1)" }}
           >
-            <source src="/assets/vd" type="video/mp4" />
+            <source src="https://vbxcfpdijgxzqcbpzljw.supabase.co/storage/v1/object/public/assets/vd.mp4" type="video/mp4" />
             {/* Fallback stadium image */}
             <img
               src="https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1800&q=90"
@@ -540,7 +540,7 @@ const IndexPage = () => {
         </motion.div>
       </section>
 
-     {/* ═══════════════════════════════════════════════════════════
+         {/* ═══════════════════════════════════════════════════════════
    FIXTURES — Live from Supabase
 ═══════════════════════════════════════════════════════════ */}
 <section className="py-28 relative overflow-hidden" style={{ background: "#050505" }}>
@@ -581,8 +581,6 @@ const IndexPage = () => {
         Matches we’re tracking across the top leagues. Predictions land the morning of each matchday.
       </p>
     </motion.div>
-
-    {/* Fixtures list – fetched from DB */}
     <FixturesList />
   </div>
 </section>
@@ -590,10 +588,10 @@ const IndexPage = () => {
       {/* ══════════════════════════════════════════════════════════════════
           HOW IT WORKS — sticky scroll steps
       ══════════════════════════════════════════════════════════════════ */}
-      <section className="py-28 relative overflow-hidden">
+<section className="py-28 relative overflow-hidden bg-black">
         <div className="absolute inset-0 pointer-events-none"
           style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(59,130,246,0.04) 0%, transparent 70%)" }} />
-
+ 
         <div className="container mx-auto px-6 max-w-5xl">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} variants={stagger}
@@ -605,12 +603,12 @@ const IndexPage = () => {
                 From raw data to your pick.
               </h2>
             </motion.div>
-
+ 
             <div className="relative flex flex-col gap-16">
               {/* Vertical line */}
               <div className="absolute left-[27px] md:left-1/2 top-0 bottom-0 w-px hidden sm:block"
                 style={{ background: "linear-gradient(to bottom, transparent, rgba(255,255,255,0.08), transparent)", transform: "translateX(-50%)" }} />
-
+ 
               {HOW_IT_WORKS.map((step, i) => (
                 <motion.div
                   key={step.step}
@@ -634,7 +632,7 @@ const IndexPage = () => {
                       {step.step}
                     </span>
                   </div>
-
+ 
                   <div className={`flex-1 ${i % 2 === 1 ? "md:text-right" : ""}`}>
                     <h3 className="text-2xl font-black text-white mb-2"
                       style={{ fontFamily: "'Bebas Neue', Impact, sans-serif" }}>
