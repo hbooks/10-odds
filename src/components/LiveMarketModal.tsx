@@ -158,8 +158,7 @@ const GOLD_GLOW = "rgba(201,168,76,0.3)";
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1.5 select-none"
-      style={{ color: "rgba(255,255,255,0.3)" }}>
+    <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35 mb-1.5 select-none">
       {children}
     </label>
   );
@@ -169,11 +168,9 @@ function SelectWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative">
       {children}
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-        style={{ color: "rgba(255,255,255,0.25)" }}>
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-          <path d="M2 4L5.5 7.5L9 4" stroke="currentColor" strokeWidth="1.4"
-            strokeLinecap="round" strokeLinejoin="round" />
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/30">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
     </div>
@@ -190,7 +187,7 @@ const selectCls = [
 ].join(" ");
 
 const selectStyle = {
-  background: "rgba(255,255,255,0.035)",
+  background: "rgba(17, 13, 13, 0.91)",
   border: "1px solid rgba(255,255,255,0.09)",
 };
 
