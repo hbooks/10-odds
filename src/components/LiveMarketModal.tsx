@@ -33,25 +33,25 @@ type Props = {
 
 // ─── Market catalogue ──────────────────────────────────────────────────────────
 const ALL_MARKET_TYPES: Record<string, string[]> = {
-  "1X2": ["home", "draw", "away"],
-  DC: ["1x", "12", "x2"],
-  DNB: ["home", "away"],
-  BTTS: ["yes", "no"],
-  OVER_UNDER: [
+  "HOME, AWAY OR DRAW (1X2)": ["home", "draw", "away"],
+  "DOUBLE CHANCE": ["1x", "12", "x2"],
+  "DRAW NO BET": ["home", "away"],
+  "BOTH TEAMS TO SCORE": ["yes", "no"],
+  "OVER UNDER": [
     "over 0.5","over 1.5","over 2.5","over 3.5","over 4.5","over 5.5","over 6.5",
     "under 0.5","under 1.5","under 2.5","under 3.5","under 4.5","under 5.5","under 6.5",
   ],
-  CORNERS: ["over 8.5","over 9.5","over 10.5","under 8.5","under 9.5","under 10.5"],
-  CARDS: ["over 3.5","over 4.5","over 5.5","under 3.5","under 4.5","under 5.5"],
-  TIME_OF_FIRST_GOAL: ["0-15","16-30","31-45","46-60","61-75","76-90","no goal"],
-  TOTAL_GOALS_BANDS: ["0-1","2-3","4-6","7+"],
-  EVEN_ODD: ["even","odd"],
-  CLEAN_SHEET: ["home yes","home no","away yes","away no"],
-  WIN_TO_NIL: ["home yes","home no","away yes","away no"],
-  PENALTY_AWARDED: ["yes","no"],
-  RED_CARD: ["yes","no"],
-  OWN_GOAL: ["yes","no"],
-  EXACT_TOTAL_GOALS: ["0","1","2","3","4","5","6+"],
+  "TOTAL CORNERS": ["over 8.5","over 9.5","over 10.5","under 8.5","under 9.5","under 10.5"],
+  "TOTAL CARDS": ["over 3.5","over 4.5","over 5.5","under 3.5","under 4.5","under 5.5"],
+  "TIME OF FIRST GOAL": ["0-15","16-30","31-45","46-60","61-75","76-90","no goal"],
+  "TOTAL GOALS BANDS": ["0-1","2-3","4-6","7+"],
+  "EVEN OR ODD": ["even","odd"],
+  "CLEAN SHEET": ["home yes","home no","away yes","away no"],
+  "WIN TO NIL": ["home yes","home no","away yes","away no"],
+  "PENALTY AWARDED": ["yes","no"],
+  "RED CARD": ["yes","no"],
+  "OWN GOAL": ["yes","no"],
+  "EXACT TOTAL GOALS": ["0","1","2","3","4","5","6+"],
 };
 
 // ─── Error classifier — converts raw errors into human-friendly objects ────────
