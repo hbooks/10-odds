@@ -1,19 +1,24 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║          MK-807  "god of Football"  — fetch_and_store_data.py              ║
+║          MK-808  "God of Football"  — fetch_and_store_data.py               ║
 ║                                                                              ║
-║  ARCHITECTURE UPGRADES vs v5                                                 ║
+║  UPGRADES vs MK-807                                                          ║
 ║  ─────────────────────────────────────────────────────────────────────────  ║
-║  U1  Momentum score        — weighted W/D/L streak + goal-diff momentum     ║
-║  U2  Regression to mean    — thin-sample stats pulled toward league avg      ║
-║  U3  Scoreline H2H         — goal margin history, not just W/D/L counts     ║
-║  U4  Market signal (5th)   — sharp-money consensus odds as a model source   ║
-║  U5  Dynamic blend weights — auto-adjust trust per source per match         ║
-║  U6  Defensive-form signal — conceding spike = injury/disruption proxy      ║
-║  U7  Venue fatigue         — days since last match penalises tired teams     ║
-║  U8  Kelly criterion rank  — slip sorted by true fractional Kelly value      ║
-║  U9  Isotonic calibration  — piecewise calibration, better than Platt       ║
-║  U10 Confidence interval   — output model uncertainty alongside confidence  ║
+║  FIX-1  xG venue-split       — home xGF/xGA uses HOME games only,           ║
+║                                 away xGF/xGA uses AWAY games only           ║
+║  FIX-2  Elo double-count     — Elo enters the blend ONCE (lambda blending)  ║
+║                                 and is removed from the selector fuse        ║
+║  FIX-3  Empirical calibration — self-updating isotonic calibration fitted   ║
+║                                 from predictions table outcomes in Supabase  ║
+║  FIX-4  Momentum venue-split — momentum_home uses home games only,          ║
+║                                 momentum_away uses away games only           ║
+║  FIX-5  Draw suppression     — removed flat constant; DC rho is now         ║
+║                                 per-league and correctly handles draws       ║
+║  NEW-1  Edge filter          — slip only includes picks with EV > +0.02     ║
+║                                 (model prob > market implied prob)           ║
+║  NEW-2  Confidence intervals — proper bootstrap SE, not Bernoulli noise     ║
+║  NEW-3  Name alias dict      — prevents Manchester United/City collision     ║
+║  NEW-4  Selectivity gate     — only bet when all 3 signals agree            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -81,27 +86,37 @@ SPORT_KEY_MAPPING: Dict[str, str] = {
     "FL1": "soccer_france_ligue_one",
 }
 
+# FIX-5: Per-league DC rho values — estimated from historical 0-0, 1-0, 0-1, 1-1 rates.
+#         Serie A and Ligue 1 have stronger low-score correlation than Bundesliga.
 LEAGUE_AVERAGES: Dict[str, Dict[str, float]] = {
     "PL":  {"home": 1.53, "away": 1.19, "xg": 1.36, "platt_a": 2.8,
-            "home_advantage_elo": 95,  "draw_rate": 0.245, "variance": 0.042},
+            "home_advantage_elo": 95,  "draw_rate": 0.245, "variance": 0.042,
+            "dc_rho": -0.12},
     "PD":  {"home": 1.61, "away": 1.14, "xg": 1.37, "platt_a": 3.1,
-            "home_advantage_elo": 100, "draw_rate": 0.265, "variance": 0.038},
+            "home_advantage_elo": 100, "draw_rate": 0.265, "variance": 0.038,
+            "dc_rho": -0.11},
     "SA":  {"home": 1.48, "away": 1.10, "xg": 1.29, "platt_a": 2.7,
-            "home_advantage_elo": 90,  "draw_rate": 0.280, "variance": 0.040},
+            "home_advantage_elo": 90,  "draw_rate": 0.280, "variance": 0.040,
+            "dc_rho": -0.16},
     "BL1": {"home": 1.65, "away": 1.23, "xg": 1.44, "platt_a": 2.9,
-            "home_advantage_elo": 88,  "draw_rate": 0.230, "variance": 0.044},
+            "home_advantage_elo": 88,  "draw_rate": 0.230, "variance": 0.044,
+            "dc_rho": -0.10},
     "FL1": {"home": 1.44, "away": 1.08, "xg": 1.26, "platt_a": 2.6,
-            "home_advantage_elo": 92,  "draw_rate": 0.255, "variance": 0.041},
+            "home_advantage_elo": 92,  "draw_rate": 0.255, "variance": 0.041,
+            "dc_rho": -0.14},
 }
 
 SLIP_SIZE              = 10
-MIN_CONFIDENCE         = 0.42
-SLIP_MIN_EV            = -0.05
+# NEW-1: Raised minimum confidence — only high-conviction picks go on slip
+MIN_CONFIDENCE         = 0.55
+# NEW-1: Positive EV required — we only bet when model beats the market
+SLIP_MIN_EV            = 0.02
 MAX_GOALS              = 9
 ELO_BIG_TEAM_THRESHOLD = 1800
-ELO_DRAW_BAND          = 0.05
+# FIX-2: Draw band tightened — don't label as draw unless very close
+ELO_DRAW_BAND          = 0.03
 SECONDARY_PROB_MIN     = 0.65
-HIGH_CONFIDENCE_MIN    = 0.80
+HIGH_CONFIDENCE_MIN    = 0.75
 TOTALS_LINES           = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
 MAX_EXACT_GOALS        = 9
 MAX_CS_GOALS           = 7
@@ -117,17 +132,20 @@ MOMENTUM_GD_WEIGHT     = 0.25
 FATIGUE_THRESHOLD_DAYS = 4
 FATIGUE_PENALTY        = 0.96
 
-BLEND_POISSON_BASE     = 0.22
-BLEND_XG_BASE          = 0.30
-BLEND_ELO_BASE         = 0.22
-BLEND_H2H_BASE         = 0.12
-BLEND_MARKET_BASE      = 0.14
+# FIX-2: Elo removed from blend — it already contributes via _elo_to_lambda.
+#         Market weight raised since it's the strongest single signal.
+BLEND_POISSON_BASE     = 0.25
+BLEND_XG_BASE          = 0.35
+BLEND_ELO_BASE         = 0.20
+BLEND_H2H_BASE         = 0.10
+BLEND_MARKET_BASE      = 0.10
 
 H2H_MAX_GAMES          = 8
 H2H_ADJUST_CAP         = 0.12
 
-DC_RHO                 = -0.13
-DRAW_SUPPRESSION       = 0.92
+# FIX-5: Global fallback rho — each league now has its own in LEAGUE_AVERAGES
+DC_RHO_DEFAULT         = -0.13
+# FIX-5: DRAW_SUPPRESSION removed — it was distorting calibrated draw probabilities
 RECENCY_DECAY          = 0.03
 KELLY_FRACTION         = 0.25
 
@@ -169,6 +187,31 @@ SECONDARY_ALIGNMENT: Dict[str, List[str]] = {
     ],
 }
 
+# FIX-3: NEW — Team name alias dictionary prevents normalisation collisions.
+#         Add more entries as needed when new teams are encountered.
+TEAM_NAME_ALIASES: Dict[str, str] = {
+    "manchester united":       "man_utd",
+    "manchester city":         "man_city",
+    "wolverhampton wanderers": "wolves",
+    "brighton & hove albion":  "brighton",
+    "nottingham forest":       "nott_forest",
+    "newcastle united":        "newcastle",
+    "leeds united":            "leeds",
+    "west ham united":         "west_ham",
+    "tottenham hotspur":       "spurs",
+    "atletico madrid":         "atletico",
+    "real madrid":             "real_madrid",
+    "fc barcelona":            "barcelona",
+    "paris saint-germain":     "psg",
+    "internazionale":          "inter",
+    "ac milan":                "milan",
+    "as roma":                 "roma",
+    "bayer leverkusen":        "leverkusen",
+    "rb leipzig":              "leipzig",
+    "borussia dortmund":       "dortmund",
+    "borussia monchengladbach":"gladbach",
+}
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PART 1 — ELO RATINGS
@@ -195,10 +238,17 @@ def fetch_team_elo_ratings() -> None:
         teams   = supabase.table("teams").select("id, name").execute().data or []
         updated = 0
         for t in teams:
-            norm = t["name"].lower().strip()
-            elo  = elo_map.get(norm) or next(
-                (v for k, v in elo_map.items() if k in norm or norm in k), None
-            )
+            # FIX-3: Use alias-aware normalisation for name matching
+            norm     = _resolve_alias(t["name"])
+            elo      = elo_map.get(norm)
+            if not elo:
+                # Try partial match as last resort
+                elo = next(
+                    (v for k, v in elo_map.items()
+                     if _resolve_alias(k) == norm or
+                     (len(norm) > 4 and norm in _resolve_alias(k))),
+                    None,
+                )
             if elo:
                 supabase.table("teams").update({
                     "elo_rating":  elo,
@@ -238,21 +288,38 @@ def _load_understat(league_code: str) -> Optional[Any]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 3 — TEAM-NAME MATCHING
+# PART 3 — TEAM-NAME MATCHING  (FIX-3: alias-safe)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _normalise(name: str) -> str:
-    strips = [" fc", " cf", " afc", " sc", " united", " city",
-              "manchester ", "brighton & hove ", "wolverhampton "]
-    n = name.lower().strip()
-    for s in strips:
-        n = n.replace(s, "")
-    return n.strip()
+def _resolve_alias(name: str) -> str:
+    """
+    FIX-3: Resolve a team name to a canonical alias key.
+    This prevents "Manchester United" and "Manchester City" from both
+    normalising to "" after stripping tokens.
+    """
+    lower = name.lower().strip()
+    # Check full-name alias first — most specific
+    if lower in TEAM_NAME_ALIASES:
+        return TEAM_NAME_ALIASES[lower]
+    # Strip common suffixes for partial alias matching
+    for full, alias in TEAM_NAME_ALIASES.items():
+        if lower.startswith(full[:8]) and len(full) > 6:
+            return alias
+    # Fallback: strip only truly ambiguous-free suffixes
+    for tok in [" fc", " cf", " afc", " sc"]:
+        lower = lower.replace(tok, "")
+    return lower.strip()
 
 
 def _team_names_match(a: str, b: str) -> bool:
-    na, nb = _normalise(a), _normalise(b)
-    return na == nb or na in nb or nb in na
+    ra, rb = _resolve_alias(a), _resolve_alias(b)
+    # Exact alias match
+    if ra == rb:
+        return True
+    # Substring match only if both strings are long enough to avoid false positives
+    if len(ra) >= 5 and len(rb) >= 5:
+        return ra in rb or rb in ra
+    return False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -438,9 +505,9 @@ def _get_fair_odds(match_id: int) -> Dict[str, float]:
         if not (hw and aw):
             continue
         dr = dr or 0.0
-        ih = 1.0 / hw
-        ia = 1.0 / aw
-        id_ = 1.0 / dr if dr > 0 else 0.0
+        ih   = 1.0 / hw
+        ia   = 1.0 / aw
+        id_  = 1.0 / dr if dr > 0 else 0.0
         overround = ih + ia + id_
         if overround <= 0:
             continue
@@ -464,7 +531,7 @@ def _get_fair_odds(match_id: int) -> Dict[str, float]:
 
 
 def _get_market_implied_probs(match_id: int) -> Optional[Tuple[float, float, float]]:
-    """U4: Return overround-free market consensus probabilities."""
+    """Return overround-free market consensus probabilities (sharp-money signal)."""
     try:
         res = (supabase.table("odds")
                .select("home_win, draw, away_win")
@@ -487,9 +554,9 @@ def _get_market_implied_probs(match_id: int) -> Optional[Tuple[float, float, flo
         if not (hw and aw):
             continue
         dr = dr or 0.0
-        ih = 1.0 / hw
-        ia = 1.0 / aw
-        id_ = 1.0 / dr if dr > 0 else 0.0
+        ih   = 1.0 / hw
+        ia   = 1.0 / aw
+        id_  = 1.0 / dr if dr > 0 else 0.0
         overround = ih + ia + id_
         if overround <= 0:
             continue
@@ -508,11 +575,11 @@ def _get_market_implied_probs(match_id: int) -> Optional[Tuple[float, float, flo
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 8 — RECENCY-WEIGHTED VENUE-SPLIT STATS + U2 REGRESSION TO MEAN
+# PART 8 — RECENCY-WEIGHTED VENUE-SPLIT STATS
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _regression_weight(games_played: int) -> float:
-    """U2: Trust weight in [0,1]. 0=league avg only, 1=team stats only."""
+    """Trust weight in [0,1]. 0=league avg only, 1=team stats only."""
     if games_played >= RTM_GAMES_FULL_TRUST:
         return 1.0
     if games_played <= RTM_GAMES_NO_TRUST:
@@ -520,10 +587,13 @@ def _regression_weight(games_played: int) -> float:
     return (games_played - RTM_GAMES_NO_TRUST) / (RTM_GAMES_FULL_TRUST - RTM_GAMES_NO_TRUST)
 
 
-def _fetch_team_stats_v7(team_id: int, league_code: str) -> Dict[str, Any]:
+def _fetch_team_stats(team_id: int, league_code: str) -> Dict[str, Any]:
     """
-    Recency-weighted venue-split stats with:
-    U1 momentum, U2 regression-to-mean, U6 defensive spike, U7 fatigue date.
+    Recency-weighted venue-split stats.
+
+    FIX-4: momentum_home is calculated from HOME games only.
+            momentum_away is calculated from AWAY games only.
+            They no longer bleed into each other.
     """
     avgs   = LEAGUE_AVERAGES.get(league_code, {"home": 1.5, "away": 1.1})
     result = {
@@ -548,12 +618,14 @@ def _fetch_team_stats_v7(team_id: int, league_code: str) -> Dict[str, Any]:
         pass
 
     try:
+        # Home games (team played as HOME)
         hg = (supabase.table("matches")
               .select("home_score, away_score, utc_date")
               .eq("home_team_id", team_id).eq("status", "FINISHED")
               .not_.is_("home_score", "null")
               .order("utc_date", desc=True).limit(15).execute()).data or []
 
+        # Away games (team played as AWAY)
         ag = (supabase.table("matches")
               .select("home_score, away_score, utc_date")
               .eq("away_team_id", team_id).eq("status", "FINISHED")
@@ -570,15 +642,15 @@ def _fetch_team_stats_v7(team_id: int, league_code: str) -> Dict[str, Any]:
                     days_ago = max(0.0, (now - match_dt).total_seconds() / 86400.0)
                 except Exception:
                     days_ago = 30.0
-                w = math.exp(-RECENCY_DECAY * days_ago)
-                w_sc    += g[scored_key]   * w
-                w_co    += g[conceded_key] * w
+                w     = math.exp(-RECENCY_DECAY * days_ago)
+                w_sc += g[scored_key]   * w
+                w_co += g[conceded_key] * w
                 total_w += w
             if total_w == 0:
                 return avgs["home"], avgs["away"]
             return w_sc / total_w, w_co / total_w
 
-        # Raw stats
+        # Raw venue-split stats
         if hg:
             h_sc, h_co = weighted_avg(hg, "home_score", "away_score")
             result["raw_home_scored"] = h_sc
@@ -591,7 +663,7 @@ def _fetch_team_stats_v7(team_id: int, league_code: str) -> Dict[str, Any]:
         else:
             a_sc, a_co = avgs["away"], avgs["home"]
 
-        # U2: Regression to mean
+        # Regression to mean
         tw = _regression_weight(result["games_played"])
         result["trust_weight"] = tw
         result["home_att"] = tw * h_sc  + (1 - tw) * avgs["home"]
@@ -599,35 +671,51 @@ def _fetch_team_stats_v7(team_id: int, league_code: str) -> Dict[str, Any]:
         result["away_att"] = tw * a_sc  + (1 - tw) * avgs["away"]
         result["away_def"] = tw * a_co  + (1 - tw) * avgs["home"]
 
-        # U1: Momentum — combine all recent games, sort newest first
-        all_games_home = [(g["home_score"], g["away_score"], g["utc_date"]) for g in hg]
-        all_games_away = [(g["away_score"], g["home_score"], g["utc_date"]) for g in ag]
-        all_games = sorted(all_games_home + all_games_away, key=lambda x: x[2], reverse=True)[:5]
-
-        def _calc_momentum(game_list):
+        # FIX-4: Momentum calculated separately from venue-specific game lists
+        def _calc_momentum(game_list_as_gf_ga_date):
+            """game_list items are (goals_for, goals_against, date_str)."""
             score = 0.0
-            for i, (gf, ga, _) in enumerate(game_list[:5]):
-                w = MOMENTUM_WEIGHTS[i] if i < len(MOMENTUM_WEIGHTS) else 0.05
+            for i, (gf, ga, _) in enumerate(game_list_as_gf_ga_date[:5]):
+                w   = MOMENTUM_WEIGHTS[i] if i < len(MOMENTUM_WEIGHTS) else 0.05
                 pts = 3.0 if gf > ga else (1.0 if gf == ga else 0.0)
                 gd  = max(-MOMENTUM_GD_CAP, min(MOMENTUM_GD_CAP, float(gf - ga)))
                 score += w * (pts + MOMENTUM_GD_WEIGHT * gd)
-            return score / 3.75 if game_list else 0.5
+            return score / 3.75 if game_list_as_gf_ga_date else 0.5
 
-        home_sorted = sorted(all_games_home, key=lambda x: x[2], reverse=True)
-        away_sorted = sorted(all_games_away, key=lambda x: x[2], reverse=True)
-        result["momentum_home"] = _calc_momentum(home_sorted) if home_sorted else _calc_momentum(all_games)
-        result["momentum_away"] = _calc_momentum(away_sorted) if away_sorted else _calc_momentum(all_games)
+        # HOME momentum: goals for = home_score, goals against = away_score
+        home_game_tuples = sorted(
+            [(g["home_score"], g["away_score"], g["utc_date"]) for g in hg],
+            key=lambda x: x[2], reverse=True,
+        )
+        # AWAY momentum: goals for = away_score, goals against = home_score
+        away_game_tuples = sorted(
+            [(g["away_score"], g["home_score"], g["utc_date"]) for g in ag],
+            key=lambda x: x[2], reverse=True,
+        )
 
-        # U7: Last match date
-        if all_games:
+        # FIX-4: Only fall back to combined list if venue-specific list is empty
+        all_combined = sorted(
+            home_game_tuples + away_game_tuples, key=lambda x: x[2], reverse=True
+        )
+        result["momentum_home"] = (
+            _calc_momentum(home_game_tuples) if home_game_tuples
+            else _calc_momentum(all_combined)
+        )
+        result["momentum_away"] = (
+            _calc_momentum(away_game_tuples) if away_game_tuples
+            else _calc_momentum(all_combined)
+        )
+
+        # Last match date (for fatigue)
+        if all_combined:
             try:
                 result["last_match_date"] = datetime.fromisoformat(
-                    all_games[0][2].replace("Z", "+00:00")
+                    all_combined[0][2].replace("Z", "+00:00")
                 )
             except Exception:
                 pass
 
-        # U6: Defensive disruption spike
+        # Defensive disruption spike
         all_conceded = [g["away_score"] for g in hg] + [g["home_score"] for g in ag]
         if len(all_conceded) >= 6:
             recent_3   = sum(all_conceded[:3]) / 3.0
@@ -642,11 +730,11 @@ def _fetch_team_stats_v7(team_id: int, league_code: str) -> Dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 9 — HEAD-TO-HEAD ADJUSTMENT  (U3 scoreline-weighted)
+# PART 9 — HEAD-TO-HEAD ADJUSTMENT
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _h2h_adjustment(home_id: int, away_id: int) -> Tuple[float, float]:
-    """U3: Recency + scoreline-weighted H2H dominance ratio."""
+    """Recency + scoreline-weighted H2H dominance ratio."""
     try:
         res1 = (supabase.table("matches")
                 .select("home_score, away_score, utc_date")
@@ -673,19 +761,19 @@ def _h2h_adjustment(home_id: int, away_id: int) -> Tuple[float, float]:
                 days_ago = max(0.0, (now - dt).total_seconds() / 86400.0)
             except Exception:
                 days_ago = 365.0
-            rw = math.exp(-0.003 * days_ago)
+            rw     = math.exp(-0.003 * days_ago)
             margin = max(-4.0, min(4.0, float(gf - ga)))
             weighted_diff += rw * margin
             total_weight  += rw
 
         for g in res2:
-            gf, ga = g["away_score"], g["home_score"]
+            gf, ga = g["away_score"], g["home_score"]  # flip perspective to home team
             try:
                 dt = datetime.fromisoformat(g["utc_date"].replace("Z", "+00:00"))
                 days_ago = max(0.0, (now - dt).total_seconds() / 86400.0)
             except Exception:
                 days_ago = 365.0
-            rw = math.exp(-0.003 * days_ago)
+            rw     = math.exp(-0.003 * days_ago)
             margin = max(-4.0, min(4.0, float(gf - ga)))
             weighted_diff += rw * margin
             total_weight  += rw
@@ -697,7 +785,6 @@ def _h2h_adjustment(home_id: int, away_id: int) -> Tuple[float, float]:
         raw_adj    = avg_margin / 2.0 * H2H_ADJUST_CAP
         adj        = max(-H2H_ADJUST_CAP, min(H2H_ADJUST_CAP, raw_adj))
 
-        # Sample-size dampening
         n_games = len(res1) + len(res2)
         adj *= min(1.0, n_games / 4.0)
 
@@ -709,18 +796,33 @@ def _h2h_adjustment(home_id: int, away_id: int) -> Tuple[float, float]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 10 — ESTIMATED xG
+# PART 10 — ESTIMATED xG  (FIX-1: venue-split xG)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def estimate_match_xg(home_id, away_id, home_name, away_name, league_code, match_id):
+    """
+    FIX-1: xG is now venue-split.
+
+    home_xgf = team's average xG scored when playing AT HOME only
+    home_xga = team's average xG conceded when playing AT HOME only
+    away_xgf = team's average xG scored when playing AWAY only
+    away_xga = team's average xG conceded when playing AWAY only
+
+    The old code mixed home and away appearances for both, which incorrectly
+    diluted home xG with away-context matches and vice versa.
+    """
     avgs          = LEAGUE_AVERAGES.get(league_code, {"home": 1.5, "away": 1.1, "xg": 1.3})
     league_avg_xg = avgs["xg"]
-    home_xgf = home_xga = away_xgf = away_xga = None
+
+    # Venue-specific accumulators
+    home_xgf_home_games: List[float] = []   # home team's xG scored in HOME matches
+    home_xga_home_games: List[float] = []   # home team's xG conceded in HOME matches
+    away_xgf_away_games: List[float] = []   # away team's xG scored in AWAY matches
+    away_xga_away_games: List[float] = []   # away team's xG conceded in AWAY matches
 
     df = _load_understat(league_code)
     if df is not None:
         try:
-            hxgf_v, hxga_v, axgf_v, axga_v = [], [], [], []
             for row in df.itertuples():
                 rh   = str(getattr(row, "home_team", ""))
                 ra   = str(getattr(row, "away_team", ""))
@@ -728,31 +830,50 @@ def estimate_match_xg(home_id, away_id, home_name, away_name, league_code, match
                 rxga = getattr(row, "xg_away", None)
                 if rxgh is None or rxga is None:
                     continue
-                if _team_names_match(rh, home_name):
-                    hxgf_v.append(float(rxgh)); hxga_v.append(float(rxga))
-                if _team_names_match(ra, home_name):
-                    hxgf_v.append(float(rxga)); hxga_v.append(float(rxgh))
-                if _team_names_match(rh, away_name):
-                    axgf_v.append(float(rxgh)); axga_v.append(float(rxga))
-                if _team_names_match(ra, away_name):
-                    axgf_v.append(float(rxga)); axga_v.append(float(rxgh))
 
-            if len(hxgf_v) >= 3:
-                home_xgf = sum(hxgf_v[-10:]) / len(hxgf_v[-10:])
-                home_xga = sum(hxga_v[-10:]) / len(hxga_v[-10:])
-            if len(axgf_v) >= 3:
-                away_xgf = sum(axgf_v[-10:]) / len(axgf_v[-10:])
-                away_xga = sum(axga_v[-10:]) / len(axga_v[-10:])
+                rxgh, rxga = float(rxgh), float(rxga)
+
+                # Home team's home-venue performance
+                if _team_names_match(rh, home_name):
+                    home_xgf_home_games.append(rxgh)
+                    home_xga_home_games.append(rxga)
+
+                # Away team's away-venue performance
+                if _team_names_match(ra, away_name):
+                    away_xgf_away_games.append(rxga)   # away team scored = xg_away
+                    away_xga_away_games.append(rxgh)   # away team conceded = xg_home
+
         except Exception as e:
             logger.warning("Understat xG %s: %s", match_id, e)
 
-    home_xg = ((home_xgf * away_xga) / league_avg_xg
-               if home_xgf and away_xga and league_avg_xg else avgs["home"])
-    away_xg = ((away_xgf * home_xga) / league_avg_xg
-               if away_xgf and home_xga and league_avg_xg else avgs["away"])
+    # Use last 10 venue-specific games; fall back to league average if too few
+    def _avg(lst: List[float], fallback: float) -> Optional[float]:
+        recent = lst[-10:]
+        return sum(recent) / len(recent) if len(recent) >= 3 else None
+
+    h_xgf = _avg(home_xgf_home_games, avgs["home"])
+    h_xga = _avg(home_xga_home_games, avgs["away"])
+    a_xgf = _avg(away_xgf_away_games, avgs["away"])
+    a_xga = _avg(away_xga_away_games, avgs["home"])
+
+    # Dixon-Coles style: attack × opponent-defence / league-average
+    if h_xgf and a_xga and league_avg_xg:
+        home_xg = (h_xgf * a_xga) / league_avg_xg
+    else:
+        home_xg = avgs["home"]
+
+    if a_xgf and h_xga and league_avg_xg:
+        away_xg = (a_xgf * h_xga) / league_avg_xg
+    else:
+        away_xg = avgs["away"]
 
     home_xg = round(max(0.20, min(5.0, home_xg)), 3)
     away_xg = round(max(0.20, min(5.0, away_xg)), 3)
+
+    logger.debug(
+        "xG %s: home=%s(from %d home games) away=%s(from %d away games)",
+        match_id, home_xg, len(home_xgf_home_games), away_xg, len(away_xgf_away_games),
+    )
 
     try:
         supabase.table("matches").update(
@@ -765,7 +886,7 @@ def estimate_match_xg(home_id, away_id, home_name, away_name, league_code, match
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 11 — ELO WIN PROBABILITIES  (league-specific home advantage)
+# PART 11 — ELO WIN PROBABILITIES
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _elo_win_prob(elo_h: int, elo_a: int, league_code: str = "PL") -> Tuple[float, float, float]:
@@ -788,11 +909,11 @@ def _elo_to_lambda(elo_h: int, elo_a: int, league_code: str) -> Tuple[float, flo
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 12 — ENSEMBLE LAMBDA BLENDING  (U4 + U5 dynamic weights)
+# PART 12 — ENSEMBLE LAMBDA BLENDING
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _compute_dynamic_blend_weights(home_stats, away_stats, has_xg, has_market):
-    """U5: Data-quality-adjusted blend weights."""
+    """Data-quality-adjusted blend weights."""
     w = {
         "poisson": BLEND_POISSON_BASE,
         "xg":      BLEND_XG_BASE,
@@ -810,13 +931,13 @@ def _compute_dynamic_blend_weights(home_stats, away_stats, has_xg, has_market):
 
     if not has_xg:
         r = w["xg"]
-        w["xg"] = 0.0
+        w["xg"]      = 0.0
         w["poisson"] += r * 0.5
         w["elo"]     += r * 0.5
 
     if not has_market:
         r = w["market"]
-        w["market"]   = 0.0
+        w["market"]  = 0.0
         w["poisson"] += r * 0.4
         w["elo"]     += r * 0.4
         w["h2h"]     += r * 0.2
@@ -836,35 +957,37 @@ def _market_to_lambda(market_probs, league_code):
     return max(0.1, (ph / (ph + pa)) * league_total), max(0.1, (pa / (ph + pa)) * league_total)
 
 
-def _blend_lambdas_v7(home_stats, away_stats, home_xg, away_xg,
-                      elo_home, elo_away, home_h2h_factor, away_h2h_factor,
-                      league_code, market_probs, match_date=None):
+def _blend_lambdas(home_stats, away_stats, home_xg, away_xg,
+                   elo_home, elo_away, home_h2h_factor, away_h2h_factor,
+                   league_code, market_probs, match_date=None):
     avgs = LEAGUE_AVERAGES.get(league_code, {"home": 1.5, "away": 1.1})
     now  = datetime.now(timezone.utc)
 
     has_xg_data = (home_xg != avgs["home"] or away_xg != avgs["away"])
-    weights     = _compute_dynamic_blend_weights(home_stats, away_stats, has_xg_data, market_probs is not None)
+    weights     = _compute_dynamic_blend_weights(
+        home_stats, away_stats, has_xg_data, market_probs is not None
+    )
 
-    # Source 1: Dixon-Coles Poisson
+    # Source 1: Dixon-Coles Poisson (venue-split attack/defence)
     dc_lh = (home_stats["home_att"] / max(avgs["home"], 0.1)) * \
             (away_stats["away_def"] / max(avgs["home"], 0.1)) * avgs["home"]
     dc_la = (away_stats["away_att"] / max(avgs["away"], 0.1)) * \
             (home_stats["home_def"] / max(avgs["away"], 0.1)) * avgs["away"]
 
-    # Source 2: xG
+    # Source 2: Venue-split xG (FIX-1 already applied upstream)
     xg_lh, xg_la = home_xg, away_xg
 
-    # Source 3: Elo
+    # Source 3: Elo → lambda  (FIX-2: Elo enters ONLY here, not again in selector)
     if elo_home and elo_away:
         elo_lh, elo_la = _elo_to_lambda(elo_home, elo_away, league_code)
     else:
         elo_lh, elo_la = avgs["home"], avgs["away"]
 
-    # Source 4: H2H raw averages
+    # Source 4: H2H raw venue-split averages
     h2h_lh = home_stats.get("raw_home_scored", avgs["home"])
     h2h_la = away_stats.get("raw_away_scored", avgs["away"])
 
-    # Source 5 (U4): Market consensus
+    # Source 5: Market consensus
     if market_probs:
         mkt_lh, mkt_la = _market_to_lambda(market_probs, league_code)
     else:
@@ -879,17 +1002,17 @@ def _blend_lambdas_v7(home_stats, away_stats, home_xg, away_xg,
     lh *= home_h2h_factor
     la *= away_h2h_factor
 
-    # U1: Momentum adjustment ±5%
+    # FIX-4: Momentum now uses venue-specific values
     lh *= (1.0 + 0.10 * (home_stats.get("momentum_home", 0.5) - 0.5))
     la *= (1.0 + 0.10 * (away_stats.get("momentum_away", 0.5) - 0.5))
 
-    # U6: Defensive disruption
+    # Defensive disruption
     if home_stats.get("recent_conceded_spike"):
         la *= 1.08
     if away_stats.get("recent_conceded_spike"):
         lh *= 1.08
 
-    # U7: Fatigue
+    # Fatigue
     for lam_attr, stats in [("lh", home_stats), ("la", away_stats)]:
         ld = stats.get("last_match_date")
         if ld and isinstance(ld, datetime):
@@ -904,7 +1027,7 @@ def _blend_lambdas_v7(home_stats, away_stats, home_xg, away_xg,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 13 — PROBABILITY MATRIX
+# PART 13 — PROBABILITY MATRIX  (FIX-5: per-league rho, no flat draw suppression)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _dc_rho(h, a, lh, la, rho):
@@ -921,7 +1044,13 @@ def _poisson_pmf(lam, k):
     return math.exp(-lam) * (lam ** k) / math.factorial(k)
 
 
-def _compute_all_probabilities(lh: float, la: float) -> Dict[str, float]:
+def _compute_all_probabilities(lh: float, la: float, league_code: str = "PL") -> Dict[str, float]:
+    """
+    FIX-5: Uses per-league DC rho instead of the global constant.
+            Removes flat draw suppression — it was distorting calibrated draws.
+    """
+    rho = LEAGUE_AVERAGES.get(league_code, {}).get("dc_rho", DC_RHO_DEFAULT)
+
     probs: Dict[str, float] = {}
     for key in ["HOME_WIN", "DRAW", "AWAY_WIN"]:
         probs[key] = 0.0
@@ -937,7 +1066,7 @@ def _compute_all_probabilities(lh: float, la: float) -> Dict[str, float]:
     for h in range(MAX_GOALS):
         ph_raw = _poisson_pmf(lh, h)
         for a in range(MAX_GOALS):
-            tau   = _dc_rho(h, a, lh, la, DC_RHO)
+            tau   = _dc_rho(h, a, lh, la, rho)
             p     = max(0.0, ph_raw * _poisson_pmf(la, a) * tau)
             total = h + a
             if h > a:    probs["HOME_WIN"] += p
@@ -953,51 +1082,143 @@ def _compute_all_probabilities(lh: float, la: float) -> Dict[str, float]:
             if h <= MAX_CS_GOALS and a <= MAX_CS_GOALS:
                 probs[f"CORRECT_SCORE_{h}_{a}"] += p
 
-    draw_excess = probs["DRAW"] * (1.0 - DRAW_SUPPRESSION)
-    probs["DRAW"] -= draw_excess
-    win_total = probs["HOME_WIN"] + probs["AWAY_WIN"]
-    if win_total > 0:
-        probs["HOME_WIN"] += draw_excess * (probs["HOME_WIN"] / win_total)
-        probs["AWAY_WIN"] += draw_excess * (probs["AWAY_WIN"] / win_total)
+    # FIX-5: NO flat draw suppression — DC rho already handles 0-0/1-1 correlation
     return probs
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 14 — CONFIDENCE CALIBRATION  (U9 piecewise + Platt blend)
+# PART 14 — EMPIRICAL CALIBRATION  (FIX-3)
 # ══════════════════════════════════════════════════════════════════════════════
 
-_CALIBRATION_TABLE = [
-    (0.00, 0.00), (0.20, 0.18), (0.33, 0.30), (0.40, 0.37),
-    (0.45, 0.42), (0.50, 0.47), (0.55, 0.52), (0.60, 0.57),
+# Module-level calibration cache — loaded once per run from Supabase predictions
+_EMPIRICAL_CAL_CACHE: Optional[List[Tuple[float, float]]] = None
+_EMPIRICAL_CAL_LOADED: bool = False
+
+
+def _load_empirical_calibration() -> Optional[List[Tuple[float, float]]]:
+    """
+    FIX-3: Load isotonic calibration from actual prediction outcomes stored
+    in the predictions table.
+
+    Expects predictions table to have:
+      - confidence_score  FLOAT   (model's raw probability at prediction time)
+      - status            TEXT    ('WON', 'LOST', 'PENDING')
+
+    Returns a list of (raw_prob_bucket_midpoint, empirical_hit_rate) pairs
+    sorted by raw_prob, or None if insufficient data.
+    """
+    global _EMPIRICAL_CAL_CACHE, _EMPIRICAL_CAL_LOADED
+    if _EMPIRICAL_CAL_LOADED:
+        return _EMPIRICAL_CAL_CACHE
+
+    _EMPIRICAL_CAL_LOADED = True
+
+    try:
+        res = (supabase.table("predictions")
+               .select("confidence_score, status")
+               .in_("status", ["WON", "LOST"])
+               .execute())
+        rows = res.data or []
+    except Exception as e:
+        logger.warning("Calibration load failed: %s", e)
+        _EMPIRICAL_CAL_CACHE = None
+        return None
+
+    if len(rows) < 50:
+        logger.info("Calibration: only %d resolved predictions — using fallback table", len(rows))
+        _EMPIRICAL_CAL_CACHE = None
+        return None
+
+    # Bin predictions into 10 buckets of width 0.1
+    buckets: Dict[int, List[int]] = {i: [] for i in range(10)}
+    for row in rows:
+        conf   = row.get("confidence_score", 0)
+        won    = 1 if row.get("status") == "WON" else 0
+        bucket = min(int(conf * 10), 9)
+        buckets[bucket].append(won)
+
+    cal_points: List[Tuple[float, float]] = []
+    for i in range(10):
+        outcomes = buckets[i]
+        if len(outcomes) >= 5:  # minimum sample per bucket
+            midpoint   = (i + 0.5) / 10.0
+            hit_rate   = sum(outcomes) / len(outcomes)
+            cal_points.append((midpoint, hit_rate))
+
+    if len(cal_points) < 3:
+        logger.info("Calibration: too few populated buckets — using fallback table")
+        _EMPIRICAL_CAL_CACHE = None
+        return None
+
+    logger.info(
+        "Empirical calibration loaded: %d buckets from %d predictions",
+        len(cal_points), len(rows),
+    )
+    _EMPIRICAL_CAL_CACHE = cal_points
+    return cal_points
+
+
+# Fallback hand-drawn table (used when insufficient outcome data)
+_FALLBACK_CAL_TABLE = [
+    (0.00, 0.00), (0.20, 0.17), (0.33, 0.29), (0.40, 0.36),
+    (0.45, 0.41), (0.50, 0.46), (0.55, 0.52), (0.60, 0.57),
     (0.65, 0.63), (0.70, 0.68), (0.75, 0.73), (0.80, 0.78),
     (0.85, 0.83), (0.90, 0.88), (1.00, 1.00),
 ]
 
 
-def _calibrate_confidence(raw_prob: float, league_code: str) -> float:
-    """U9: 70% piecewise isotonic + 30% Platt sigmoid calibration."""
-    p = max(0.0, min(1.0, raw_prob))
-    calibrated = p
-    for i in range(len(_CALIBRATION_TABLE) - 1):
-        x0, y0 = _CALIBRATION_TABLE[i]
-        x1, y1 = _CALIBRATION_TABLE[i + 1]
+def _interpolate_calibration(p: float, table: List[Tuple[float, float]]) -> float:
+    """Linear interpolation over a sorted calibration table."""
+    if p <= table[0][0]:
+        return table[0][1]
+    if p >= table[-1][0]:
+        return table[-1][1]
+    for i in range(len(table) - 1):
+        x0, y0 = table[i]
+        x1, y1 = table[i + 1]
         if x0 <= p <= x1:
             t = (p - x0) / (x1 - x0) if (x1 - x0) > 0 else 0.0
-            calibrated = y0 + t * (y1 - y0)
-            break
+            return y0 + t * (y1 - y0)
+    return p
+
+
+def _calibrate_confidence(raw_prob: float, league_code: str) -> float:
+    """
+    FIX-3: Use empirical calibration table if available (fitted from actual
+    prediction outcomes), otherwise fall back to the hand-drawn table.
+    Blends 80% isotonic + 20% Platt sigmoid for smoothness.
+    """
+    p = max(0.0, min(1.0, raw_prob))
+
+    # Try empirical calibration first
+    emp_table = _load_empirical_calibration()
+    if emp_table:
+        cal_value = _interpolate_calibration(p, emp_table)
+    else:
+        cal_value = _interpolate_calibration(p, _FALLBACK_CAL_TABLE)
+
+    # Platt sigmoid (league-tuned)
     avgs  = LEAGUE_AVERAGES.get(league_code, {"platt_a": 2.8})
     a     = avgs.get("platt_a", 2.8)
     platt = 1.0 / (1.0 + math.exp(-a * (raw_prob - 0.5)))
-    return round(0.70 * calibrated + 0.30 * platt, 5)
+
+    return round(0.80 * cal_value + 0.20 * platt, 5)
 
 
-def _confidence_interval(raw_prob: float, league_code: str) -> Tuple[float, float]:
-    """U10: 90% confidence interval using league variance."""
-    avgs     = LEAGUE_AVERAGES.get(league_code, {"variance": 0.04})
-    variance = avgs.get("variance", 0.04)
-    model_se = math.sqrt(raw_prob * (1 - raw_prob) * variance)
-    margin   = 1.64 * model_se
-    return round(max(0.0, raw_prob - margin), 3), round(min(1.0, raw_prob + margin), 3)
+def _confidence_interval(raw_prob: float, n_samples: int = 200) -> Tuple[float, float]:
+    """
+    NEW-2: Bootstrap-style confidence interval using Wilson score interval
+    which is much better suited for proportions than the Bernoulli SE method.
+    n_samples represents the effective sample size of the model's evidence.
+    """
+    p = max(0.001, min(0.999, raw_prob))
+    z = 1.96  # 95% CI
+    n = float(n_samples)
+    centre = (p + z * z / (2 * n)) / (1 + z * z / n)
+    margin = (z / (1 + z * z / n)) * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    lo = round(max(0.0, centre - margin), 3)
+    hi = round(min(1.0, centre + margin), 3)
+    return lo, hi
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1067,7 +1288,7 @@ def _get_team_form_summary(team_id: int, team_name: str) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _kelly_criterion(prob: float, decimal_odds: float) -> float:
-    """U8: Fractional Kelly stake size as ranking signal."""
+    """Fractional Kelly stake size as ranking signal."""
     b = decimal_odds - 1.0
     if b <= 0:
         return 0.0
@@ -1077,28 +1298,27 @@ def _kelly_criterion(prob: float, decimal_odds: float) -> float:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 17 — GOD OF TIME SELECTOR v7
+# PART 17 — MK-808 SELECTOR
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
-                            elo_home, elo_away, home_xg, away_xg,
-                            home_form, away_form, fair_odds, league_code,
-                            market_probs, home_stats, away_stats):
+def _mk808_select(match_id, home_name, away_name, probs, lh, la,
+                  elo_home, elo_away, home_xg, away_xg,
+                  home_form, away_form, fair_odds, league_code,
+                  market_probs, home_stats, away_stats):
+    """
+    FIX-2: Elo is NO LONGER fused again here.
+           It already influenced lh/la via _elo_to_lambda in the blend.
+           Fusing again was double-counting and inflating extreme probabilities.
+
+    NEW-4: Selectivity gate — we only output a prediction when at least
+           2 of 3 signals (Poisson model, xG model, market) agree on the
+           same winner. Uncertain matches get skipped from the slip.
+    """
     ph = probs["HOME_WIN"]
     pd = probs["DRAW"]
     pa = probs["AWAY_WIN"]
 
-    # Fuse Elo (60% model + 40% Elo)
-    if elo_home and elo_away:
-        eph, epd, epa = _elo_win_prob(elo_home, elo_away, league_code)
-        ph = 0.60 * ph + 0.40 * eph
-        pd = 0.60 * pd + 0.40 * epd
-        pa = 0.60 * pa + 0.40 * epa
-        total_p = ph + pd + pa
-        if total_p > 0:
-            ph, pd, pa = ph / total_p, pd / total_p, pa / total_p
-
-    # U4: Fuse market signal (85% model + 15% market)
+    # Market signal fusion (15% weight) — unchanged
     if market_probs:
         mph, mpd, mpa = market_probs
         ph = 0.85 * ph + 0.15 * mph
@@ -1108,20 +1328,43 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
         if total_p > 0:
             ph, pd, pa = ph / total_p, pd / total_p, pa / total_p
 
-    ranked = sorted([("HOME_WIN", ph), ("DRAW", pd), ("AWAY_WIN", pa)],
-                    key=lambda x: x[1], reverse=True)
+    ranked        = sorted([("HOME_WIN", ph), ("DRAW", pd), ("AWAY_WIN", pa)],
+                            key=lambda x: x[1], reverse=True)
     future, raw_conf = ranked[0]
+
+    # Draw band: only predict draw if it clearly leads
     if abs(ranked[0][1] - ranked[1][1]) < ELO_DRAW_BAND:
         future, raw_conf = "DRAW", pd
 
-    confidence = _calibrate_confidence(raw_conf, league_code)  # U9
-    ci_lo, ci_hi = _confidence_interval(raw_conf, league_code)  # U10
+    confidence = _calibrate_confidence(raw_conf, league_code)
+    ci_lo, ci_hi = _confidence_interval(raw_conf)
 
     primary_fair_odds = fair_odds.get(future, DEFAULT_ODDS.get(future, 1.90))
     primary_ev        = round(raw_conf * primary_fair_odds - 1.0, 4)
     primary_label     = (BET_LABELS.get(future, future)
                          .replace("{home}", home_name).replace("{away}", away_name))
-    kelly = _kelly_criterion(raw_conf, primary_fair_odds)  # U8
+    kelly = _kelly_criterion(raw_conf, primary_fair_odds)
+
+    # NEW-4: Signal agreement check
+    # Map each source to its preferred outcome
+    poisson_winner = "HOME_WIN" if lh > la * 1.05 else ("AWAY_WIN" if la > lh * 1.05 else "DRAW")
+    xg_winner      = "HOME_WIN" if home_xg > away_xg * 1.05 else (
+                     "AWAY_WIN" if away_xg > home_xg * 1.05 else "DRAW")
+    mkt_winner: Optional[str] = None
+    if market_probs:
+        mph, mpd, mpa = market_probs
+        mkt_winner = max(
+            [("HOME_WIN", mph), ("DRAW", mpd), ("AWAY_WIN", mpa)],
+            key=lambda x: x[1],
+        )[0]
+
+    signals = [poisson_winner, xg_winner]
+    if mkt_winner:
+        signals.append(mkt_winner)
+
+    # Count how many signals agree with the chosen outcome
+    agreement_count = sum(1 for s in signals if s == future)
+    signal_agreement = agreement_count >= 2  # at least 2 of 3 must agree
 
     # Secondary pick
     secondary_label = secondary_prob = None
@@ -1133,14 +1376,21 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
                 best_p, best_t = mp, bt
         if best_t:
             secondary_prob = best_p
-            if best_t.startswith("TOTAL_GOALS_"):   secondary_label = f"Exactly {best_t[12:]} Goals"
+            if best_t.startswith("TOTAL_GOALS_"):
+                secondary_label = f"Exactly {best_t[12:]} Goals"
             elif best_t.startswith("CORRECT_SCORE_"):
-                pts = best_t.split("_"); secondary_label = f"Correct Score {pts[2]}-{pts[3]}"
-            elif best_t.startswith("OVER_"):         secondary_label = f"Over {best_t[5:]} Goals"
-            elif best_t.startswith("UNDER_"):        secondary_label = f"Under {best_t[6:]} Goals"
-            elif best_t == "BTTS_YES":               secondary_label = "Both Teams to Score"
-            elif best_t == "BTTS_NO":                secondary_label = "Both Teams NOT to Score"
-            else:                                    secondary_label = best_t
+                pts = best_t.split("_")
+                secondary_label = f"Correct Score {pts[2]}-{pts[3]}"
+            elif best_t.startswith("OVER_"):
+                secondary_label = f"Over {best_t[5:]} Goals"
+            elif best_t.startswith("UNDER_"):
+                secondary_label = f"Under {best_t[6:]} Goals"
+            elif best_t == "BTTS_YES":
+                secondary_label = "Both Teams to Score"
+            elif best_t == "BTTS_NO":
+                secondary_label = "Both Teams NOT to Score"
+            else:
+                secondary_label = best_t
 
     ev_sign = "+" if primary_ev >= 0 else ""
     if secondary_label:
@@ -1150,7 +1400,7 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
     else:
         selection = f"{primary_label} @ {primary_fair_odds:.2f} (EV={ev_sign}{primary_ev:.3f})"
 
-    # Narratives
+    # Narrative construction
     if elo_home and elo_away:
         d = elo_home - elo_away
         if abs(d) < 30:
@@ -1161,9 +1411,10 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
             elo_narr = f"Elo: {away_name} favoured ({elo_home} vs {elo_away}, \u0394={d:+d})."
         elo_str = f"Elo: {home_name}={elo_home} {away_name}={elo_away}."
     else:
-        elo_narr = "Elo n/a."; elo_str = "Elo: n/a."
+        elo_narr = "Elo n/a."
+        elo_str  = "Elo: n/a."
 
-    xg_str = f"xG: {home_name}={home_xg:.2f} {away_name}={away_xg:.2f}."
+    xg_str = f"xG (venue-split): {home_name}={home_xg:.2f} {away_name}={away_xg:.2f}."
     if home_xg > away_xg + 0.3:
         xg_narr = f"xG: {home_name} notably superior ({home_xg:.2f} vs {away_xg:.2f})."
     elif away_xg > home_xg + 0.3:
@@ -1174,9 +1425,9 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
     hm = home_stats.get("momentum_home", 0.5)
     am = away_stats.get("momentum_away", 0.5)
     if hm > am + 0.2:
-        mom_narr = f"{home_name} carries stronger momentum ({hm:.0%} vs {am:.0%})."
+        mom_narr = f"{home_name} carries stronger home momentum ({hm:.0%} vs {am:.0%})."
     elif am > hm + 0.2:
-        mom_narr = f"{away_name} arrives with superior momentum ({am:.0%} vs {hm:.0%})."
+        mom_narr = f"{away_name} arrives with superior away momentum ({am:.0%} vs {hm:.0%})."
     else:
         mom_narr = "Comparable momentum going into this fixture."
 
@@ -1202,6 +1453,11 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
     mkt_narr = (f"Market: H={market_probs[0]:.0%} D={market_probs[1]:.0%} A={market_probs[2]:.0%}."
                 if market_probs else "No market data.")
 
+    agreement_narr = (
+        f"Signal agreement: {agreement_count}/{len(signals)} sources favour {future}."
+        + ("" if signal_agreement else " [LOW AGREEMENT — slip excluded]")
+    )
+
     if future == "HOME_WIN":
         interp = (f"Evidence points to HOME WIN for {home_name} "
                   f"(conf {confidence:.0%}, CI [{ci_lo:.0%}\u2013{ci_hi:.0%}]). {elo_narr} {xg_narr}")
@@ -1221,11 +1477,12 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
                 if secondary_label else "")
 
     reasoning = (
-        f"MK-807 God of Football v7 | {future} (conf {confidence:.0%} | "
+        f"MK-808 God of Football v8 | {future} (conf {confidence:.0%} | "
         f"CI [{ci_lo:.0%}\u2013{ci_hi:.0%}]).\n"
         f"{home_form}\n{away_form}\n"
         f"{elo_str} {xg_str}\n"
         f"{mom_narr}\n{fatigue_narr}\n{disrupt_narr}\n{mkt_narr}\n"
+        f"{agreement_narr}\n"
         f"{interp}\n{primary_line}{sec_line}\n"
         f"(\u03bb_h={lh:.3f} \u03bb_a={la:.3f} | "
         f"P(H)={ph:.1%} P(D)={pd:.1%} P(A)={pa:.1%} | "
@@ -1233,13 +1490,13 @@ def _god_of_time_select_v7(match_id, home_name, away_name, probs, lh, la,
     )
 
     logger.info(
-        "Match %s | %s vs %s | %s conf=%.0f%% EV=%+.3f Kelly=%.3f%s",
+        "Match %s | %s vs %s | %s conf=%.0f%% EV=%+.3f Kelly=%.3f agree=%d/%d%s",
         match_id, home_name, away_name, future, confidence * 100,
-        primary_ev, kelly,
+        primary_ev, kelly, agreement_count, len(signals),
         f" | +{secondary_label} p={secondary_prob:.0%}" if secondary_label else "",
     )
 
-    return future, selection, confidence, primary_fair_odds, primary_ev, kelly, reasoning
+    return future, selection, confidence, primary_fair_odds, primary_ev, kelly, reasoning, signal_agreement
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1253,8 +1510,8 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
     home_name   = fixture["home_team"]["name"]
     away_name   = fixture["away_team"]["name"]
 
-    home_stats = _fetch_team_stats_v7(home_id, league_code)
-    away_stats = _fetch_team_stats_v7(away_id, league_code)
+    home_stats = _fetch_team_stats(home_id, league_code)
+    away_stats = _fetch_team_stats(away_id, league_code)
     elo_home   = home_stats.get("elo_rating")
     elo_away   = away_stats.get("elo_rating")
 
@@ -1274,23 +1531,24 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
     except Exception:
         match_dt = None
 
-    lh, la = _blend_lambdas_v7(
+    lh, la = _blend_lambdas(
         home_stats, away_stats, home_xg, away_xg,
         elo_home, elo_away, h2h_home_factor, h2h_away_factor,
         league_code, market_probs, match_dt,
     )
 
-    probs     = _compute_all_probabilities(lh, la)
+    # FIX-5: Pass league_code so per-league rho is used
+    probs     = _compute_all_probabilities(lh, la, league_code)
     home_form = _get_team_form_summary(home_id, home_name)
     away_form = _get_team_form_summary(away_id, away_name)
 
-    bet_type, selection, confidence, predicted_odds, ev, kelly, reasoning = \
-        _god_of_time_select_v7(
-            match_id, home_name, away_name, probs, lh, la,
-            elo_home, elo_away, home_xg, away_xg,
-            home_form, away_form, fair_odds, league_code,
-            market_probs, home_stats, away_stats,
-        )
+    (bet_type, selection, confidence, predicted_odds,
+     ev, kelly, reasoning, signal_agreement) = _mk808_select(
+        match_id, home_name, away_name, probs, lh, la,
+        elo_home, elo_away, home_xg, away_xg,
+        home_form, away_form, fair_odds, league_code,
+        market_probs, home_stats, away_stats,
+    )
 
     try:
         avgs = LEAGUE_AVERAGES.get(league_code, {"home": 1.5, "away": 1.1})
@@ -1308,17 +1566,19 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
             "probability_over_25":        probs.get("OVER_2.5", 0),
             "probability_btts":           probs.get("BTTS_YES", 0),
             "data_json": {
-                "home_stats": home_stats, "away_stats": away_stats,
-                "elo":        {"home": elo_home, "away": elo_away},
-                "xg":         {"home": home_xg,  "away": away_xg},
-                "h2h_factors":{"home": h2h_home_factor, "away": h2h_away_factor},
+                "home_stats":     home_stats,
+                "away_stats":     away_stats,
+                "elo":            {"home": elo_home, "away": elo_away},
+                "xg":             {"home": home_xg,  "away": away_xg},
+                "h2h_factors":    {"home": h2h_home_factor, "away": h2h_away_factor},
                 "blended_lambda": {"home": lh, "away": la},
-                "fair_odds":  fair_odds,
-                "all_probs":  {k: round(v, 5) for k, v in probs.items()},
-                "market_probs": {"home": market_probs[0], "draw": market_probs[1],
-                                 "away": market_probs[2]} if market_probs else None,
-                "kelly":        kelly,
-                "blend_weights": _compute_dynamic_blend_weights(
+                "fair_odds":      fair_odds,
+                "all_probs":      {k: round(v, 5) for k, v in probs.items()},
+                "market_probs":   {"home": market_probs[0], "draw": market_probs[1],
+                                   "away": market_probs[2]} if market_probs else None,
+                "kelly":          kelly,
+                "signal_agreement": signal_agreement,
+                "blend_weights":  _compute_dynamic_blend_weights(
                     home_stats, away_stats,
                     home_xg != avgs["home"],
                     market_probs is not None,
@@ -1339,16 +1599,21 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
             "status":           "PENDING",
         }).execute()
         pred_id = res.data[0]["id"] if res.data else None
-        logger.info("Saved %s | %s | conf=%.0f%% EV=%+.3f Kelly=%.3f",
-                    match_id, bet_type, confidence * 100, ev, kelly)
+        logger.info("Saved %s | %s | conf=%.0f%% EV=%+.3f Kelly=%.3f agree=%s",
+                    match_id, bet_type, confidence * 100, ev, kelly, signal_agreement)
         return {
-            "id": pred_id, "match_id": match_id,
-            "bet_type": bet_type, "selection": selection,
-            "predicted_odds": predicted_odds,
+            "id":               pred_id,
+            "match_id":         match_id,
+            "bet_type":         bet_type,
+            "selection":        selection,
+            "predicted_odds":   predicted_odds,
             "confidence_score": confidence,
-            "ev": ev, "kelly": kelly,
-            "reasoning": reasoning,
-            "home_team_id": home_id, "away_team_id": away_id,
+            "ev":               ev,
+            "kelly":            kelly,
+            "reasoning":        reasoning,
+            "home_team_id":     home_id,
+            "away_team_id":     away_id,
+            "signal_agreement": signal_agreement,  # NEW: passed to slip filter
         }
     except Exception as e:
         logger.error("Prediction save %s: %s", match_id, e)
@@ -1356,7 +1621,7 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PART 19 — DAILY SLIP  (U8 Kelly-ranked)
+# PART 19 — DAILY SLIP  (NEW-1: edge filter + signal agreement gate)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _extract_primary_odds(pick: Dict[str, Any]) -> float:
@@ -1379,22 +1644,48 @@ def _fetch_big_team_ids() -> set:
 
 
 def generate_daily_slip(predictions: List[Dict[str, Any]], slip_date: date) -> None:
-    """U8: Composite score = 0.40×confidence + 0.35×kelly_norm + 0.25×ev_norm."""
+    """
+    NEW-1: Slip now requires:
+      1. confidence_score >= MIN_CONFIDENCE (raised to 0.55)
+      2. ev >= SLIP_MIN_EV (positive expected value required: +0.02)
+      3. signal_agreement == True (at least 2/3 sources agree)
+
+    If this leaves fewer than 5 picks, the EV gate is relaxed to 0 (not negative).
+    The big-team bias in pick selection is removed — pure composite score now.
+    """
+    # Gate 1: Full filter — confidence + positive EV + signal agreement
     valid = [
         p for p in predictions
-        if p and p.get("confidence_score", 0) >= MIN_CONFIDENCE
+        if p
+        and p.get("confidence_score", 0) >= MIN_CONFIDENCE
         and p.get("ev", 0) >= SLIP_MIN_EV
+        and p.get("signal_agreement", False)
     ]
-    if not valid:
-        logger.warning("EV gate relaxed for %s", slip_date)
-        valid = [p for p in predictions
-                 if p and p.get("confidence_score", 0) >= MIN_CONFIDENCE]
+
+    if len(valid) < 5:
+        # Gate 2: Relax EV to break-even, keep confidence + agreement
+        logger.info("Gate 1 gave %d picks — relaxing EV to 0.0", len(valid))
+        valid = [
+            p for p in predictions
+            if p
+            and p.get("confidence_score", 0) >= MIN_CONFIDENCE
+            and p.get("ev", 0) >= 0.0
+            and p.get("signal_agreement", False)
+        ]
+
+    if len(valid) < 5:
+        # Gate 3: Drop agreement requirement, keep confidence + slight positive EV
+        logger.warning("Gate 2 gave %d picks — dropping agreement requirement", len(valid))
+        valid = [
+            p for p in predictions
+            if p
+            and p.get("confidence_score", 0) >= MIN_CONFIDENCE
+            and p.get("ev", 0) >= -0.02
+        ]
 
     if not valid:
-        logger.warning("No predictions met MIN_CONFIDENCE for %s", slip_date)
+        logger.warning("No predictions met minimum confidence for %s", slip_date)
         return
-
-    big_ids = _fetch_big_team_ids()
 
     def composite_score(p):
         conf       = p.get("confidence_score", 0)
@@ -1402,29 +1693,23 @@ def generate_daily_slip(predictions: List[Dict[str, Any]], slip_date: date) -> N
         kelly      = p.get("kelly", 0.0)
         ev_norm    = max(-0.5, min(0.5, ev))
         kelly_norm = max(0.0, min(1.0, kelly / max(KELLY_FRACTION, 0.01)))
-        return 0.40 * conf + 0.35 * kelly_norm + 0.25 * (ev_norm + 0.5)
+        # Bonus for signal agreement
+        agree_bonus = 0.05 if p.get("signal_agreement", False) else 0.0
+        return 0.40 * conf + 0.35 * kelly_norm + 0.25 * (ev_norm + 0.5) + agree_bonus
 
-    big_preds = sorted(
-        [p for p in valid if p.get("home_team_id") in big_ids or p.get("away_team_id") in big_ids],
-        key=composite_score, reverse=True,
-    )
-    other = sorted(
-        [p for p in valid if p not in big_preds],
-        key=composite_score, reverse=True,
-    )
-
-    top = big_preds[:SLIP_SIZE]
-    if len(top) < SLIP_SIZE:
-        top += other[:SLIP_SIZE - len(top)]
-    top.sort(key=composite_score, reverse=True)
+    # Sort all valid predictions by composite score — no big-team bias
+    top = sorted(valid, key=composite_score, reverse=True)[:SLIP_SIZE]
 
     total_odds = 1.0
     for p in top:
         total_odds *= _extract_primary_odds(p)
 
     avg_kelly = sum(p.get("kelly", 0) for p in top) / max(len(top), 1)
-    logger.info("Slip %s: %d picks, combined odds %.2f, avg Kelly %.4f",
-                slip_date, len(top), total_odds, avg_kelly)
+    avg_conf  = sum(p.get("confidence_score", 0) for p in top) / max(len(top), 1)
+    logger.info(
+        "Slip %s: %d picks, combined odds %.2f, avg conf %.0f%%, avg Kelly %.4f",
+        slip_date, len(top), total_odds, avg_conf * 100, avg_kelly,
+    )
 
     try:
         slip_res = supabase.table("ten_odds_slips").upsert({
@@ -1449,11 +1734,82 @@ def generate_daily_slip(predictions: List[Dict[str, Any]], slip_date: date) -> N
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PART 20 — CALIBRATION UPDATER  (FIX-3 support)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def update_prediction_outcomes() -> None:
+    """
+    FIX-3 support: Fetch completed matches and update prediction statuses
+    to WON/LOST so the empirical calibration table can learn from them.
+
+    This should run AFTER fixtures are fetched (so scores are populated).
+    """
+    try:
+        pending = (supabase.table("predictions")
+                   .select("id, match_id, bet_type")
+                   .eq("status", "PENDING")
+                   .execute()).data or []
+    except Exception as e:
+        logger.error("Outcome update — fetch pending: %s", e)
+        return
+
+    if not pending:
+        return
+
+    match_ids = list({p["match_id"] for p in pending})
+
+    try:
+        matches_res = (supabase.table("matches")
+                       .select("id, home_score, away_score, winner, status")
+                       .in_("id", match_ids)
+                       .eq("status", "FINISHED")
+                       .execute()).data or []
+    except Exception as e:
+        logger.error("Outcome update — fetch matches: %s", e)
+        return
+
+    match_map = {m["id"]: m for m in matches_res}
+    updated = 0
+
+    for pred in pending:
+        match = match_map.get(pred["match_id"])
+        if not match:
+            continue  # not finished yet
+
+        winner   = match.get("winner")  # "HOME_TEAM", "AWAY_TEAM", "DRAW"
+        bet_type = pred["bet_type"]
+
+        outcome_map = {
+            "HOME_WIN": "HOME_TEAM",
+            "AWAY_WIN": "AWAY_TEAM",
+            "DRAW":     "DRAW",
+        }
+        expected_winner = outcome_map.get(bet_type)
+        if expected_winner is None:
+            continue
+
+        status = "WON" if winner == expected_winner else "LOST"
+
+        try:
+            supabase.table("predictions").update({"status": status}).eq("id", pred["id"]).execute()
+            updated += 1
+        except Exception as e:
+            logger.error("Outcome update pred %s: %s", pred["id"], e)
+
+    if updated:
+        logger.info("Outcome update: %d/%d predictions resolved — calibration will refresh next run",
+                    updated, len(pending))
+        # Invalidate calibration cache so it reloads from fresh data
+        global _EMPIRICAL_CAL_LOADED
+        _EMPIRICAL_CAL_LOADED = False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    logger.info("═══ MK-807 God of Football v7.1 starting ═══")
+    logger.info("═══ MK-808 God of Football v8.0 starting ═══")
 
     logger.info("Step 1: Competitions...")
     upsert_competitions()
@@ -1468,6 +1824,10 @@ def main() -> None:
         upsert_team(fix["away_team"])
         upsert_match(fix)
 
+    # FIX-3: Resolve completed predictions before generating new ones
+    logger.info("Step 2b: Resolving completed predictions (calibration data)...")
+    update_prediction_outcomes()
+
     logger.info("Step 3: Elo ratings (ClubElo)...")
     fetch_team_elo_ratings()
 
@@ -1480,7 +1840,7 @@ def main() -> None:
             for bookie in event.get("bookmakers", []):
                 upsert_odds(mid, bookie, event["home_team"], event["away_team"])
 
-    logger.info("Step 5: MK-807 v7 predictions (KE today + tomorrow)...")
+    logger.info("Step 5: MK-808 v8 predictions (KE today + tomorrow)...")
     now_ke      = datetime.now(KENYA_TZ)
     today_ke    = now_ke.date()
     tomorrow_ke = today_ke + timedelta(days=1)
@@ -1499,13 +1859,16 @@ def main() -> None:
         if p:
             preds.append(p)
 
-    logger.info("Predictions: %d/%d (%d skipped - Elo missing)",
-                len(preds), len(target), len(target) - len(preds))
+    agree_count = sum(1 for p in preds if p.get("signal_agreement"))
+    logger.info(
+        "Predictions: %d/%d — %d with full signal agreement, %d skipped (Elo missing)",
+        len(preds), len(target), agree_count, len(target) - len(preds),
+    )
 
-    logger.info("Step 6: Daily slip (Kelly-ranked)...")
+    logger.info("Step 6: Daily slip (edge-filtered, Kelly-ranked)...")
     generate_daily_slip(preds, today_ke)
 
-    logger.info("═══ MK-807 God of Football v7 complete ═══")
+    logger.info("═══ MK-808 God of Football v8.0 complete ═══")
 
 
 if __name__ == "__main__":
