@@ -900,7 +900,7 @@ function CandlestickChartInner({
           />
           LIVE
         </span>
-        <span>a min delay may occur</span>
+        <span>Extra time is NEVER monitored.</span>
         <span style={{ marginLeft: "auto" }}>
           {candles.length} candles · min {candles[0]?.minute ?? 0}′–{currentMinute}′
         </span>
