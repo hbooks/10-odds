@@ -89,9 +89,9 @@ function classifyError(raw: string): FriendlyError {
 
 // ─── Tokens ─────────────────────────────────────────────────────────────────────
 const GOLD        = "#C9A535";
-const SURFACE     = "rgba(255,255,255,0.025)";
-const BORDER      = "rgba(255,255,255,0.07)";
-const BORDER_HOVER= "rgba(255,255,255,0.13)";
+const SURFACE     = "rgba(255,255,255,0.02)";
+const BORDER      = "rgba(255,255,255,0.06)";
+const BORDER_HOVER= "rgba(255,255,255,0.12)";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatKenyaTime(iso: string) {
@@ -114,23 +114,22 @@ function confidenceColor(c: number) {
   return GOLD;
 }
 function confidenceBg(c: number) {
-  if (c >= 65) return "rgba(74,222,128,0.07)";
-  if (c <= 35) return "rgba(248,113,113,0.07)";
-  return "rgba(201,165,53,0.07)";
+  if (c >= 65) return "rgba(74,222,128,0.06)";
+  if (c <= 35) return "rgba(248,113,113,0.06)";
+  return "rgba(201,165,53,0.06)";
 }
 function confidenceBorder(c: number) {
-  if (c >= 65) return "rgba(74,222,128,0.18)";
-  if (c <= 35) return "rgba(248,113,113,0.18)";
-  return "rgba(201,165,53,0.18)";
+  if (c >= 65) return "rgba(74,222,128,0.16)";
+  if (c <= 35) return "rgba(248,113,113,0.16)";
+  return "rgba(201,165,53,0.16)";
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
 function LiveBadge({ minute }: { minute: number }) {
   return (
-    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold tabular-nums shrink-0"
-      style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", color: "#4ade80" }}>
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
-        style={{ animation: "livePulse 2s ease-in-out infinite" }} />
+    <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg text-[12px] font-semibold tabular-nums shrink-0"
+      style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.18)", color: "#4ade80" }}>
+      <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" style={{ animation: "livePulse 1.8s ease-in-out infinite" }} />
       {minute}′
     </div>
   );
@@ -138,10 +137,10 @@ function LiveBadge({ minute }: { minute: number }) {
 
 function ConfBar({ value }: { value: number }) {
   return (
-    <div className="w-full h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+    <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
       <motion.div className="h-full rounded-full" style={{ background: confidenceColor(value) }}
         initial={{ width: 0 }} animate={{ width: `${value}%` }}
-        transition={{ duration: 0.7, ease: "easeOut" }} />
+        transition={{ duration: 0.6, ease: "easeOut" }} />
     </div>
   );
 }
@@ -154,36 +153,35 @@ function MarketPill({ market, onClick }: { market: MarketRow; onClick: (m: Marke
   return (
     <motion.button
       onClick={() => onClick(market)}
-      whileHover={{ scale: 1.03, y: -1 }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       title={`${market.market_type} · ${market.market_selection} · ${market.confidence.toFixed(0)}%`}
-      className="flex flex-col gap-1.5 px-3 py-2.5 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-      style={{ background: bg, border: `1px solid ${border}`, minWidth: 96 }}
+      className="flex flex-col gap-1 px-3 py-2 rounded-lg text-left min-w-[120px] max-w-[240px] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+      style={{ background: bg, border: `1px solid ${border}`, color: "rgba(255,255,255,0.92)" }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>
+        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.32)" }}>
           {market.market_type}
         </span>
-        <span className="text-[11px] font-black tabular-nums" style={{ color }}>
+        <span className="text-[12px] font-extrabold tabular-nums" style={{ color }}>
           {market.confidence.toFixed(0)}%
         </span>
       </div>
-      <span className="text-xs font-semibold capitalize" style={{ color: "rgba(255,255,255,0.82)" }}>
+      <span className="text-sm font-medium truncate" style={{ color: "rgba(255,255,255,0.9)" }}>
         {market.market_selection}
       </span>
-      <ConfBar value={market.confidence} />
+      <div className="mt-1"><ConfBar value={market.confidence} /></div>
     </motion.button>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 mb-3">
-      <span className="text-[10px] font-bold uppercase tracking-[0.14em] select-none"
-        style={{ color: "rgba(255,255,255,0.25)" }}>
+    <div className="flex items-center gap-3 mb-4">
+      <span className="text-[11px] font-bold uppercase tracking-wider select-none" style={{ color: "rgba(255,255,255,0.28)" }}>
         {children}
       </span>
-      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.04)" }} />
     </div>
   );
 }
@@ -204,69 +202,68 @@ function MatchCard({
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, delay: index * 0.045, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="rounded-2xl overflow-hidden group/card"
+      transition={{ duration: 0.28, delay: index * 0.04, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="rounded-2xl overflow-hidden"
       style={{
-        background: "linear-gradient(160deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)",
+        background: SURFACE,
         border: `1px solid ${BORDER}`,
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
-        transition: "border-color 0.2s, box-shadow 0.2s",
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = BORDER_HOVER;
-        (e.currentTarget as HTMLElement).style.boxShadow =
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.2)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.36)";
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = BORDER;
-        (e.currentTarget as HTMLElement).style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "none";
       }}
     >
       {/* Card header */}
-      <div className="px-4 py-3.5 flex items-center justify-between gap-3"
-        style={{ borderBottom: `1px solid ${BORDER}` }}>
+      <div className="px-4 py-3.5 flex items-start justify-between gap-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-white/95 text-sm leading-snug truncate">{home}</span>
-            {away && (
-              <>
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg font-mono text-sm font-black shrink-0"
-                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)",
-                    color: "white", letterSpacing: "0.06em" }}>
-                  <span>{match.home_score}</span>
-                  <span className="text-white/25 mx-0.5">:</span>
-                  <span>{match.away_score}</span>
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white/95 text-sm truncate">{home}</span>
+                    <span className="font-italic text-gold/40 text-xs">vs</span>
+                    {away && <span className="text-sm font-bold text-white/65 truncate">{away}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-[12px] text-white/40">
+                    {match.competition_name && <span className="truncate">{match.competition_name}</span>}
+                    <span className="text-white/18">·</span>
+                    <span className="tabular-nums">KO {formatKenyaTime(match.kickoff_utc)}</span>
+                  </div>
                 </div>
-                <span className="font-bold text-white/95 text-sm leading-snug truncate">{away}</span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {match.competition_name && (
-              <span className="text-[11px] text-white/35 font-medium truncate">{match.competition_name}</span>
-            )}
-            {match.competition_name && <span className="text-white/15 text-[10px]">·</span>}
-            <span className="text-[11px] text-white/28 tabular-nums">
-              KO {formatKenyaTime(match.kickoff_utc)}
-            </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-end gap-2">
+              <div className="px-3 py-1 rounded-lg font-mono font-bold text-sm"
+                style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(255,255,255,0.06)` }}>
+                <span className="tabular-nums">{match.home_score}</span>
+                <span className="text-white/25 mx-2">:</span>
+                <span className="tabular-nums">{match.away_score}</span>
+              </div>
+              {match.current_minute > 0 && <LiveBadge minute={match.current_minute} />}
+            </div>
           </div>
         </div>
-        {match.current_minute > 0 && <LiveBadge minute={match.current_minute} />}
       </div>
 
       {/* Markets grid */}
       {match.markets.length > 0 && (
         <div className="px-4 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] mb-2.5 select-none"
-            style={{ color: "rgba(255,255,255,0.2)" }}>
+          <div className="text-[11px] font-semibold mb-3" style={{ color: "rgba(255,255,255,0.24)" }}>
             Tracked markets
-          </p>
-          <div className="flex flex-wrap gap-2">
+          </div>
+
+          {/* responsive grid: scroll on small screens, grid on larger */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {match.markets.map((m) => (
-              <MarketPill key={`${m.market_type}-${m.market_selection}`}
-                market={m} onClick={onPickMarket} />
+              <MarketPill key={`${m.market_type}-${m.market_selection}-${m.last_updated}`} market={m} onClick={onPickMarket} />
             ))}
           </div>
         </div>
@@ -282,52 +279,51 @@ function UntrackedCard({ match, index, onTrack }: {
   const [home, away] = splitMatchName(match.match_name);
   return (
     <motion.article
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, delay: index * 0.04 }}
+      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, delay: index * 0.03 }}
       className="rounded-2xl overflow-hidden"
-      style={{ background: SURFACE, border: `1px solid ${BORDER}`, transition: "border-color 0.18s" }}
+      style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = BORDER_HOVER; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = BORDER; }}
     >
       <div className="px-4 py-3.5 flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-white/80 truncate">{home}</span>
-            {away && (
-              <>
-                <span className="font-mono text-xs font-bold shrink-0 px-1.5 py-0.5 rounded-md"
-                  style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)",
-                    letterSpacing: "0.06em" }}>
-                  {match.home_score}:{match.away_score}
-                </span>
-                <span className="text-sm font-semibold text-white/80 truncate">{away}</span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            {match.competition_name && (
-              <span className="text-[11px] text-white/30">{match.competition_name}</span>
-            )}
-            {match.current_minute > 0 && (
-              <>
-                {match.competition_name && <span className="text-white/15 text-[10px]">·</span>}
-                <span className="text-[11px] text-emerald-400/70 font-medium tabular-nums">
-                  {match.current_minute}′
-                </span>
-              </>
-            )}
+          <div className="flex items-center gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-white/88 truncate">{home}</span>
+                  <span className="font-italic text-gold/40 text-xs">vs</span>
+                {away && <span className="text-sm text-white/65 truncate">{away}</span>}
+              </div>
+              <div className="flex items-center gap-2 mt-1 text-[12px] text-white/36">
+                {match.competition_name && <span className="truncate">{match.competition_name}</span>}
+                {match.current_minute > 0 && (
+                  <>
+                    <span className="text-white/18">·</span>
+                    <span className="text-emerald-400/75 tabular-nums">{match.current_minute}′</span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        <motion.button
-          onClick={onTrack}
-          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
-          aria-label={`Track a market for ${match.match_name}`}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-          style={{ background: "rgba(201,165,53,0.09)", border: "1px solid rgba(201,165,53,0.22)", color: GOLD }}
-        >
-          <Plus className="w-3 h-3" />
-          Track
-        </motion.button>
+
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1 rounded-lg font-mono font-bold text-sm"
+            style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(255,255,255,0.06)` }}>
+            {match.home_score}:{match.away_score}
+          </div>
+          <motion.button
+            onClick={onTrack}
+            whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.98 }}
+            aria-label={`Track a market for ${match.match_name}`}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+            style={{ background: "rgba(201,165,53,0.08)", border: "1px solid rgba(201,165,53,0.18)", color: GOLD }}
+          >
+            <Plus className="w-3 h-3" />
+            Track
+          </motion.button>
+        </div>
       </div>
     </motion.article>
   );
@@ -337,19 +333,17 @@ function UntrackedCard({ match, index, onTrack }: {
 function SkeletonCard({ delay = 0 }: { delay?: number }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay }}
-      className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
+      className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${BORDER}`, background: SURFACE }}>
       <div className="px-4 py-3.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <div className="flex items-center gap-3 mb-2">
-          <div className="h-4 w-28 rounded-lg bg-white/5 animate-pulse" />
-          <div className="h-6 w-10 rounded-lg bg-white/5 animate-pulse" />
-          <div className="h-4 w-24 rounded-lg bg-white/5 animate-pulse" />
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-4 w-32 rounded bg-white/5 animate-pulse" />
+          <div className="h-6 w-12 rounded bg-white/5 animate-pulse" />
         </div>
-        <div className="h-3 w-36 rounded bg-white/4 animate-pulse" />
+        <div className="h-3 w-40 rounded bg-white/6 animate-pulse" />
       </div>
-      <div className="px-4 py-3 flex gap-2">
-        {[80, 96, 88].map((w, i) => (
-          <div key={i} className="h-16 rounded-xl bg-white/4 animate-pulse"
-            style={{ width: w, animationDelay: `${i * 80}ms` }} />
+      <div className="px-4 py-3 grid gap-3 grid-cols-2 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-16 rounded-lg bg-white/5 animate-pulse" />
         ))}
       </div>
     </motion.div>
@@ -376,51 +370,41 @@ function ErrorState({ raw, onRetry }: { raw: string; onRetry: () => void }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl overflow-hidden"
-      style={{ background: "rgba(255,255,255,0.02)", border: `1px solid rgba(255,255,255,0.08)` }}
+      style={{ background: "rgba(255,255,255,0.02)", border: `1px solid rgba(255,255,255,0.07)` }}
     >
-      {/* Top bar accent */}
-      <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, transparent, ${iconColor}66, transparent)` }} />
-
-      <div className="p-6 flex flex-col items-center text-center gap-4">
-        {/* Icon */}
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-          style={{ background: `${iconColor}12`, border: `1px solid ${iconColor}28` }}>
-          <IconComponent className="h-5 w-5" style={{ color: iconColor }} />
+      <div className="px-6 py-6 flex flex-col items-center text-center gap-4">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+          style={{ background: `${iconColor}14`, border: `1px solid ${iconColor}2a` }}>
+          <IconComponent className="h-6 w-6" style={{ color: iconColor }} />
         </div>
 
-        {/* Text */}
         <div>
-          <p className="text-white/85 font-semibold text-sm mb-1">{err.title}</p>
-          <p className="text-white/40 text-xs leading-relaxed max-w-xs">{err.reason}</p>
+          <p className="text-white/88 font-semibold text-base mb-1">{err.title}</p>
+          <p className="text-white/40 text-sm leading-relaxed max-w-xs">{err.reason}</p>
         </div>
 
-        {/* Tip */}
-        <div className="px-3 py-2 rounded-xl text-xs w-full text-left"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.4)" }}>
+        <div className="px-3 py-2 rounded-lg text-sm w-full text-left"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.42)" }}>
           <span style={{ color: "rgba(255,255,255,0.55)" }}>💡 </span>{err.tip}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2 w-full">
+        <div className="flex gap-3 w-full max-w-xs">
           <motion.button
-            onClick={onRetry} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold"
-            style={{ background: `${iconColor}14`, border: `1px solid ${iconColor}2a`, color: iconColor }}
+            onClick={onRetry} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-bold"
+            style={{ background: `${iconColor}16`, border: `1px solid ${iconColor}28`, color: iconColor }}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Try Again
+            <RotateCcw className="h-4 w-4" />
+            Try again
           </motion.button>
           <motion.button
-            onClick={() => window.location.reload()} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.45)" }}
+            onClick={() => window.location.reload()} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            className="px-3 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
+            <RefreshCw className="h-4 w-4" />
           </motion.button>
         </div>
       </div>
@@ -432,32 +416,28 @@ function ErrorState({ raw, onRetry }: { raw: string; onRetry: () => void }) {
 function EmptyState() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
       className="flex flex-col items-center justify-center py-20 text-center gap-4"
     >
-      {/* Animated football icon */}
       <motion.div
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
         className="w-16 h-16 rounded-2xl flex items-center justify-center"
-        style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${BORDER}` }}
+        style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}
       >
         <span className="text-2xl select-none">⚽</span>
       </motion.div>
       <div>
-        <p className="text-white/50 font-semibold text-sm mb-1">No live markets yet</p>
-        <p className="text-white/25 text-xs leading-relaxed max-w-[200px]">
-          Track a market when a game kicks off.
-        </p>
+        <p className="text-white/60 font-semibold text-sm mb-1">No live markets yet</p>
+        <p className="text-white/30 text-sm leading-relaxed max-w-[240px]">Track a market when a game kicks off. Use the Track button to add markets to your list.</p>
       </div>
       <motion.button
         onClick={() => window.location.reload()}
-        whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold"
-        style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
-          color: "rgba(255,255,255,0.4)" }}
+        whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
+        style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, color: "rgba(255,255,255,0.46)" }}
       >
-        <RefreshCw className="h-3 w-3" /> Check again
+        <RefreshCw className="h-4 w-4" /> Check again
       </motion.button>
     </motion.div>
   );
@@ -534,7 +514,7 @@ export default function Markets() {
         current_minute:  first.current_minute ?? 0,
         markets,
       };
-    });
+    }).sort((a,b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
   }, [marketRows]);
 
   const untrackedMatches = useMemo(
@@ -566,91 +546,70 @@ export default function Markets() {
       <style>{`
         @keyframes livePulse {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: 0.4; transform: scale(0.75); }
+          50%       { opacity: 0.4; transform: scale(0.8); }
         }
       `}</style>
 
-      <div className="min-h-screen text-white"
-        style={{ background: "#060609", fontFamily: "'Sora', 'DM Sans', 'Segoe UI', sans-serif" }}>
-
+      <div className="min-h-screen text-white" style={{ background: "#060609", fontFamily: "'Sora', 'DM Sans', 'Segoe UI', sans-serif" }}>
         {/* ── Navbar ── */}
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6"
-          style={{ height: 52, background: "rgba(6,6,9,0.9)",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+        <header className="sticky top-0 z-30 px-4 sm:px-6" style={{ backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
+          <div className="max-w-3xl mx-auto flex items-center justify-between h-14" style={{ background: "rgba(6,6,9,0.85)", borderRadius: 12, border: `1px solid ${BORDER}`, padding: 8 }}>
+            <div className="flex items-center gap-3">
+              <Link to="/games" aria-label="Back"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 transition-all duration-150"
+                style={{ background: "rgba(255,255,255,0.02)", border: `1px solid rgba(255,255,255,0.03)` }}>
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
 
-          <div className="flex items-center gap-2.5">
-            <Link to="/games" aria-label="Back"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/35 hover:text-white/75 transition-all duration-150"
-              style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </Link>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md flex items-center justify-center"
-                style={{ background: "rgba(201,165,53,0.12)", border: "1px solid rgba(201,165,53,0.22)" }}>
-                <TrendingUp className="h-3 w-3" style={{ color: GOLD }} />
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ background: "rgba(201,165,53,0.12)", border: "1px solid rgba(201,165,53,0.18)" }}>
+                  <TrendingUp className="h-4 w-4" style={{ color: GOLD }} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white/92">Live Monitor</div>
+                  <div className="text-[12px] text-white/30">Real-time market win rates</div>
+                </div>
               </div>
-              <span className="text-sm font-bold text-white/90 tracking-tight">Live Markets</span>
-              {liveCount > 0 && !loading && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
-                  style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)",
-                    color: "#4ade80" }}>
-                  {liveCount} live
-                </span>
-              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <nav className="hidden sm:flex items-center gap-2">
+                <Link to="/closed" className="flex items-center gap-2 px-3 py-1 rounded-md text-sm text-white/40 hover:text-white/80 transition">
+                  <CheckCircle className="h-4 w-4" />
+                  Closed
+                </Link>
+                <Link to="/guide#ch-07" className="flex items-center gap-2 px-3 py-1 rounded-md text-sm text-white/40 hover:text-white/80 transition">
+                  <BookOpen className="h-4 w-4" />
+                  Guide
+                </Link>
+              </nav>
+
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-md" style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.12)" }}>
+                <Wifi className="h-4 w-4" style={{ color: "#4ade80" }} />
+                <span className="text-[12px] font-mono font-bold text-emerald-400/80">LIVE {liveCount > 0 && `· ${liveCount}`}</span>
+              </div>
+
+              <button onClick={() => fetchData(true)} disabled={refreshing || loading}
+                aria-label="Refresh"
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
+                <RefreshCw className={`h-4 w-4 text-white/40 ${refreshing ? "animate-spin" : ""}`} />
+              </button>
             </div>
           </div>
-
-          <nav className="flex items-center gap-0.5">
-            <Link to="/closed"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/38 hover:text-white/70 transition-all duration-150 hover:bg-white/4">
-              <CheckCircle className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Closed</span>
-            </Link>
-            <Link to="/guide#ch-07"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/38 hover:text-white/70 transition-all duration-150 hover:bg-white/4">
-              <BookOpen className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Guide</span>
-            </Link>
-            {/* Realtime indicator */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 ml-1 rounded-lg"
-              style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)" }}>
-              <Wifi className="h-3 w-3" style={{ color: "#4ade80" }} />
-              <span className="text-[10px] font-mono font-bold hidden sm:inline" style={{ color: "#4ade8099" }}>
-                LIVE
-              </span>
-            </div>
-          </nav>
         </header>
 
         {/* ── Page content ── */}
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-7">
-
-          {/* Heading */}
-          <div className="flex items-start justify-between mb-7">
-            <div>
-              <h1 className="text-2xl sm:text-[28px] font-black tracking-tight leading-none"
-                style={{ color: GOLD, letterSpacing: "-0.025em", fontFamily: "'Sora', sans-serif" }}>
-                10 Odds
-              </h1>
-              <p className="text-white/32 text-xs mt-1.5 leading-relaxed">
-                Real-time win rate for live football markets.
-              </p>
-            </div>
-            <button onClick={() => fetchData(true)} disabled={refreshing || loading}
-              aria-label="Refresh"
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <RefreshCw className={`h-3.5 w-3.5 text-white/45 ${refreshing ? "animate-spin" : ""}`} />
-            </button>
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-7">
+          <div className="mb-6">
+            <h1 className="text-3xl font-black" style={{ color: GOLD, letterSpacing: "-0.02em" }}>10 Odds</h1>
+            <p className="text-sm text-white/30 mt-1">Live win-rate predictions for football markets. Tap a market to view a performance chart.</p>
           </div>
 
-          {/* ── States ── */}
           <AnimatePresence mode="wait">
             {loading ? (
-              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }} className="space-y-3">
-                {[0, 0.07, 0.13].map((d, i) => <SkeletonCard key={i} delay={d} />)}
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                {[0, 0.06, 0.12].map((d, i) => <SkeletonCard key={i} delay={d} />)}
               </motion.div>
             ) : error ? (
               <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -661,28 +620,24 @@ export default function Markets() {
                 <EmptyState />
               </motion.div>
             ) : (
-              <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }} className="space-y-6">
+              <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
                 {trackedMatches.length > 0 && (
                   <section>
                     <SectionLabel>Tracked</SectionLabel>
-                    <AnimatePresence initial={false}>
-                      <div className="space-y-2.5">
-                        {trackedMatches.map((match, i) => (
-                          <MatchCard key={match.bsd_match_id} match={match} index={i}
-                            onPickMarket={handlePickTrackedMarket} />
-                        ))}
-                      </div>
-                    </AnimatePresence>
+                    <div className="grid gap-4">
+                      {trackedMatches.map((match, i) => (
+                        <MatchCard key={match.bsd_match_id} match={match} index={i} onPickMarket={handlePickTrackedMarket} />
+                      ))}
+                    </div>
                   </section>
                 )}
+
                 {untrackedMatches.length > 0 && (
                   <section>
-                    <SectionLabel>Live · not yet tracked</SectionLabel>
-                    <div className="space-y-2">
+                    <SectionLabel>Live · not tracked</SectionLabel>
+                    <div className="grid gap-3 sm:grid-cols-2">
                       {untrackedMatches.map((m, i) => (
-                        <UntrackedCard key={m.bsd_match_id} match={m} index={i}
-                          onTrack={() => setModalOpen(true)} />
+                        <UntrackedCard key={m.bsd_match_id} match={m} index={i} onTrack={() => setModalOpen(true)} />
                       ))}
                     </div>
                   </section>
@@ -690,34 +645,34 @@ export default function Markets() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </main>
 
-        {/* ── FAB ── */}
+        {/* ── FAB (left as-is per request) ── */}
         <AnimatePresence>
           {!loading && (
             <motion.button
-              initial={{ opacity: 0, y: 16, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0,  scale: 1 }}
-              exit={{ opacity: 0,  y: 8,   scale: 0.95 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               onClick={() => setModalOpen(true)}
               aria-label="Track a new market"
-              className="fixed bottom-24 right-5 sm:right-10 z-40 flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50"
+              className="fixed bottom-24 right-5 sm:right-10 z-40 flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/40"
               style={{
                 background: `linear-gradient(135deg, #E8C050, ${GOLD} 50%, #A8892A)`,
                 color: "#0a0703",
-                boxShadow: `0 0 0 1px rgba(201,165,53,0.45), 0 8px 28px rgba(201,165,53,0.30), 0 2px 8px rgba(0,0,0,0.45)`,
+                boxShadow: `0 6px 28px rgba(201,165,53,0.25)`,
               }}
-              whileHover={{ scale: 1.05, boxShadow: `0 0 0 1px rgba(201,165,53,0.6), 0 12px 36px rgba(201,165,53,0.42)` }}
-              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               Track a Market
             </motion.button>
           )}
         </AnimatePresence>
 
-        {/* ── Modal ── */}
+        {/* ── Modal (unchanged) ── */}
         <LiveMarketModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}

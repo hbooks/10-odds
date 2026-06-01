@@ -95,14 +95,28 @@ interface DeviceRow {
   count:       number;
 }
 
-interface TimelineEvent {
-  type:          'view' | 'error';
-  page_path:     string;
-  created_at:    string;
-  error_type?:   string;
-  error_message?: string;
-  time_on_page_ms?: number | null;
+interface LogRow {
+  id:          number;
+  created_at:  string;
+  session_id:  string;
+  page_path:   string | null;
+  level:       string; // e.g. 'error'|'warn'|'info'|'debug'
+  message:     string;
+  data:        string | null;
 }
+
+interface TimelineEventBase {
+  type:       'view' | 'error' | 'log';
+  page_path:  string | null;
+  created_at: string;
+}
+
+// union extended to include logs
+interface TimelineEventView extends TimelineEventBase { type: 'view'; time_on_page_ms?: number | null; }
+interface TimelineEventError extends TimelineEventBase { type: 'error'; error_type?: string; error_message?: string; }
+interface TimelineEventLog extends TimelineEventBase { type: 'log'; level: string; message: string; data?: string | null; }
+
+type TimelineEvent = TimelineEventView | TimelineEventError | TimelineEventLog;
 
 // ── Helpers ───────────────────────────────────────────────────
 function fmtDate(iso: string) {
@@ -122,13 +136,23 @@ function fmtDuration(ms: number | null | undefined) {
 }
 
 function errorColor(type: string): string {
-  return ({
+  return (({
     js_runtime:        C.red,
     unhandled_promise: C.orange,
     network:           C.blue,
     react_boundary:    C.purple,
     slow_render:       C.yellow,
-  } as Record<string, string>)[type] ?? C.faint;
+  } as Record<string, string>)[type]) ?? C.faint;
+}
+
+function logColor(level: string): string {
+  return ({
+    error:  C.red,
+    warn:   C.orange,
+    info:   C.blue,
+    debug:  C.purple,
+    log:    C.faint,
+  } as Record<string, string>)[level] ?? C.faint;
 }
 
 function deviceIcon(type: string) {
@@ -222,6 +246,11 @@ export default function AdminAnalyticsPage() {
   const [errorFilter, setErrorFilter] = useState('all');
   const [errorSearch, setErrorSearch] = useState('');
 
+  // Logs (console)
+  const [logs, setLogs] = useState<LogRow[]>([]);
+  const [logLevelFilter, setLogLevelFilter] = useState<'all'|'error'|'warn'|'info'|'debug'>('all');
+  const [logSearch, setLogSearch] = useState('');
+
   // Devices
   const [devices, setDevices] = useState<DeviceRow[]>([]);
 
@@ -242,6 +271,7 @@ export default function AdminAnalyticsPage() {
         pvDailyRes, errDailyRes,
         pvPathsRes,
         errLogRes,
+        logsRes,
         sessListRes,
       ] = await Promise.all([
         supabase.from('page_views').select('id', { count: 'exact', head: true }),
@@ -251,8 +281,9 @@ export default function AdminAnalyticsPage() {
         supabase.from('analytics_errors').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
         supabase.from('page_views').select('created_at, session_id').gte('created_at', ago14),
         supabase.from('analytics_errors').select('created_at').gte('created_at', ago14),
-        supabase.from('page_views').select('page_path'),
+        supabase.from('page_views').select('page_path, session_id'),
         supabase.from('analytics_errors').select('*').order('created_at', { ascending: false }).limit(300),
+        supabase.from('analytics_logs').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('analytics_sessions').select('*').order('last_seen_at', { ascending: false }).limit(500),
       ]);
 
@@ -263,12 +294,8 @@ export default function AdminAnalyticsPage() {
 
       // Page count per session (from all page_views)
       const pvPaths = pvPathsRes.data ?? [];
-      const pageCountBySid: Record<string, number> = {};
-      for (const r of pvPaths) {
-        pageCountBySid[r.page_path]; // typescript needs this
-      }
       // We'll count from pvDailyRes + pvPathsRes — but for avg we need per-session counts
-      // Re-use pvTodayRes + pvDailyRes for session page counts
+      // Re-use pvDailyRes + pvPathsRes for session page counts
       const allPvForCount = pvDailyRes.data ?? [];
       const pvCountBySid: Record<string, number> = {};
       for (const r of allPvForCount) pvCountBySid[r.session_id] = (pvCountBySid[r.session_id] ?? 0) + 1;
@@ -321,14 +348,14 @@ export default function AdminAnalyticsPage() {
       // ── Error log ─────────────────────────────────────────
       setErrors((errLogRes.data ?? []) as ErrorRow[]);
 
+      // ── Logs ──────────────────────────────────────────────
+      setLogs((logsRes.data ?? []) as LogRow[]);
+
       // ── Sessions with enrichment ──────────────────────────
       const errCountBySid: Record<string, number> = {};
       for (const e of (errLogRes.data ?? [])) {
         errCountBySid[e.session_id] = (errCountBySid[e.session_id] ?? 0) + 1;
       }
-      const allPvCountBySid: Record<string, number> = {};
-      for (const r of pvPaths) allPvCountBySid[r.page_path]; // not right — need session_id from page_views
-      // pvDailyRes has session_id, use that for page counts (last 14d)
       const enriched: SessionRow[] = sessRows.map((s) => ({
         ...s,
         page_count:  pvCountBySid[s.session_id]  ?? 0,
@@ -372,24 +399,33 @@ export default function AdminAnalyticsPage() {
     setTimeline([]);
     setTimelineLoading(true);
 
-    const [pvRes, errRes] = await Promise.all([
+    const [pvRes, errRes, logRes] = await Promise.all([
       supabase.from('page_views').select('page_path, created_at, time_on_page_ms').eq('session_id', sid).order('created_at'),
       supabase.from('analytics_errors').select('page_path, created_at, error_type, error_message').eq('session_id', sid).order('created_at'),
+      supabase.from('analytics_logs').select('page_path, created_at, level, message, data').eq('session_id', sid).order('created_at'),
     ]);
 
     const events: TimelineEvent[] = [
       ...(pvRes.data ?? []).map((r) => ({
         type:           'view' as const,
-        page_path:      r.page_path,
+        page_path:      r.page_path ?? null,
         created_at:     r.created_at,
         time_on_page_ms: r.time_on_page_ms,
       })),
       ...(errRes.data ?? []).map((r) => ({
         type:          'error' as const,
-        page_path:     r.page_path,
+        page_path:     r.page_path ?? null,
         created_at:    r.created_at,
         error_type:    r.error_type,
         error_message: r.error_message,
+      })),
+      ...(logRes.data ?? []).map((r) => ({
+        type:       'log' as const,
+        page_path:  r.page_path ?? null,
+        created_at: r.created_at,
+        level:      r.level,
+        message:    r.message,
+        data:       r.data,
       })),
     ].sort((a, b) => a.created_at.localeCompare(b.created_at));
 
@@ -408,6 +444,20 @@ export default function AdminAnalyticsPage() {
         e.error_message?.toLowerCase().includes(q) ||
         e.page_path?.toLowerCase().includes(q) ||
         e.session_id?.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const filteredLogs = logs.filter((l) => {
+    if (logLevelFilter !== 'all' && l.level !== logLevelFilter) return false;
+    if (logSearch) {
+      const q = logSearch.toLowerCase();
+      return (
+        l.message?.toLowerCase().includes(q) ||
+        l.page_path?.toLowerCase().includes(q) ||
+        l.session_id?.toLowerCase().includes(q) ||
+        l.data?.toLowerCase().includes(q)
       );
     }
     return true;
@@ -688,9 +738,9 @@ export default function AdminAnalyticsPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                               <div style={{
                                 width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                                background: ev.type === 'error' ? errorColor(ev.error_type ?? '') : C.green,
-                                border: `2px solid ${ev.type === 'error' ? errorColor(ev.error_type ?? '') : C.green}`,
-                                boxShadow: `0 0 6px ${ev.type === 'error' ? errorColor(ev.error_type ?? '') : C.green}44`,
+                                background: ev.type === 'error' ? errorColor((ev as TimelineEventError).error_type ?? '') : ev.type === 'view' ? C.green : logColor((ev as TimelineEventLog).level ?? 'log'),
+                                border: `2px solid ${ev.type === 'error' ? errorColor((ev as TimelineEventError).error_type ?? '') : ev.type === 'view' ? C.green : logColor((ev as TimelineEventLog).level ?? 'log')}`,
+                                boxShadow: `0 0 6px ${ev.type === 'error' ? errorColor((ev as TimelineEventError).error_type ?? '') : ev.type === 'view' ? C.green : logColor((ev as TimelineEventLog).level ?? 'log')}44`,
                               }} />
                               {i < timeline.length - 1 && (
                                 <div style={{ width: 1, flex: 1, minHeight: 16, background: C.border, margin: '2px 0' }} />
@@ -699,19 +749,27 @@ export default function AdminAnalyticsPage() {
                             <div style={{ flex: 1, paddingBottom: 4 }}>
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3, flexWrap: 'wrap' }}>
                                 <span style={{ color: C.faint, fontSize: 10 }}>{fmtTime(ev.created_at)}</span>
-                                {ev.type === 'error' && <Badge label={ev.error_type ?? 'error'} color={errorColor(ev.error_type ?? '')} />}
-                                {ev.time_on_page_ms && ev.time_on_page_ms > 0
-                                  ? <span style={{ color: C.faint, fontSize: 10 }}>⏱ {fmtDuration(ev.time_on_page_ms)}</span>
+                                {ev.type === 'error' && <Badge label={(ev as TimelineEventError).error_type ?? 'error'} color={errorColor((ev as TimelineEventError).error_type ?? '')} />}
+                                {ev.type === 'log' && <Badge label={(ev as TimelineEventLog).level.toUpperCase()} color={logColor((ev as TimelineEventLog).level)} />}
+                                {(ev as TimelineEventView).time_on_page_ms && (ev as TimelineEventView).time_on_page_ms > 0
+                                  ? <span style={{ color: C.faint, fontSize: 10 }}>⏱ {fmtDuration((ev as TimelineEventView).time_on_page_ms)}</span>
                                   : null}
                               </div>
-                              <div style={{ fontSize: 13, color: ev.type === 'error' ? errorColor(ev.error_type ?? '') : C.text }}>
+                              <div style={{ fontSize: 13, color: ev.type === 'error' ? errorColor((ev as TimelineEventError).error_type ?? '') : C.text }}>
                                 {ev.type === 'view'
                                   ? <span>📄 <span style={{ fontFamily: 'monospace' }}>{ev.page_path}</span></span>
-                                  : <span>⚠ {ev.error_message?.slice(0, 100)}{(ev.error_message?.length ?? 0) > 100 ? '…' : ''}</span>
+                                  : ev.type === 'error'
+                                    ? <span>⚠ {(ev as TimelineEventError).error_message?.slice(0, 100)}{(((ev as TimelineEventError).error_message?.length ?? 0) > 100 ? '…' : '')}</span>
+                                    : <span>📝 {(ev as TimelineEventLog).message}</span>
                                 }
                               </div>
                               {ev.type === 'error' && (
                                 <div style={{ color: C.faint, fontSize: 11, fontFamily: 'monospace', marginTop: 2 }}>{ev.page_path}</div>
+                              )}
+                              {ev.type === 'log' && (ev as TimelineEventLog).data && (
+                                <div style={{ color: C.faint, fontSize: 11, fontFamily: 'monospace', marginTop: 6, overflow: 'auto', maxHeight: 120, background: 'rgba(0,0,0,0.35)', padding: 8, borderRadius: 6 }}>
+                                  {(ev as TimelineEventLog).data}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -726,7 +784,7 @@ export default function AdminAnalyticsPage() {
         )}
 
         {/* ════════════════════════════════════════════════════
-            ERRORS TAB
+            ERRORS TAB (includes Console Logs)
         ════════════════════════════════════════════════════ */}
         {activeTab === 'errors' && (
           <>
@@ -754,7 +812,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            <Card style={{ maxHeight: 640, overflowY: 'auto' }}>
+            <Card style={{ maxHeight: 340, overflowY: 'auto' }}>
               {filteredErrors.length === 0 && (
                 <div style={{ padding: 48, textAlign: 'center', color: C.faint }}>No errors match your filter</div>
               )}
@@ -788,6 +846,61 @@ export default function AdminAnalyticsPage() {
                   )}
 
                   <div style={{ color: '#2D3748', fontSize: 9, marginTop: 5, fontFamily: 'monospace' }}>{e.session_id}</div>
+                </div>
+              ))}
+            </Card>
+
+            {/* Console logs subsection */}
+            <SectionTitle>Console Logs ({logs.length})</SectionTitle>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              {(['all','error','warn','info','debug'] as const).map((lvl) => (
+                <button key={lvl} onClick={() => setLogLevelFilter(lvl)} style={{
+                  padding: '4px 11px', borderRadius: 20, fontSize: 10, fontWeight: 700,
+                  border: `1px solid ${logLevelFilter === lvl ? logColor(lvl) : C.border}`,
+                  background: logLevelFilter === lvl ? `${logColor(lvl)}18` : 'transparent',
+                  color: logLevelFilter === lvl ? logColor(lvl) : C.faint, cursor: 'pointer',
+                }}>
+                  {lvl}
+                  {lvl !== 'all' && (
+                    <span style={{ marginLeft: 4, opacity: 0.7 }}>
+                      ({logs.filter((l) => l.level === lvl).length})
+                    </span>
+                  )}
+                </button>
+              ))}
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <input style={inputStyle} placeholder="Search message, path, session…" value={logSearch} onChange={(e) => setLogSearch(e.target.value)} />
+              </div>
+            </div>
+
+            <Card style={{ maxHeight: 420, overflowY: 'auto' }}>
+              {filteredLogs.length === 0 && (
+                <div style={{ padding: 48, textAlign: 'center', color: C.faint }}>No logs match your filter</div>
+              )}
+              {filteredLogs.map((l, i) => (
+                <div key={l.id} style={{ padding: '13px 18px', borderBottom: i < filteredLogs.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                    <Badge label={l.level} color={logColor(l.level)} />
+                    <span style={{ color: C.faint, fontSize: 11 }}>{fmtDateTime(l.created_at)}</span>
+                    <span style={{ color: '#374151', fontSize: 11, fontFamily: 'monospace' }}>{l.page_path ?? '—'}</span>
+                    <button
+                      onClick={() => openSessionTimeline(l.session_id)}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.goldDim, fontSize: 11, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                    >
+                      View session →
+                    </button>
+                  </div>
+
+                  <div style={{ color: '#D1D5DB', fontSize: 13, marginBottom: 6 }}>{l.message}</div>
+
+                  {l.data && (
+                    <pre style={{ color: C.faint, fontSize: 11, marginTop: 6, overflow: 'auto', maxHeight: 120, padding: '6px 10px', background: 'rgba(0,0,0,0.35)', borderRadius: 6, lineHeight: 1.4 }}>
+                      {l.data.slice(0, 200)}
+                    </pre>
+                  )}
+
+                  <div style={{ color: '#2D3748', fontSize: 9, marginTop: 6, fontFamily: 'monospace' }}>{l.session_id}</div>
                 </div>
               ))}
             </Card>

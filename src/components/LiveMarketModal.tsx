@@ -37,7 +37,7 @@ const ALL_MARKET_TYPES: Record<string, string[]> = {
   "DOUBLE CHANCE": ["1x", "12", "x2"],
   "DRAW NO BET": ["home", "away"],
   "BOTH TEAMS TO SCORE": ["yes", "no"],
-  "OVER UNDER": [
+  "OVER/UNDER GOALS": [
     "over 0.5","over 1.5","over 2.5","over 3.5","over 4.5","over 5.5","over 6.5",
     "under 0.5","under 1.5","under 2.5","under 3.5","under 4.5","under 5.5","under 6.5",
   ],

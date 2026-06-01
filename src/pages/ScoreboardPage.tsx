@@ -13,19 +13,53 @@ const supabase = createClient(
 
 interface Team {
   name: string;
-  tla: string | null;
+  tla:  string | null;
   crest_url?: string | null;
 }
 
+/** Original shape from the matches table (football-data.org) */
 interface Match {
-  id: number;
-  utc_date: string;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
-  home_team: Team;
-  away_team: Team;
-  competition: { name: string };
+  id:           number;
+  utc_date:     string;
+  status:       string;
+  home_score:   number | null;
+  away_score:   number | null;
+  home_team:    Team;
+  away_team:    Team;
+  competition:  { name: string };
+}
+
+/** Raw row from live_stats table (BSD) */
+interface LiveStatRow {
+  bsd_match_id:     number;
+  match_name:       string;
+  competition_name: string;
+  kickoff_utc:      string;
+  home_team:        string;
+  away_team:        string;
+  home_score:       number;
+  away_score:       number;
+  current_minute:   number;
+  period:           string;  // "1T" | "2T" | "HT" | "FT" | "ET1" | "ET2" | "AET"
+}
+
+/**
+ * Unified match shape used by all card components.
+ * Both the BSD path and the fallback path produce this.
+ */
+interface NormalisedMatch {
+  id:              number;
+  utc_date:        string;          // ISO — used for clock seed
+  status:          string;          // "IN_PLAY" | "PAUSED" | "FINISHED" etc.
+  home_score:      number | null;
+  away_score:      number | null;
+  home_team:       Team;
+  away_team:       Team;
+  competition:     { name: string };
+  // BSD-specific extras (undefined when falling back to football-data.org)
+  bsd_period?:     string;          // raw BSD period string
+  bsd_minute?:     number;          // raw BSD current_minute
+  source:          "bsd" | "fallback";
 }
 
 // ─── Clock phases ──────────────────────────────────────────────────────────
@@ -37,7 +71,6 @@ type ClockPhase =
   | "secondHalf"
   | "addedTime2"
   | "completed";
-
 
 interface PersistedClock {
   kickoffMs: number;
@@ -64,76 +97,104 @@ function writeClock(id: number, clock: PersistedClock): void {
 
 // ─── Real-time phase boundaries ────────────────────────────────────────────
 // All values are in REAL elapsed seconds since kick-off.
-// HT is treated as a fixed 15-minute real-world pause after 3 min of AT1.
 
 const RT = {
-  // 1st half ends at real 45:00
-  FH_END_SEC:   45 * 60,          // 2700
-
-  // Added time 1 lasts up to 3 real minutes (45:00 → 48:00)
-  // Display is capped: we show up to 45+3 = 48:xx but freeze there
-  AT1_END_SEC:  48 * 60,          // 2880  ← HT whistle assumed here
-
-  // Half-time break: 15 real minutes (48:00 → 63:00)
-  HT_DUR_SEC:   15 * 60,          // 900
-  HT_END_SEC:   48 * 60 + 15 * 60, // 3780  ← 2nd half kick-off
-
-  // 2nd half display starts at 45:00 and runs for 45 real minutes
-  SH_DUR_SEC:   45 * 60,          // 2700
-  SH_END_SEC:   48 * 60 + 15 * 60 + 45 * 60, // 6480
-
-  // Added time 2 lasts up to 3 real minutes
-  AT2_END_SEC:  48 * 60 + 15 * 60 + 48 * 60, // 6660
+  FH_END_SEC:  45 * 60,
+  AT1_END_SEC: 48 * 60,
+  HT_DUR_SEC:  15 * 60,
+  HT_END_SEC:  48 * 60 + 15 * 60,
+  SH_DUR_SEC:  45 * 60,
+  SH_END_SEC:  48 * 60 + 15 * 60 + 45 * 60,
+  AT2_END_SEC: 48 * 60 + 15 * 60 + 48 * 60,
 } as const;
 
 interface ClockState {
   phase:      ClockPhase;
-  displaySec: number;   // what the clock face shows (game-clock seconds)
-  frozen:     boolean;  // true = clock not ticking (HT break)
+  displaySec: number;
+  frozen:     boolean;
 }
 
 /**
- * Pure function. Given only kickoffMs and the current wall time, returns
- * exactly which phase we're in and what the clock face should display.
- * No DB status involved. No stored game-seconds. Refresh-proof by design.
+ * ORIGINAL fallback clock evaluator — pure time-math from kickoffMs.
+ * Unchanged from the original file. Used when BSD data is unavailable.
  */
 function evaluateClock(c: PersistedClock): ClockState {
-  const realSec = (Date.now() - c.kickoffMs) / 1000; // real seconds since KO
+  const realSec = (Date.now() - c.kickoffMs) / 1000;
 
-  // ── 1st half (0:00 → 45:00) ──────────────────────────────────────────────
   if (realSec < RT.FH_END_SEC) {
     return { phase: "firstHalf", displaySec: realSec, frozen: false };
   }
-
-  // ── Added time 1 (45:00 → 48:00 real) ────────────────────────────────────
-  // Display counts up from 45:00 but we cap the face at 45+3 = 48:xx
   if (realSec < RT.AT1_END_SEC) {
     return { phase: "addedTime1", displaySec: realSec, frozen: false };
   }
-
-  // ── Half-time break (48:00 → 63:00 real) ─────────────────────────────────
-  // Clock face is frozen at 45:00, shows "HT"
   if (realSec < RT.HT_END_SEC) {
     return { phase: "halfTime", displaySec: RT.FH_END_SEC, frozen: true };
   }
-
-  // ── 2nd half (63:00 → 108:00 real) ───────────────────────────────────────
-  // Display resumes from 45:00 and counts the real seconds since HT ended
-  const shElapsed    = realSec - RT.HT_END_SEC;        // seconds into 2nd half
-  const shDisplaySec = RT.FH_END_SEC + shElapsed;      // 45:00 + elapsed
-
+  const shElapsed    = realSec - RT.HT_END_SEC;
+  const shDisplaySec = RT.FH_END_SEC + shElapsed;
   if (realSec < RT.SH_END_SEC) {
     return { phase: "secondHalf", displaySec: shDisplaySec, frozen: false };
   }
-
-  // ── Added time 2 (108:00 → 111:00 real) ──────────────────────────────────
   if (realSec < RT.AT2_END_SEC) {
-    const at2DisplaySec = RT.FH_END_SEC + (realSec - RT.HT_END_SEC); // continues from 90:xx
+    const at2DisplaySec = RT.FH_END_SEC + (realSec - RT.HT_END_SEC);
     return { phase: "addedTime2", displaySec: at2DisplaySec, frozen: false };
   }
-
-  // ── Full time ─────────────────────────────────────────────────────────────
   return { phase: "completed", displaySec: 90 * 60, frozen: false };
+}
+
+/**
+ * BSD-aware clock evaluator.
+ * Uses BSD's period string and current_minute as the authoritative source.
+ * The BSD period normalisation mirrors the pipeline's normalisePeriod() logic.
+ *
+ * period mapping:
+ *   1T / 1H / FIRST_HALF        → firstHalf  (or addedTime1 if min > 45)
+ *   HT / HALF_TIME               → halfTime
+ *   2T / 2H / SECOND_HALF       → secondHalf (or addedTime2 if min > 90)
+ *   ET1 / ET2 / ET / EXTRA_TIME → secondHalf (extra time treated as continuation)
+ *   FT / AET / FINISHED / FINAL → completed
+ */
+function evaluateClockFromBSD(period: string, minute: number): ClockState {
+  const p = (period ?? "").trim().toUpperCase();
+
+  // ── Full Time ────────────────────────────────────────────────────────────
+  const ftPeriods = ["FT", "AET", "PEN", "FINISHED", "ENDED", "FINAL", "POST", "FT_ET", "PEN_FT"];
+  if (ftPeriods.includes(p) || p.startsWith("FT") || p.startsWith("FINAL") || p.startsWith("FINISH")) {
+    return { phase: "completed", displaySec: 90 * 60, frozen: false };
+  }
+
+  // ── Half Time ────────────────────────────────────────────────────────────
+  if (["HT", "HALF_TIME", "HALFTIME"].includes(p)) {
+    return { phase: "halfTime", displaySec: RT.FH_END_SEC, frozen: true };
+  }
+
+  // ── Extra Time ───────────────────────────────────────────────────────────
+  if (p === "ET1" || p === "ET2" || p === "ET" || p === "AET" || p.includes("EXTRA")) {
+    const displaySec = Math.max(90, minute) * 60;
+    return { phase: "secondHalf", displaySec, frozen: false };
+  }
+
+  // ── First Half / Added Time 1 ────────────────────────────────────────────
+  if (["1T", "1H", "FIRST_HALF", "FIRST HALF"].includes(p)) {
+    if (minute > 45) {
+      // In added time at end of first half
+      return { phase: "addedTime1", displaySec: minute * 60, frozen: false };
+    }
+    return { phase: "firstHalf", displaySec: minute * 60, frozen: false };
+  }
+
+  // ── Second Half / Added Time 2 ───────────────────────────────────────────
+  if (["2T", "2H", "SECOND_HALF", "SECOND HALF"].includes(p)) {
+    if (minute > 90) {
+      return { phase: "addedTime2", displaySec: minute * 60, frozen: false };
+    }
+    return { phase: "secondHalf", displaySec: minute * 60, frozen: false };
+  }
+
+  // ── Unknown period — fall back to minute-based guess ────────────────────
+  if (minute <= 45)  return { phase: "firstHalf",  displaySec: minute * 60, frozen: false };
+  if (minute <= 90)  return { phase: "secondHalf", displaySec: minute * 60, frozen: false };
+  return { phase: "addedTime2", displaySec: minute * 60, frozen: false };
 }
 
 // ─── Formatting ────────────────────────────────────────────────────────────
@@ -144,14 +205,14 @@ function formatClock(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// ─── Clock display config ─────────────────────────────────────────────────
+// ─── Clock display config ──────────────────────────────────────────────────
 
 interface ClockDisplay {
   label:     string;
   sublabel:  string | null;
   pulsing:   boolean;
   pillClass: string;
-  accent:    string;  // for the glow line
+  accent:    string;
 }
 
 function getClockDisplay(state: ClockState): ClockDisplay {
@@ -208,10 +269,9 @@ function getClockDisplay(state: ClockState): ClockDisplay {
 }
 
 // ─── Transition overlay ────────────────────────────────────────────────────
-// Shown for ~3 seconds on phase changes for a dramatic effect.
 
 interface TransitionOverlayProps {
-  phase: ClockPhase;
+  phase:   ClockPhase;
   visible: boolean;
 }
 
@@ -219,11 +279,11 @@ function TransitionOverlay({ phase, visible }: TransitionOverlayProps) {
   if (!visible) return null;
 
   const config =
-    phase === "halfTime"  ? { label: "HALF TIME",  color: "from-sky-500/90 to-sky-700/90",   emoji: "🔔" } :
-    phase === "secondHalf"? { label: "2ND HALF",   color: "from-red-600/90 to-red-900/90",   emoji: "⚽" } :
-    phase === "completed" ? { label: "FULL TIME",  color: "from-slate-600/90 to-slate-900/90", emoji: "🏁" } :
-    phase === "addedTime1"? { label: "ADDED TIME", color: "from-orange-500/90 to-orange-800/90", emoji: "⏱️" } :
-    phase === "addedTime2"? { label: "ADDED TIME", color: "from-orange-500/90 to-orange-800/90", emoji: "⏱️" } :
+    phase === "halfTime"   ? { label: "HALF TIME",  color: "from-sky-500/90 to-sky-700/90",      emoji: "🔔" } :
+    phase === "secondHalf" ? { label: "2ND HALF",   color: "from-red-600/90 to-red-900/90",      emoji: "⚽" } :
+    phase === "completed"  ? { label: "FULL TIME",  color: "from-slate-600/90 to-slate-900/90",  emoji: "🏁" } :
+    phase === "addedTime1" ? { label: "ADDED TIME", color: "from-orange-500/90 to-orange-800/90",emoji: "⏱️" } :
+    phase === "addedTime2" ? { label: "ADDED TIME", color: "from-orange-500/90 to-orange-800/90",emoji: "⏱️" } :
     null;
 
   if (!config) return null;
@@ -234,11 +294,8 @@ function TransitionOverlay({ phase, visible }: TransitionOverlayProps) {
         absolute inset-0 z-20 flex flex-col items-center justify-center gap-2
         bg-gradient-to-br ${config.color} backdrop-blur-sm
         rounded-2xl
-        animate-[fadeInOut_2.8s_ease-in-out_forwards]
       `}
-      style={{
-        animation: "scoreboardFadeInOut 2.8s ease-in-out forwards",
-      }}
+      style={{ animation: "scoreboardFadeInOut 2.8s ease-in-out forwards" }}
     >
       <span className="text-3xl" role="img" aria-label={config.label}>{config.emoji}</span>
       <span className="text-white font-black text-xl tracking-[0.3em] uppercase drop-shadow-lg">
@@ -250,47 +307,52 @@ function TransitionOverlay({ phase, visible }: TransitionOverlayProps) {
 
 // ─── Live Match Card ───────────────────────────────────────────────────────
 
-function LiveMatchCard({ match }: { match: Match }) {
-  // ── Persist kick-off timestamp (the ONLY persisted value) ────────────────
-  // DB status is intentionally ignored for timing — the edge function runs
-  // hourly and cannot reliably catch HT. All phases are derived purely from
-  // kickoffMs + Date.now() inside evaluateClock().
+function LiveMatchCard({ match }: { match: NormalisedMatch }) {
+  // ── Persist kick-off timestamp ────────────────────────────────────────────
   useEffect(() => {
     const kickoffMs = new Date(match.utc_date).getTime();
     const existing  = readClocks()[match.id];
-    // Only write if missing or kick-off changed (rescheduled match)
     if (!existing || existing.kickoffMs !== kickoffMs) {
       writeClock(match.id, { kickoffMs });
     }
   }, [match.id, match.utc_date]);
 
   // ── Tick every second ─────────────────────────────────────────────────────
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick(n => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
   // ── Phase transition detection ─────────────────────────────────────────────
-  const prevPhaseRef   = useRef<ClockPhase | null>(null);
+  const prevPhaseRef    = useRef<ClockPhase | null>(null);
   const [showTransition, setShowTransition] = useState(false);
   const [transitionPhase, setTransitionPhase] = useState<ClockPhase>("firstHalf");
 
-  const clock = readClocks()[match.id];
-  if (!clock) return null;
+  // ── Clock state ────────────────────────────────────────────────────────────
+  // If we have BSD data, use the authoritative BSD clock.
+  // Otherwise fall back to the original time-math evaluator.
+  let state: ClockState;
+  if (match.source === "bsd" && match.bsd_period !== undefined && match.bsd_minute !== undefined) {
+    // BSD path: period + minute from live_stats — exact and authoritative
+    state = evaluateClockFromBSD(match.bsd_period, match.bsd_minute);
+  } else {
+    // Fallback path: pure wall-clock math (original logic, unchanged)
+    const clock = readClocks()[match.id];
+    if (!clock) return null;
+    // suppress unused warning — tick triggers re-render so clock is fresh
+    void tick;
+    state = evaluateClock(clock);
+  }
 
-  const state   = evaluateClock(clock);
   const display = getClockDisplay(state);
   const isLive  = state.phase !== "completed";
 
   // Detect phase change and trigger overlay
   if (prevPhaseRef.current !== null && prevPhaseRef.current !== state.phase) {
-    const prev = prevPhaseRef.current;
     const curr = state.phase;
-    // Only animate meaningful transitions (not e.g. firstHalf → firstHalf)
     const animatable: ClockPhase[] = ["halfTime", "secondHalf", "completed", "addedTime1", "addedTime2"];
-    if (animatable.includes(curr) && prev !== curr) {
-      // Use a timeout check to avoid React batching issues
+    if (animatable.includes(curr)) {
       setTimeout(() => {
         setTransitionPhase(curr);
         setShowTransition(true);
@@ -302,8 +364,8 @@ function LiveMatchCard({ match }: { match: Match }) {
 
   // ── Card accent color ──────────────────────────────────────────────────────
   const accentTop =
-    state.phase === "halfTime"  ? "from-transparent via-sky-400 to-transparent"   :
-    state.phase === "completed" ? "from-transparent via-white/20 to-transparent"  :
+    state.phase === "halfTime"  ? "from-transparent via-sky-400 to-transparent"  :
+    state.phase === "completed" ? "from-transparent via-white/20 to-transparent" :
                                   `from-transparent ${display.accent} to-transparent`;
 
   return (
@@ -349,7 +411,6 @@ function LiveMatchCard({ match }: { match: Match }) {
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
-            {/* Clock pill — key forces remount (and pill-pop CSS) on phase change */}
             <span
               key={state.phase}
               className={`
@@ -375,7 +436,7 @@ function LiveMatchCard({ match }: { match: Match }) {
           </div>
         </div>
 
-               {/* Row 2: home — score — away */}
+        {/* Row 2: home — score — away */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
 
           {/* Home team */}
@@ -445,6 +506,7 @@ function LiveMatchCard({ match }: { match: Match }) {
 }
 
 // ─── Finished Match Card ───────────────────────────────────────────────────
+// Unchanged — FinishedMatchCard still uses the original Match type directly.
 
 function FinishedMatchCard({ match }: { match: Match }) {
   return (
@@ -485,48 +547,229 @@ function FinishedMatchCard({ match }: { match: Match }) {
   );
 }
 
+// ─── Crest resolver ────────────────────────────────────────────────────────
+// Fetches team crests from the `teams` table by matching team names.
+// BSD team names may differ slightly from football-data.org names, so we try:
+//   1. Exact match (case-insensitive via ilike)
+//   2. Substring match (first word of BSD name)
+// Returns a map of team-name → { crest_url, tla } for quick lookup.
+
+interface TeamCrestRow {
+  name:      string;
+  tla:       string | null;
+  crest_url: string | null;
+}
+
+async function resolveCrestsForTeams(teamNames: string[]): Promise<Map<string, TeamCrestRow>> {
+  if (teamNames.length === 0) return new Map();
+
+  const map = new Map<string, TeamCrestRow>();
+
+  try {
+    // Single query — fetch all teams that fuzzy-match any of our names.
+    // We use `or` with ilike patterns. Supabase doesn't support IN on ilike
+    // so we do a broad fetch and match client-side.
+    const { data, error } = await supabase
+      .from("teams")
+      .select("name, tla, crest_url")
+      .limit(500); // generous limit — teams table is small
+
+    if (error || !data) return map;
+
+    const rows = data as TeamCrestRow[];
+
+    // For each BSD team name, find the best matching teams row
+    for (const bsdName of teamNames) {
+      const lower = bsdName.toLowerCase().trim();
+
+      // 1. Exact match
+      let match = rows.find(r => r.name.toLowerCase().trim() === lower);
+
+      // 2. One contains the other (handles "Man City" vs "Manchester City")
+      if (!match) {
+        match = rows.find(r => {
+          const rl = r.name.toLowerCase().trim();
+          return rl.includes(lower) || lower.includes(rl);
+        });
+      }
+
+      // 3. First significant word match (≥ 4 chars) as last resort
+      if (!match) {
+        const firstWord = lower.split(/\s+/).find(w => w.length >= 4) ?? lower;
+        match = rows.find(r => r.name.toLowerCase().includes(firstWord));
+      }
+
+      if (match) {
+        map.set(bsdName, match);
+      }
+    }
+  } catch {
+    // Silently ignore — crests just won't show for unmatched teams
+  }
+
+  return map;
+}
+
+// ─── Data fetching ─────────────────────────────────────────────────────────
+
+/**
+ * PRIMARY path — fetches from live_stats (BSD real-time data).
+ * Resolves crests by matching team names against the teams table.
+ * Returns null on any hard error so the fallback can take over.
+ */
+async function fetchLiveFromBSD(): Promise<{
+  live:     NormalisedMatch[];
+  finished: NormalisedMatch[];
+} | null> {
+  try {
+    // Fetch all currently active (non-FT) and recently finished BSD matches
+    const { data: liveRows, error: liveErr } = await supabase
+      .from("live_stats")
+      .select(
+        "bsd_match_id, match_name, competition_name, kickoff_utc, " +
+        "home_team, away_team, home_score, away_score, current_minute, period"
+      )
+      .order("kickoff_utc", { ascending: true });
+
+    if (liveErr) throw liveErr;
+    if (!liveRows || liveRows.length === 0) return { live: [], finished: [] };
+
+    // Supabase's returned `data` can have a broad inferred type; cast via `unknown`
+    // first to satisfy TypeScript when asserting to our specific row shape.
+    const rows = (liveRows as unknown) as LiveStatRow[];
+
+    // Collect all unique team names for crest resolution
+    const allNames = [...new Set(rows.flatMap(r => [r.home_team, r.away_team]))];
+    const crestMap = await resolveCrestsForTeams(allNames);
+
+    const toNormalised = (r: LiveStatRow, status: string): NormalisedMatch => {
+      const homeInfo = crestMap.get(r.home_team);
+      const awayInfo = crestMap.get(r.away_team);
+
+      return {
+        id:          r.bsd_match_id,
+        utc_date:    r.kickoff_utc,
+        status,
+        home_score:  r.home_score,
+        away_score:  r.away_score,
+        home_team: {
+          name:      r.home_team,
+          tla:       homeInfo?.tla  ?? null,
+          crest_url: homeInfo?.crest_url ?? null,
+        },
+        away_team: {
+          name:      r.away_team,
+          tla:       awayInfo?.tla  ?? null,
+          crest_url: awayInfo?.crest_url ?? null,
+        },
+        competition: { name: r.competition_name },
+        bsd_period:  r.period,
+        bsd_minute:  r.current_minute,
+        source:      "bsd",
+      };
+    };
+
+    // Split into live vs finished based on BSD period
+    const ftPeriods = new Set(["FT", "AET", "PEN", "FINISHED", "ENDED", "FINAL"]);
+    const isOver = (p: string) => {
+      const u = p.toUpperCase();
+      return ftPeriods.has(u) || u.startsWith("FT") || u.startsWith("FINAL") || u.startsWith("FINISH");
+    };
+
+    const live     = rows.filter(r => !isOver(r.period)).map(r => toNormalised(r, "IN_PLAY"));
+    const finished = rows.filter(r =>  isOver(r.period)).map(r => toNormalised(r, "FINISHED"));
+
+    return { live, finished };
+  } catch (err) {
+    console.error("[ScoreboardPage] BSD fetch failed — will use fallback:", err);
+    return null; // signals caller to use fallback
+  }
+}
+
+/**
+ * FALLBACK path — original matches table query, completely unchanged.
+ * Used when fetchLiveFromBSD() returns null (hard error).
+ */
+async function fetchMatchesFallback(): Promise<{
+  live:     NormalisedMatch[];
+  finished: NormalisedMatch[];
+}> {
+  const today    = new Date().toISOString().split("T")[0];
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
+
+  const { data, error: supaErr } = await supabase
+    .from("matches")
+    .select(`
+      id,
+      utc_date,
+      status,
+      home_score,
+      away_score,
+      home_team:teams!matches_home_team_id_fkey ( name, tla, crest_url ),
+      away_team:teams!matches_away_team_id_fkey ( name, tla, crest_url ),
+      competition:competitions ( name )
+    `)
+    .gte("utc_date", today)
+    .lte("utc_date", tomorrow)
+    .order("utc_date", { ascending: true });
+
+  if (supaErr) throw supaErr;
+
+  const matches = data as unknown as Match[];
+
+  // Convert to NormalisedMatch so the same card component works for both paths
+  const toNorm = (m: Match): NormalisedMatch => ({
+    id:          m.id,
+    utc_date:    m.utc_date,
+    status:      m.status,
+    home_score:  m.home_score,
+    away_score:  m.away_score,
+    home_team:   m.home_team,
+    away_team:   m.away_team,
+    competition: m.competition,
+    source:      "fallback",
+  });
+
+  return {
+    live:     matches.filter(m => ["IN_PLAY","PAUSED","LIVE"].includes(m.status)).map(toNorm),
+    finished: matches.filter(m => m.status === "FINISHED").map(toNorm),
+  };
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
 const ScoreboardPage = () => {
-  const [liveMatches,     setLiveMatches]     = useState<Match[]>([]);
-  const [finishedMatches, setFinishedMatches] = useState<Match[]>([]);
+  const [liveMatches,     setLiveMatches]     = useState<NormalisedMatch[]>([]);
+  const [finishedMatches, setFinishedMatches] = useState<NormalisedMatch[]>([]);
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState<string | null>(null);
   const [lastRefreshed,   setLastRefreshed]   = useState<Date | null>(null);
+  const [dataSource,      setDataSource]      = useState<"bsd" | "fallback" | null>(null);
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const today    = new Date().toISOString().split("T")[0];
-      const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
+      // Try BSD (live_stats) first
+      const bsdResult = await fetchLiveFromBSD();
 
-      const { data, error: supaErr } = await supabase
-        .from("matches")
-        .select(`
-          id,
-          utc_date,
-          status,
-          home_score,
-          away_score,
-          home_team:teams!matches_home_team_id_fkey ( name, tla, crest_url ),
-          away_team:teams!matches_away_team_id_fkey ( name, tla, crest_url ),
-          competition:competitions ( name )
-        `)
-        .gte("utc_date", today)
-        .lte("utc_date", tomorrow)
-        .order("utc_date", { ascending: true });
+      if (bsdResult !== null) {
+        // BSD path succeeded
+        setLiveMatches(bsdResult.live);
+        setFinishedMatches(bsdResult.finished);
+        setDataSource("bsd");
+      } else {
+        // BSD hard error — fall back to matches table (original logic)
+        console.warn("[ScoreboardPage] Using fallback Old data source.");
+        const fallback = await fetchMatchesFallback();
+        setLiveMatches(fallback.live);
+        setFinishedMatches(fallback.finished);
+        setDataSource("fallback");
+      }
 
-      if (supaErr) throw supaErr;
-
-      const matches = data as unknown as Match[];
-      setLiveMatches(matches.filter(m =>
-        m.status === "IN_PLAY" || m.status === "PAUSED" || m.status === "LIVE"
-      ));
-      setFinishedMatches(matches.filter(m => m.status === "FINISHED"));
       setLastRefreshed(new Date());
     } catch (e) {
-      console.error("Supabase fetch error:", e);
+      console.error("Fetch error:", e);
       setError("Failed to load matches. Please try again.");
     } finally {
       setLoading(false);
@@ -564,12 +807,18 @@ const ScoreboardPage = () => {
                   Live Scoreboard
                 </h1>
               </div>
-              <p className="text-sm text-white/45">
-                Live updates. Ongoing matches are marked "live" and may show unofficial scores until confirmed.
+              <p className="text-sm text-white/45 leading-relaxed max-w-md">
+                Live updates. 
+                </p>
+                <p className="text-sm text-white/45 mt-1">
+                Live matches might have a few seconds of delay, which may affect the live scoreboard.
               </p>
               {lastRefreshed && (
                 <p className="text-[11px] text-white/25 mt-0.5">
                   Last synced {fmtTime(lastRefreshed)}
+                  {dataSource === "fallback" && (
+                    <span className="ml-1.5 text-amber-500/50">(static fallback)</span>
+                  )}
                 </p>
               )}
             </div>
@@ -634,8 +883,9 @@ const ScoreboardPage = () => {
                   <div className="text-sm">
                     <p className="font-semibold text-white/90 mb-1">No live matches right now</p>
                     <p className="text-white/45 leading-relaxed">
-                      Match statuses are updated periodically. An ongoing match may not appear
-                      immediately — refresh to check again.
+                      Live Matches are fetched from our trusted source. Right now there are no ongoing 
+                      matches being sent to our database. An ongoing match may not appear
+                      immediately. Check back later to see if any matches have started.
                     </p>
                   </div>
                 </div>
@@ -657,7 +907,11 @@ const ScoreboardPage = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {finishedMatches.map(m => <FinishedMatchCard key={m.id} match={m} />)}
+                    {finishedMatches.map(m => (
+                      // FinishedMatchCard still works with NormalisedMatch since
+                      // it only uses the fields that exist in both shapes
+                      <FinishedMatchCard key={m.id} match={m as unknown as Match} />
+                    ))}
                   </div>
                 )}
               </section>
