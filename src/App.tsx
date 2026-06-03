@@ -1,4 +1,4 @@
-import { Suspense, lazy, createContext, useContext, useState, useEffect, useRef } from "react";
+import { Suspense, lazy, createContext, useContext, useState, useRef } from "react";
 import { BrowserRouter, Routes, Route, useSearchParams } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,29 +13,32 @@ import CustomerCare from "@/components/CustomerCare";
 import ChartPage from "./pages/ChartPage";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import MaintenancePage from "@/pages/Maintenance";
+import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
 
-const IndexPage        = lazy(() => import("@/pages/Index"));
-const GamesPage        = lazy(() => import("@/pages/GamesPage"));
-const TenOddsPage      = lazy(() => import("@/pages/TenOddsPage"));
-const StatusPage       = lazy(() => import("@/pages/StatusPage"));
-const PreviousPage     = lazy(() => import("@/pages/PreviousPage"));
-const AnalyticsPage    = lazy(() => import("@/pages/AnalyticsPage"));
-const ScoreboardPage   = lazy(() => import("@/pages/ScoreboardPage"));
-const PatternPage      = lazy(() => import("@/pages/Patternanalyserpage"));
-const AboutPage        = lazy(() => import("@/pages/AboutPage"));
-const TermsPage        = lazy(() => import("@/pages/Terms"));
+
+
+const IndexPage          = lazy(() => import("@/pages/Index"));
+const GamesPage          = lazy(() => import("@/pages/GamesPage"));
+const TenOddsPage        = lazy(() => import("@/pages/TenOddsPage"));
+const StatusPage         = lazy(() => import("@/pages/StatusPage"));
+const PreviousPage       = lazy(() => import("@/pages/PreviousPage"));
+const AnalyticsPage      = lazy(() => import("@/pages/AnalyticsPage"));
+const ScoreboardPage     = lazy(() => import("@/pages/ScoreboardPage"));
+const PatternPage        = lazy(() => import("@/pages/Patternanalyserpage"));
+const AboutPage          = lazy(() => import("@/pages/AboutPage"));
+const TermsPage          = lazy(() => import("@/pages/Terms"));
 const CommunityTermsPage = lazy(() => import("@/pages/CommunityTermsPage"));
-const PrivacyPage      = lazy(() => import("@/pages/Privacy"));
-const NewsPage         = lazy(() => import("@/pages/NewsPage"));
-const CommunityPage    = lazy(() => import("@/pages/CommunityPage"));
-const GuidePage        = lazy(() => import("@/pages/GuidePage"));
-const NotFound         = lazy(() => import("@/pages/NotFound"));
+const PrivacyPage        = lazy(() => import("@/pages/Privacy"));
+const NewsPage           = lazy(() => import("@/pages/NewsPage"));
+const CommunityPage      = lazy(() => import("@/pages/CommunityPage"));
+const GuidePage          = lazy(() => import("@/pages/GuidePage"));
+const NotFound           = lazy(() => import("@/pages/NotFound"));
 const AdminAnalyticsPage = lazy(() => import("@/pages/AdminAnalytics"));
-const LiveMarketsPage   = lazy(() => import("@/pages/LiveMarkets"));
-const MarketsPage       = lazy(() => import("@/pages/Markets"));
-const ClosedMarketsPage = lazy(() => import("@/pages/ClosedMarkets"));
+const LiveMarketsPage    = lazy(() => import("@/pages/LiveMarkets"));
+const MarketsPage        = lazy(() => import("@/pages/Markets"));
+const ClosedMarketsPage  = lazy(() => import("@/pages/ClosedMarkets"));
 
-// ── Loading context (unchanged) ───────────────────────────────────────────────
+// ── Loading context ──────────────────────────────────────────────────────────
 interface LoadingCtx {
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
@@ -44,24 +47,21 @@ const LoadingContext = createContext<LoadingCtx>({ isLoading: false, setIsLoadin
 export const useLoading = () => useContext(LoadingContext);
 
 const LazyFallback = () => <GlobalLoader />;
-const queryClient = new QueryClient();
+const queryClient  = new QueryClient();
 
 const BOOT_LOADER_MS = 4500;
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  MaintenanceGuard – allows admin key bypass
+//  MaintenanceGuard
 // ══════════════════════════════════════════════════════════════════════════════
 function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const { isMaintenance, isChecking } = useMaintenanceMode();
   const [searchParams] = useSearchParams();
-  const adminKey = searchParams.get("key");
-  const bypassMaintenance = adminKey === import.meta.env.VITE_ADMIN_SECRET;
+  const bypassMaintenance =
+    searchParams.get("key") === import.meta.env.VITE_ADMIN_SECRET;
 
-  // While the maintenance flag is being fetched, render normally to avoid
-  // a blank screen during the boot loader.
   if (isChecking) return <>{children}</>;
 
-  // Maintenance is ON and no admin key → show the locked screen
   if (isMaintenance && !bypassMaintenance) {
     return (
       <AnimatePresence mode="wait">
@@ -77,8 +77,13 @@ function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 //  App
 // ══════════════════════════════════════════════════════════════════════════════
 function App() {
-  const [isLoading, setIsLoading] = useState(false);
-  const loaderStartRef = useRef<number>(0);
+  // ✅ Must be the very first hook — runs on mount, redirects to /blank.html
+  //    if DevTools is open. Admin sessions (?key=VITE_ADMIN_SECRET) bypass it.
+  useDevToolsProtection();
+
+  const [isLoading, setIsLoading]     = useState(false);
+  const [bootComplete, setBootComplete] = useState(false);
+  const loaderStartRef                = useRef<number>(0);
 
   const delayedSetIsLoading = (v: boolean) => {
     if (v) {
@@ -95,12 +100,6 @@ function App() {
     }
   };
 
-  const [showBootLoader, setShowBootLoader] = useState(true);
-  useEffect(() => {
-    const timer = setTimeout(() => setShowBootLoader(false), BOOT_LOADER_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -108,14 +107,22 @@ function App() {
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
           <BrowserRouter>
+            {/* ✅ No <DevToolsBlocker /> — hook handles everything via redirect */}
+
             <PageTracker />
 
+            {!bootComplete && (
+              <GlobalLoader
+                key="boot-loader"
+                minLoadTime={BOOT_LOADER_MS}
+                onReady={() => setBootComplete(true)}
+              />
+            )}
+
             <AnimatePresence>
-              {showBootLoader          && <GlobalLoader key="boot-loader"   />}
-              {!showBootLoader && isLoading && <GlobalLoader key="global-loader" />}
+              {bootComplete && isLoading && <GlobalLoader key="transition-loader" />}
             </AnimatePresence>
 
-            {/* ── Maintenance guard — wraps everything below the loaders ── */}
             <MaintenanceGuard>
               <Suspense fallback={<LazyFallback />}>
                 <Routes>
