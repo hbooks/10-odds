@@ -3,14 +3,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 import { Link, useNavigate } from "react-router-dom";
 import LiveMarketModal, { type AvailableMatch, type SelectedMarket } from "@/components/LiveMarketModal";
-import { RefreshCw, TrendingUp, BookOpen, CheckCircle, ArrowLeft, Radio, Plus, Wifi, WifiOff, RotateCcw } from "lucide-react";
+import {
+  RefreshCw, TrendingUp, BookOpen, CheckCircle, ArrowLeft,
+  Radio, Plus, Wifi, WifiOff, RotateCcw, Activity, Zap,
+} from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
   import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────────
 type MarketRow = {
   bsd_match_id:      number;
   market_type:       string;
@@ -37,7 +40,7 @@ type LiveStatsRow = {
   period:           string;
 };
 
-// ─── Error classifier ───────────────────────────────────────────────────────────
+// ─── Error classifier ────────────────────────────────────────────────────────────
 interface FriendlyError {
   icon:    "wifi-off" | "server" | "clock" | "warning";
   title:   string;
@@ -48,57 +51,36 @@ interface FriendlyError {
 function classifyError(raw: string): FriendlyError {
   const msg = raw.toLowerCase();
   if (msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("load failed")) {
-    return {
-      icon:   "wifi-off",
-      title:  "No connection",
-      reason: "Your device couldn't reach 10 Odds servers.",
-      tip:    "Check your internet and try refreshing.",
-    };
+    return { icon: "wifi-off", title: "No connection", reason: "Your device couldn't reach 10 Odds servers.", tip: "Check your internet and try refreshing." };
   }
   if (msg.includes("timeout") || msg.includes("timed out")) {
-    return {
-      icon:   "clock",
-      title:  "Request timed out",
-      reason: "The server took too long to respond.",
-      tip:    "This is usually temporary — try again.",
-    };
+    return { icon: "clock", title: "Request timed out", reason: "The server took too long to respond.", tip: "This is usually temporary — try again." };
   }
   if (msg.includes("500") || msg.includes("internal") || msg.includes("pgrst")) {
-    return {
-      icon:   "server",
-      title:  "Server error",
-      reason: "Something went wrong on our end.",
-      tip:    "We've been notified. Please try again shortly.",
-    };
+    return { icon: "server", title: "Server error", reason: "Something went wrong on our end.", tip: "We've been notified. Please try again shortly." };
   }
   if (msg.includes("jwt") || msg.includes("401") || msg.includes("403") || msg.includes("unauthorized")) {
-    return {
-      icon:   "warning",
-      title:  "Access error",
-      reason: "Your session may have expired.",
-      tip:    "Refresh the page to restore your session.",
-    };
+    return { icon: "warning", title: "Access error", reason: "Your session may have expired.", tip: "Refresh the page to restore your session." };
   }
-  return {
-    icon:   "warning",
-    title:  "Something went wrong",
-    reason: "We couldn't load the live market data.",
-    tip:    "Try refreshing — this is usually temporary.",
-  };
+  return { icon: "warning", title: "Something went wrong", reason: "We couldn't load the live market data.", tip: "Try refreshing — this is usually temporary." };
 }
 
-// ─── Tokens ─────────────────────────────────────────────────────────────────────
-const GOLD        = "#C9A535";
-const SURFACE     = "rgba(255,255,255,0.02)";
-const BORDER      = "rgba(255,255,255,0.06)";
-const BORDER_HOVER= "rgba(255,255,255,0.12)";
+// ─── Design tokens ──────────────────────────────────────────────────────────────
+const GOLD         = "#C9A535";
+const GOLD_BRIGHT  = "#E8C050";
+const BG           = "#07080A";
+const SURFACE_1    = "rgba(255,255,255,0.028)";
+const SURFACE_2    = "rgba(255,255,255,0.045)";
+const BORDER_DIM   = "rgba(255,255,255,0.06)";
+const BORDER_MID   = "rgba(255,255,255,0.10)";
+const BORDER_GOLD  = "rgba(201,165,53,0.30)";
+const GREEN        = "#22C55E";
+const RED_SOFT     = "#F87171";
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────────
 function formatKenyaTime(iso: string) {
   try {
-    return new Date(iso).toLocaleTimeString("en-KE", {
-      hour: "2-digit", minute: "2-digit", timeZone: "Africa/Nairobi",
-    });
+    return new Date(iso).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Nairobi" });
   } catch { return "—"; }
 }
 
@@ -108,80 +90,118 @@ function splitMatchName(name: string): [string, string] {
   return [name.slice(0, idx), name.slice(idx + 4)];
 }
 
-function confidenceColor(c: number) {
-  if (c >= 65) return "#4ade80";
-  if (c <= 35) return "#f87171";
+function confidenceColor(c: number): string {
+  if (c >= 65) return GREEN;
+  if (c <= 35) return RED_SOFT;
   return GOLD;
 }
-function confidenceBg(c: number) {
-  if (c >= 65) return "rgba(74,222,128,0.06)";
-  if (c <= 35) return "rgba(248,113,113,0.06)";
-  return "rgba(201,165,53,0.06)";
-}
-function confidenceBorder(c: number) {
-  if (c >= 65) return "rgba(74,222,128,0.16)";
-  if (c <= 35) return "rgba(248,113,113,0.16)";
-  return "rgba(201,165,53,0.16)";
+function confidenceLabel(c: number): string {
+  if (c >= 65) return "HIGH";
+  if (c <= 35) return "LOW";
+  return "MID";
 }
 
-// ─── Sub-components ─────────────────────────────────────────────────────────────
-function LiveBadge({ minute }: { minute: number }) {
+// ─── Components ─────────────────────────────────────────────────────────────────
+
+/** Blinking live dot */
+function PulseDot({ color = GREEN }: { color?: string }) {
   return (
-    <div className="flex items-center gap-2 px-2 py-0.5 rounded-lg text-[12px] font-semibold tabular-nums shrink-0"
-      style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.18)", color: "#4ade80" }}>
-      <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" style={{ animation: "livePulse 1.8s ease-in-out infinite" }} />
-      {minute}′
-    </div>
+    <span style={{
+      display: "inline-block", width: 6, height: 6, borderRadius: "50%",
+      background: color, flexShrink: 0,
+      animation: "pulse 2s ease-in-out infinite",
+    }} />
   );
 }
 
+/** Confidence bar – thin horizontal fill */
 function ConfBar({ value }: { value: number }) {
+  const color = confidenceColor(value);
   return (
-    <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
-      <motion.div className="h-full rounded-full" style={{ background: confidenceColor(value) }}
-        initial={{ width: 0 }} animate={{ width: `${value}%` }}
-        transition={{ duration: 0.6, ease: "easeOut" }} />
+    <div style={{ width: "100%", height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+      <motion.div
+        style={{ height: "100%", background: color, borderRadius: 99 }}
+        initial={{ width: 0 }}
+        animate={{ width: `${value}%` }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      />
     </div>
   );
 }
 
+/** Single market chip */
 function MarketPill({ market, onClick }: { market: MarketRow; onClick: (m: MarketRow) => void }) {
-  const color  = confidenceColor(market.confidence);
-  const bg     = confidenceBg(market.confidence);
-  const border = confidenceBorder(market.confidence);
-
+  const color = confidenceColor(market.confidence);
+  const label = confidenceLabel(market.confidence);
   return (
     <motion.button
       onClick={() => onClick(market)}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={{ y: -2, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      style={{
+        display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px",
+        borderRadius: 10, textAlign: "left", cursor: "pointer",
+        background: `${color}0D`, border: `1px solid ${color}28`,
+        minWidth: 100, flexShrink: 0,
+        transition: "box-shadow 0.18s",
+      }}
       title={`${market.market_type} · ${market.market_selection} · ${market.confidence.toFixed(0)}%`}
-      className="flex flex-col gap-1 px-3 py-2 rounded-lg text-left min-w-[120px] max-w-[240px] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-      style={{ background: bg, border: `1px solid ${border}`, color: "rgba(255,255,255,0.92)" }}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.32)" }}>
+      {/* Top row: type + score */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.13em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", fontFamily: "'IBM Plex Mono', monospace" }}>
           {market.market_type}
         </span>
-        <span className="text-[12px] font-extrabold tabular-nums" style={{ color }}>
+        <span style={{ fontSize: 10, fontWeight: 800, color, fontFamily: "'IBM Plex Mono', monospace", letterSpacing: "0.04em" }}>
           {market.confidence.toFixed(0)}%
         </span>
       </div>
-      <span className="text-sm font-medium truncate" style={{ color: "rgba(255,255,255,0.9)" }}>
+      {/* Selection */}
+      <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", textTransform: "capitalize", lineHeight: 1.3 }}>
         {market.market_selection}
       </span>
-      <div className="mt-1"><ConfBar value={market.confidence} /></div>
+      {/* Bar + label */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ flex: 1 }}><ConfBar value={market.confidence} /></div>
+        <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", color: `${color}99`, fontFamily: "'IBM Plex Mono', monospace" }}>
+          {label}
+        </span>
+      </div>
     </motion.button>
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+/** Divider with label */
+function Ticker({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 mb-4">
-      <span className="text-[11px] font-bold uppercase tracking-wider select-none" style={{ color: "rgba(255,255,255,0.28)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+      <div style={{ flex: 1, height: "1px", background: `linear-gradient(90deg, ${BORDER_GOLD}, transparent)` }} />
+      <span style={{
+        fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase",
+        color: `${GOLD}88`, fontFamily: "'IBM Plex Mono', monospace",
+        padding: "3px 8px", borderRadius: 4,
+        background: `${GOLD}0A`, border: `1px solid ${GOLD}20`,
+      }}>
         {children}
       </span>
-      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.04)" }} />
+      <div style={{ flex: 1, height: "1px", background: `linear-gradient(90deg, transparent, ${BORDER_GOLD})` }} />
+    </div>
+  );
+}
+
+/** Live minute badge */
+function LiveBadge({ minute }: { minute: number }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 5,
+      padding: "3px 8px", borderRadius: 6,
+      background: `${GREEN}10`, border: `1px solid ${GREEN}28`,
+      flexShrink: 0,
+    }}>
+      <PulseDot />
+      <span style={{ fontSize: 11, fontWeight: 800, color: GREEN, fontFamily: "'IBM Plex Mono', monospace", letterSpacing: "0.04em" }}>
+        {minute}′
+      </span>
     </div>
   );
 }
@@ -199,71 +219,93 @@ function MatchCard({
   onPickMarket: (m: MarketRow) => void;
 }) {
   const [home, away] = splitMatchName(match.match_name);
+  const isLive = match.current_minute > 0;
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, delay: index * 0.04, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="rounded-2xl overflow-hidden"
+      transition={{ duration: 0.26, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
       style={{
-        background: SURFACE,
-        border: `1px solid ${BORDER}`,
+        borderRadius: 14,
+        background: `linear-gradient(145deg, ${SURFACE_2}, ${SURFACE_1})`,
+        border: `1px solid ${isLive ? "rgba(34,197,94,0.15)" : BORDER_DIM}`,
+        overflow: "hidden",
+        transition: "border-color 0.2s, box-shadow 0.2s",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.borderColor = BORDER_HOVER;
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.36)";
+        (e.currentTarget as HTMLElement).style.borderColor = isLive ? "rgba(34,197,94,0.28)" : BORDER_MID;
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 32px rgba(0,0,0,0.28)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.borderColor = BORDER;
+        (e.currentTarget as HTMLElement).style.borderColor = isLive ? "rgba(34,197,94,0.15)" : BORDER_DIM;
         (e.currentTarget as HTMLElement).style.boxShadow = "none";
       }}
     >
-      {/* Card header */}
-      <div className="px-4 py-3.5 flex items-start justify-between gap-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white/95 text-sm truncate">{home}</span>
-                    <span className="font-italic text-gold/40 text-xs">vs</span>
-                    {away && <span className="text-sm font-bold text-white/65 truncate">{away}</span>}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-[12px] text-white/40">
-                    {match.competition_name && <span className="truncate">{match.competition_name}</span>}
-                    <span className="text-white/18">·</span>
-                    <span className="tabular-nums">KO {formatKenyaTime(match.kickoff_utc)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+      {/* Gold accent line on tracked cards */}
+      <div style={{ height: 1.5, background: `linear-gradient(90deg, transparent, ${GOLD}55, transparent)` }} />
 
-            <div className="flex flex-col items-end gap-2">
-              <div className="px-3 py-1 rounded-lg font-mono font-bold text-sm"
-                style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(255,255,255,0.06)` }}>
-                <span className="tabular-nums">{match.home_score}</span>
-                <span className="text-white/25 mx-2">:</span>
-                <span className="tabular-nums">{match.away_score}</span>
-              </div>
-              {match.current_minute > 0 && <LiveBadge minute={match.current_minute} />}
-            </div>
+      {/* Header */}
+      <div style={{
+        padding: "14px 16px",
+        borderBottom: `1px solid ${BORDER_DIM}`,
+        display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+      }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {/* Teams + score */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.92)", lineHeight: 1.3 }}>{home}</span>
+            {away && (
+              <>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  padding: "3px 10px", borderRadius: 7, flexShrink: 0,
+                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)",
+                }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, fontWeight: 800, color: "white", letterSpacing: "0.06em" }}>
+                    {match.home_score}
+                  </span>
+                  <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11, margin: "0 1px" }}>—</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, fontWeight: 800, color: "white", letterSpacing: "0.06em" }}>
+                    {match.away_score}
+                  </span>
+                </div>
+                <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.92)", lineHeight: 1.3 }}>{away}</span>
+              </>
+            )}
+          </div>
+          {/* Meta: competition + KO */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
+            {match.competition_name && (
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.30)", fontWeight: 500 }}>
+                {match.competition_name}
+              </span>
+            )}
+            {match.competition_name && <span style={{ color: "rgba(255,255,255,0.12)", fontSize: 10 }}>·</span>}
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.22)", fontFamily: "'IBM Plex Mono', monospace" }}>
+              KO {formatKenyaTime(match.kickoff_utc)}
+            </span>
           </div>
         </div>
+        {isLive && <LiveBadge minute={match.current_minute} />}
       </div>
 
-      {/* Markets grid */}
+      {/* Markets */}
       {match.markets.length > 0 && (
-        <div className="px-4 py-3">
-          <div className="text-[11px] font-semibold mb-3" style={{ color: "rgba(255,255,255,0.24)" }}>
-            Tracked markets
+        <div style={{ padding: "12px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+            <Activity size={11} color={`${GOLD}80`} />
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: "0.14em",
+              textTransform: "uppercase", color: `${GOLD}70`,
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}>
+              Tracked markets
+            </span>
           </div>
-
-          {/* responsive grid: scroll on small screens, grid on larger */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {match.markets.map((m) => (
-              <MarketPill key={`${m.market_type}-${m.market_selection}-${m.last_updated}`} market={m} onClick={onPickMarket} />
+              <MarketPill key={`${m.market_type}-${m.market_selection}`} market={m} onClick={onPickMarket} />
             ))}
           </div>
         </div>
@@ -273,77 +315,99 @@ function MatchCard({
 }
 
 // ─── Untracked card ───────────────────────────────────────────────────────────────
-function UntrackedCard({ match, index, onTrack }: {
-  match: LiveStatsRow; index: number; onTrack: () => void;
-}) {
+function UntrackedCard({ match, index, onTrack }: { match: LiveStatsRow; index: number; onTrack: () => void }) {
   const [home, away] = splitMatchName(match.match_name);
   return (
     <motion.article
-      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, delay: index * 0.03 }}
-      className="rounded-2xl overflow-hidden"
-      style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = BORDER_HOVER; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = BORDER; }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: index * 0.04 }}
+      style={{
+        borderRadius: 12, overflow: "hidden",
+        background: SURFACE_1, border: `1px solid ${BORDER_DIM}`,
+        transition: "border-color 0.18s",
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = BORDER_MID; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = BORDER_DIM; }}
     >
-      <div className="px-4 py-3.5 flex items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-white/88 truncate">{home}</span>
-                  <span className="font-italic text-gold/40 text-xs">vs</span>
-                {away && <span className="text-sm text-white/65 truncate">{away}</span>}
-              </div>
-              <div className="flex items-center gap-2 mt-1 text-[12px] text-white/36">
-                {match.competition_name && <span className="truncate">{match.competition_name}</span>}
-                {match.current_minute > 0 && (
-                  <>
-                    <span className="text-white/18">·</span>
-                    <span className="text-emerald-400/75 tabular-nums">{match.current_minute}′</span>
-                  </>
-                )}
-              </div>
-            </div>
+      <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>{home}</span>
+            {away && (
+              <>
+                <span style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700,
+                  color: "rgba(255,255,255,0.45)", padding: "2px 7px", borderRadius: 5,
+                  background: "rgba(255,255,255,0.05)", letterSpacing: "0.06em", flexShrink: 0,
+                }}>
+                  {match.home_score}:{match.away_score}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>{away}</span>
+              </>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+            {match.competition_name && (
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)" }}>{match.competition_name}</span>
+            )}
+            {match.current_minute > 0 && (
+              <>
+                {match.competition_name && <span style={{ color: "rgba(255,255,255,0.12)" }}>·</span>}
+                <span style={{ fontSize: 11, color: `${GREEN}88`, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 }}>
+                  {match.current_minute}′
+                </span>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="px-3 py-1 rounded-lg font-mono font-bold text-sm"
-            style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(255,255,255,0.06)` }}>
-            {match.home_score}:{match.away_score}
-          </div>
-          <motion.button
-            onClick={onTrack}
-            whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.98 }}
-            aria-label={`Track a market for ${match.match_name}`}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-            style={{ background: "rgba(201,165,53,0.08)", border: "1px solid rgba(201,165,53,0.18)", color: GOLD }}
-          >
-            <Plus className="w-3 h-3" />
-            Track
-          </motion.button>
-        </div>
+        <motion.button
+          onClick={onTrack}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "6px 12px", borderRadius: 8, flexShrink: 0,
+            background: `${GOLD}10`, border: `1px solid ${GOLD}30`,
+            color: GOLD, fontSize: 11, fontWeight: 700, cursor: "pointer",
+            fontFamily: "'IBM Plex Mono', monospace", letterSpacing: "0.05em",
+            transition: "background 0.15s, border-color 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = `${GOLD}1A`;
+            (e.currentTarget as HTMLElement).style.borderColor = `${GOLD}55`;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = `${GOLD}10`;
+            (e.currentTarget as HTMLElement).style.borderColor = `${GOLD}30`;
+          }}
+        >
+          <Plus size={11} />
+          TRACK
+        </motion.button>
       </div>
     </motion.article>
   );
 }
 
-// ─── Skeleton ────────────────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────────
 function SkeletonCard({ delay = 0 }: { delay?: number }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay }}
-      className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${BORDER}`, background: SURFACE }}>
-      <div className="px-4 py-3.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="h-4 w-32 rounded bg-white/5 animate-pulse" />
-          <div className="h-6 w-12 rounded bg-white/5 animate-pulse" />
+      style={{ borderRadius: 14, border: `1px solid ${BORDER_DIM}`, overflow: "hidden" }}>
+      <div style={{ height: 1.5, background: "rgba(255,255,255,0.04)" }} />
+      <div style={{ padding: "14px 16px", borderBottom: `1px solid ${BORDER_DIM}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          {[108, 48, 90].map((w, i) => (
+            <div key={i} style={{ height: 14, width: w, borderRadius: 6, background: "rgba(255,255,255,0.05)", animation: `shimmer 1.6s ease-in-out ${i * 0.12}s infinite alternate` }} />
+          ))}
         </div>
-        <div className="h-3 w-40 rounded bg-white/6 animate-pulse" />
+        <div style={{ height: 10, width: 140, borderRadius: 4, background: "rgba(255,255,255,0.03)", animation: "shimmer 1.6s ease-in-out 0.2s infinite alternate" }} />
       </div>
-      <div className="px-4 py-3 grid gap-3 grid-cols-2 sm:grid-cols-3">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-16 rounded-lg bg-white/5 animate-pulse" />
+      <div style={{ padding: "12px 16px", display: "flex", gap: 8 }}>
+        {[96, 110, 88].map((w, i) => (
+          <div key={i} style={{ height: 64, width: w, borderRadius: 10, background: "rgba(255,255,255,0.04)", animation: `shimmer 1.6s ease-in-out ${i * 0.15}s infinite alternate` }} />
         ))}
       </div>
     </motion.div>
@@ -353,58 +417,33 @@ function SkeletonCard({ delay = 0 }: { delay?: number }) {
 // ─── Error state ──────────────────────────────────────────────────────────────────
 function ErrorState({ raw, onRetry }: { raw: string; onRetry: () => void }) {
   const err = classifyError(raw);
-
-  const IconComponent = {
-    "wifi-off": WifiOff,
-    "server":   Radio,
-    "clock":    RefreshCw,
-    "warning":  Radio,
-  }[err.icon];
-
-  const iconColor = {
-    "wifi-off": "#fb923c",
-    "server":   "#f87171",
-    "clock":    GOLD,
-    "warning":  "#fbbf24",
-  }[err.icon];
+  const colorMap = { "wifi-off": "#FB923C", server: RED_SOFT, clock: GOLD, warning: "#FBBF24" };
+  const color = colorMap[err.icon] ?? GOLD;
+  const IconComp = { "wifi-off": WifiOff, server: Radio, clock: RefreshCw, warning: Radio }[err.icon];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl overflow-hidden"
-      style={{ background: "rgba(255,255,255,0.02)", border: `1px solid rgba(255,255,255,0.07)` }}
-    >
-      <div className="px-6 py-6 flex flex-col items-center text-center gap-4">
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-          style={{ background: `${iconColor}14`, border: `1px solid ${iconColor}2a` }}>
-          <IconComponent className="h-6 w-6" style={{ color: iconColor }} />
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+      style={{ borderRadius: 14, background: SURFACE_1, border: `1px solid ${BORDER_DIM}`, overflow: "hidden" }}>
+      <div style={{ height: 1.5, background: `linear-gradient(90deg, transparent, ${color}66, transparent)` }} />
+      <div style={{ padding: "28px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 16 }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: `${color}12`, border: `1px solid ${color}28`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <IconComp size={20} color={color} />
         </div>
-
         <div>
-          <p className="text-white/88 font-semibold text-base mb-1">{err.title}</p>
-          <p className="text-white/40 text-sm leading-relaxed max-w-xs">{err.reason}</p>
+          <p style={{ fontWeight: 700, fontSize: 14, color: "rgba(255,255,255,0.85)", marginBottom: 4 }}>{err.title}</p>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.6, maxWidth: 260 }}>{err.reason}</p>
         </div>
-
-        <div className="px-3 py-2 rounded-lg text-sm w-full text-left"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.42)" }}>
-          <span style={{ color: "rgba(255,255,255,0.55)" }}>💡 </span>{err.tip}
+        <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER_DIM}`, fontSize: 12, color: "rgba(255,255,255,0.38)", width: "100%", textAlign: "left" }}>
+          <span style={{ color: "rgba(255,255,255,0.5)" }}>↳ </span>{err.tip}
         </div>
-
-        <div className="flex gap-3 w-full max-w-xs">
-          <motion.button
-            onClick={onRetry} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-bold"
-            style={{ background: `${iconColor}16`, border: `1px solid ${iconColor}28`, color: iconColor }}
-          >
-            <RotateCcw className="h-4 w-4" />
-            Try again
+        <div style={{ display: "flex", gap: 8, width: "100%", flexWrap: "wrap" }}>
+          <motion.button onClick={onRetry} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, cursor: "pointer", background: `${color}14`, border: `1px solid ${color}2a`, color, fontSize: 12, fontWeight: 700 }}>
+            <RotateCcw size={13} /> Try again
           </motion.button>
-          <motion.button
-            onClick={() => window.location.reload()} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-            className="px-3 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}
-          >
-            <RefreshCw className="h-4 w-4" />
+          <motion.button onClick={() => window.location.reload()} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 16px", borderRadius: 10, cursor: "pointer", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER_DIM}`, color: "rgba(255,255,255,0.38)", fontSize: 12, fontWeight: 600 }}>
+            <RefreshCw size={13} /> Reload
           </motion.button>
         </div>
       </div>
@@ -412,73 +451,68 @@ function ErrorState({ raw, onRetry }: { raw: string; onRetry: () => void }) {
   );
 }
 
-// ─── Empty state ─────────────────────────────────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────────
 function EmptyState() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center justify-center py-20 text-center gap-4"
-    >
-      <motion.div
-        animate={{ y: [0, -8, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        className="w-16 h-16 rounded-2xl flex items-center justify-center"
-        style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}
-      >
-        <span className="text-2xl select-none">⚽</span>
-      </motion.div>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "72px 0", textAlign: "center", gap: 18 }}>
       <div>
-        <p className="text-white/60 font-semibold text-sm mb-1">No live markets yet</p>
-        <p className="text-white/30 text-sm leading-relaxed max-w-[240px]">Track a market when a game kicks off. Use the Track button to add markets to your list.</p>
+        <p style={{ fontWeight: 700, fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>No live markets yet</p>
+        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.22)", lineHeight: 1.6, maxWidth: 180 }}>
+          Markets appear here once games kick off and you start tracking.
+        </p>
       </div>
-      <motion.button
-        onClick={() => window.location.reload()}
-        whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-        style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, color: "rgba(255,255,255,0.46)" }}
-      >
-        <RefreshCw className="h-4 w-4" /> Check again
+      <motion.button onClick={() => window.location.reload()} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+        style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER_DIM}`, color: "rgba(255,255,255,0.38)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+        <RefreshCw size={12} /> Check again
       </motion.button>
     </motion.div>
+  );
+}
+
+// ─── Stat pill (header bar) ───────────────────────────────────────────────────────
+function StatPill({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 2,
+      padding: "8px 14px", borderRadius: 10,
+      background: SURFACE_1, border: `1px solid ${BORDER_DIM}`,
+    }}>
+      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)", fontFamily: "'IBM Plex Mono', monospace" }}>{label}</span>
+      <span style={{ fontSize: 18, fontWeight: 800, color: accent ?? "rgba(255,255,255,0.82)", fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1 }}>{value}</span>
+    </div>
   );
 }
 
 // ─── Main page ───────────────────────────────────────────────────────────────────
 export default function Markets() {
   const navigate = useNavigate();
-  const [marketRows,    setMarketRows]    = useState<MarketRow[]>([]);
-  const [liveMatches,   setLiveMatches]   = useState<LiveStatsRow[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [error,         setError]         = useState<string | null>(null);
-  const [modalOpen,     setModalOpen]     = useState(false);
-  const [refreshing,    setRefreshing]    = useState(false);
+  const [marketRows,  setMarketRows]  = useState<MarketRow[]>([]);
+  const [liveMatches, setLiveMatches] = useState<LiveStatsRow[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState<string | null>(null);
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [refreshing,  setRefreshing]  = useState(false);
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     setError(null);
     try {
-      const [{ data: markets, error: mErr }, { data: stats, error: sErr }] =
-        await Promise.all([
-          supabase
-            .from("live_market_data")
-            .select("bsd_match_id,market_type,market_selection,match_name,competition_name,kickoff_utc,status,confidence,home_score,away_score,current_minute,last_updated")
-            .eq("status", "active")
-            .order("kickoff_utc", { ascending: true }),
-          supabase
-            .from("live_stats")
-            .select("bsd_match_id,match_name,competition_name,kickoff_utc,home_score,away_score,current_minute,period")
-            .neq("period", "FT")
-            .order("kickoff_utc", { ascending: true }),
-        ]);
+      const [{ data: markets, error: mErr }, { data: stats, error: sErr }] = await Promise.all([
+        supabase.from("live_market_data")
+          .select("bsd_match_id,market_type,market_selection,match_name,competition_name,kickoff_utc,status,confidence,home_score,away_score,current_minute,last_updated")
+          .eq("status", "active").order("kickoff_utc", { ascending: true }),
+        supabase.from("live_stats")
+          .select("bsd_match_id,match_name,competition_name,kickoff_utc,home_score,away_score,current_minute,period")
+          .neq("period", "FT").order("kickoff_utc", { ascending: true }),
+      ]);
       if (mErr) throw mErr;
       if (sErr) throw sErr;
       setMarketRows((markets as MarketRow[]) ?? []);
       setLiveMatches((stats as LiveStatsRow[]) ?? []);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message
-        : (e as { message?: string })?.message ?? "Failed to load data";
-      setError(msg);
+      setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Failed to load data");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -487,34 +521,19 @@ export default function Markets() {
 
   useEffect(() => {
     fetchData();
-    const channel = supabase
-      .channel("markets-list")
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_market_data" },
-        () => fetchData(true))
+    const channel = supabase.channel("markets-list")
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_market_data" }, () => fetchData(true))
       .subscribe();
     return () => { supabase.removeChannel(channel).catch(() => {}); };
   }, [fetchData]);
 
   const trackedMatches = useMemo(() => {
     const map = new Map<number, MarketRow[]>();
-    marketRows.forEach((r) => {
-      const list = map.get(r.bsd_match_id) ?? [];
-      list.push(r);
-      map.set(r.bsd_match_id, list);
-    });
+    marketRows.forEach((r) => { const l = map.get(r.bsd_match_id) ?? []; l.push(r); map.set(r.bsd_match_id, l); });
     return Array.from(map.entries()).map(([id, markets]) => {
-      const first = markets[0];
-      return {
-        bsd_match_id:    id,
-        match_name:      first.match_name,
-        competition_name:first.competition_name,
-        kickoff_utc:     first.kickoff_utc,
-        home_score:      first.home_score ?? 0,
-        away_score:      first.away_score ?? 0,
-        current_minute:  first.current_minute ?? 0,
-        markets,
-      };
-    }).sort((a,b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
+      const f = markets[0];
+      return { bsd_match_id: id, match_name: f.match_name, competition_name: f.competition_name, kickoff_utc: f.kickoff_utc, home_score: f.home_score ?? 0, away_score: f.away_score ?? 0, current_minute: f.current_minute ?? 0, markets };
+    });
   }, [marketRows]);
 
   const untrackedMatches = useMemo(
@@ -523,15 +542,11 @@ export default function Markets() {
   );
 
   const modalMatches: AvailableMatch[] = useMemo(
-    () => liveMatches.map((m) => ({
-      bsd_match_id:    m.bsd_match_id,
-      match_name:      m.match_name,
-      competition_name:m.competition_name,
-    })),
+    () => liveMatches.map((m) => ({ bsd_match_id: m.bsd_match_id, match_name: m.match_name, competition_name: m.competition_name })),
     [liveMatches]
   );
 
-  const handleSelectMarket  = (market: SelectedMarket) => {
+  const handleSelectMarket = (market: SelectedMarket) => {
     navigate(`/chart?match=${market.bsd_match_id}&type=${encodeURIComponent(market.market_type)}&sel=${encodeURIComponent(market.market_selection)}&name=${encodeURIComponent(market.match_name)}`);
   };
   const handlePickTrackedMarket = (m: MarketRow) => {
@@ -540,76 +555,178 @@ export default function Markets() {
 
   const isEmpty   = !loading && !error && trackedMatches.length === 0 && liveMatches.length === 0;
   const liveCount = liveMatches.length;
+  const totalMarkets = marketRows.length;
+  const avgConf = totalMarkets > 0 ? Math.round(marketRows.reduce((a, r) => a + r.confidence, 0) / totalMarkets) : 0;
 
   return (
     <>
       <style>{`
-        @keyframes livePulse {
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800;900&display=swap');
+
+        @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: 0.4; transform: scale(0.8); }
+          50%       { opacity: 0.35; transform: scale(0.7); }
         }
+        @keyframes shimmer {
+          0%   { opacity: 0.4; }
+          100% { opacity: 0.7; }
+        }
+        @keyframes scanline {
+          0%   { transform: translateY(-100%); }
+          100% { transform: translateY(100vh); }
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(201,165,53,0.18); border-radius: 99px; }
       `}</style>
 
-      <div className="min-h-screen text-white" style={{ background: "#060609", fontFamily: "'Sora', 'DM Sans', 'Segoe UI', sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: BG, color: "white", fontFamily: "'Sora', 'Segoe UI', sans-serif", position: "relative", overflow: "hidden" }}>
+
+        {/* ── Background grid texture ── */}
+        <div style={{
+          position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
+          backgroundImage: `
+            linear-gradient(rgba(201,165,53,0.018) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(201,165,53,0.018) 1px, transparent 1px)
+          `,
+          backgroundSize: "40px 40px",
+        }} />
+
+        {/* ── Radial spotlight top ── */}
+        <div style={{
+          position: "fixed", top: -180, left: "50%", transform: "translateX(-50%)",
+          width: 600, height: 360,
+          background: `radial-gradient(ellipse at center, ${GOLD}10 0%, transparent 70%)`,
+          pointerEvents: "none", zIndex: 0,
+        }} />
+
         {/* ── Navbar ── */}
-        <header className="sticky top-0 z-30 px-4 sm:px-6" style={{ backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
-          <div className="max-w-3xl mx-auto flex items-center justify-between h-14" style={{ background: "rgba(6,6,9,0.85)", borderRadius: 12, border: `1px solid ${BORDER}`, padding: 8 }}>
-            <div className="flex items-center gap-3">
-              <Link to="/games" aria-label="Back"
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 transition-all duration-150"
-                style={{ background: "rgba(255,255,255,0.02)", border: `1px solid rgba(255,255,255,0.03)` }}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
+        <header style={{
+          position: "sticky", top: 0, zIndex: 30,
+          height: 52,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 16px",
+          background: "rgba(7,8,10,0.88)",
+          borderBottom: `1px solid ${BORDER_DIM}`,
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Link to="/games" aria-label="Back" style={{
+              width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+              color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER_DIM}`,
+              transition: "color 0.15s, border-color 0.15s", textDecoration: "none",
+            }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.75)"; (e.currentTarget as HTMLElement).style.borderColor = BORDER_MID; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.35)"; (e.currentTarget as HTMLElement).style.borderColor = BORDER_DIM; }}>
+              <ArrowLeft size={14} />
+            </Link>
 
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ background: "rgba(201,165,53,0.12)", border: "1px solid rgba(201,165,53,0.18)" }}>
-                  <TrendingUp className="h-4 w-4" style={{ color: GOLD }} />
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-white/92">Live Monitor</div>
-                  <div className="text-[12px] text-white/30">Real-time market win rates</div>
-                </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* Logo mark */}
+              <div style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg, ${GOLD}22, ${GOLD}08)`, border: `1px solid ${GOLD}35` }}>
+                <TrendingUp size={13} color={GOLD} />
               </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <nav className="hidden sm:flex items-center gap-2">
-                <Link to="/closed" className="flex items-center gap-2 px-3 py-1 rounded-md text-sm text-white/40 hover:text-white/80 transition">
-                  <CheckCircle className="h-4 w-4" />
-                  Closed
-                </Link>
-                <Link to="/guide#ch-07" className="flex items-center gap-2 px-3 py-1 rounded-md text-sm text-white/40 hover:text-white/80 transition">
-                  <BookOpen className="h-4 w-4" />
-                  Guide
-                </Link>
-              </nav>
-
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-md" style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.12)" }}>
-                <Wifi className="h-4 w-4" style={{ color: "#4ade80" }} />
-                <span className="text-[12px] font-mono font-bold text-emerald-400/80">LIVE {liveCount > 0 && `· ${liveCount}`}</span>
-              </div>
-
-              <button onClick={() => fetchData(true)} disabled={refreshing || loading}
-                aria-label="Refresh"
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
-                <RefreshCw className={`h-4 w-4 text-white/40 ${refreshing ? "animate-spin" : ""}`} />
-              </button>
+              <span style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.02em", fontFamily: "'Sora', sans-serif" }}>
+                Live Markets
+              </span>
+              {liveCount > 0 && !loading && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 5, background: `${GREEN}10`, border: `1px solid ${GREEN}25` }}>
+                  <PulseDot />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: GREEN, fontFamily: "'IBM Plex Mono', monospace" }}>{liveCount}</span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Right nav */}
+          <nav style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {[
+              { to: "/closed", icon: <CheckCircle size={14} />, label: "Closed" },
+              { to: "/guide#ch-07", icon: <BookOpen size={14} />, label: "Guide" },
+            ].map(({ to, icon, label }) => (
+              <Link key={to} to={to} style={{
+                display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8,
+                fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.32)",
+                textDecoration: "none", transition: "color 0.15s, background 0.15s",
+              }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.65)"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.32)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                {icon}
+                <span className="hidden sm:inline" style={{ display: "none" }}>{label}</span>
+              </Link>
+            ))}
+
+            {/* Realtime badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 9px", marginLeft: 4, borderRadius: 7, background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.14)" }}>
+              <Wifi size={12} color={`${GREEN}99`} />
+              <span style={{ fontSize: 9, fontWeight: 700, color: `${GREEN}88`, fontFamily: "'IBM Plex Mono', monospace", letterSpacing: "0.1em" }}>RT</span>
+            </div>
+          </nav>
         </header>
 
-        {/* ── Page content ── */}
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-7">
-          <div className="mb-6">
-            <h1 className="text-3xl font-black" style={{ color: GOLD, letterSpacing: "-0.02em" }}>10 Odds</h1>
-            <p className="text-sm text-white/30 mt-1">Live win-rate predictions for football markets. Tap a market to view a performance chart.</p>
+        {/* ── Page ── */}
+        <div style={{ maxWidth: 680, margin: "0 auto", padding: "28px 16px 120px", position: "relative", zIndex: 1 }}>
+
+          {/* ── Hero header ── */}
+          <div style={{ marginBottom: 28 }}>
+            {/* Title row */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <h1 style={{ fontSize: 30, fontWeight: 900, letterSpacing: "-0.035em", lineHeight: 1, color: GOLD_BRIGHT, fontFamily: "'Sora', sans-serif" }}>
+                    10 Odds
+                  </h1>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 5, background: `${GOLD}10`, border: `1px solid ${GOLD}28` }}>
+                    <Zap size={9} color={`${GOLD}AA`} />
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: `${GOLD}AA`, fontFamily: "'IBM Plex Mono', monospace" }}>MARKETS</span>
+                  </div>
+                </div>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", lineHeight: 1.6, maxWidth: 300 }}>
+                  Real-time win probability for live football markets. Track, analyse, and act with precision.
+                </p>
+              </div>
+
+              {/* Refresh btn */}
+              <motion.button
+                onClick={() => fetchData(true)}
+                disabled={refreshing || loading}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.96 }}
+                style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER_DIM}`,
+                  cursor: refreshing || loading ? "not-allowed" : "pointer",
+                  opacity: refreshing || loading ? 0.35 : 1, transition: "opacity 0.15s",
+                }}
+                aria-label="Refresh"
+              >
+                <RefreshCw size={14} color="rgba(255,255,255,0.4)" style={refreshing ? { animation: "spin 0.8s linear infinite" } : {}} />
+              </motion.button>
+            </div>
+
+            {/* Stats row */}
+            {!loading && !error && (liveCount > 0 || totalMarkets > 0) && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <StatPill label="Live games" value={liveCount} accent={liveCount > 0 ? GREEN : undefined} />
+                <StatPill label="Tracked mkts" value={totalMarkets} accent={totalMarkets > 0 ? GOLD : undefined} />
+                {totalMarkets > 0 && <StatPill label="Avg confidence" value={`${avgConf}%`} accent={confidenceColor(avgConf)} />}
+              </motion.div>
+            )}
           </div>
 
+          {/* ── Content states ── */}
           <AnimatePresence mode="wait">
             {loading ? (
-              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-                {[0, 0.06, 0.12].map((d, i) => <SkeletonCard key={i} delay={d} />)}
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {[0, 0.08, 0.15].map((d, i) => <SkeletonCard key={i} delay={d} />)}
               </motion.div>
             ) : error ? (
               <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -620,22 +737,27 @@ export default function Markets() {
                 <EmptyState />
               </motion.div>
             ) : (
-              <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+              <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+                {/* Tracked section */}
                 {trackedMatches.length > 0 && (
                   <section>
-                    <SectionLabel>Tracked</SectionLabel>
-                    <div className="grid gap-4">
-                      {trackedMatches.map((match, i) => (
-                        <MatchCard key={match.bsd_match_id} match={match} index={i} onPickMarket={handlePickTrackedMarket} />
-                      ))}
-                    </div>
+                    <Ticker>Tracked · {trackedMatches.length} match{trackedMatches.length !== 1 ? "es" : ""}</Ticker>
+                    <AnimatePresence initial={false}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {trackedMatches.map((match, i) => (
+                          <MatchCard key={match.bsd_match_id} match={match} index={i} onPickMarket={handlePickTrackedMarket} />
+                        ))}
+                      </div>
+                    </AnimatePresence>
                   </section>
                 )}
 
+                {/* Untracked section */}
                 {untrackedMatches.length > 0 && (
                   <section>
-                    <SectionLabel>Live · not tracked</SectionLabel>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <Ticker>Live · not tracked · {untrackedMatches.length}</Ticker>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {untrackedMatches.map((m, i) => (
                         <UntrackedCard key={m.bsd_match_id} match={m} index={i} onTrack={() => setModalOpen(true)} />
                       ))}
@@ -645,34 +767,43 @@ export default function Markets() {
               </motion.div>
             )}
           </AnimatePresence>
-        </main>
+        </div>
 
-        {/* ── FAB (left as-is per request) ── */}
+        {/* ── FAB — position unchanged ── */}
         <AnimatePresence>
           {!loading && (
             <motion.button
-              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              initial={{ opacity: 0, y: 16, scale: 0.88 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              exit={{ opacity: 0, y: 8, scale: 0.94 }}
+              transition={{ duration: 0.24, ease: "easeOut" }}
               onClick={() => setModalOpen(true)}
               aria-label="Track a new market"
-              className="fixed bottom-24 right-5 sm:right-10 z-40 flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/40"
               style={{
-                background: `linear-gradient(135deg, #E8C050, ${GOLD} 50%, #A8892A)`,
-                color: "#0a0703",
-                boxShadow: `0 6px 28px rgba(201,165,53,0.25)`,
+                position: "fixed", bottom: 96, right: 20,
+                zIndex: 40,
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "11px 18px", borderRadius: 14,
+                background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD} 55%, #A8892A)`,
+                color: "#080500",
+                fontSize: 12, fontWeight: 800, letterSpacing: "0.05em",
+                fontFamily: "'IBM Plex Mono', monospace",
+                boxShadow: `0 0 0 1px rgba(201,165,53,0.45), 0 10px 32px rgba(201,165,53,0.28), 0 2px 8px rgba(0,0,0,0.5)`,
+                cursor: "pointer", border: "none",
               }}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{
+                scale: 1.05,
+                boxShadow: `0 0 0 1px rgba(201,165,53,0.65), 0 14px 40px rgba(201,165,53,0.42)`,
+              }}
+              whileTap={{ scale: 0.96 }}
             >
-              <Plus className="h-4 w-4" />
-              Track a Market
+              <Plus size={14} strokeWidth={2.5} />
+              TRACK A MARKET
             </motion.button>
           )}
         </AnimatePresence>
 
-        {/* ── Modal (unchanged) ── */}
+        {/* ── Modal ── */}
         <LiveMarketModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
