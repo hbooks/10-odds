@@ -318,7 +318,22 @@ function LiveMatchCard({ match }: { match: NormalisedMatch }) {
   }, [match.id, match.utc_date]);
 
   // ── Tick every second ─────────────────────────────────────────────────────
+  // For BSD: we record when the snapshot arrived and add elapsed seconds to
+  // bsd_minute so the clock animates forward between data refreshes.
   const [tick, setTick] = useState(0);
+  const bsdSnapshotRef = useRef<{ minute: number; period: string; arrivedAt: number } | null>(null);
+
+  // Capture a new BSD snapshot whenever the match data changes
+  useEffect(() => {
+    if (match.source === "bsd" && match.bsd_period !== undefined && match.bsd_minute !== undefined) {
+      bsdSnapshotRef.current = {
+        minute:     match.bsd_minute,
+        period:     match.bsd_period,
+        arrivedAt:  Date.now(),
+      };
+    }
+  }, [match.source, match.bsd_period, match.bsd_minute]);
+
   useEffect(() => {
     const id = setInterval(() => setTick(n => n + 1), 1000);
     return () => clearInterval(id);
@@ -330,12 +345,18 @@ function LiveMatchCard({ match }: { match: NormalisedMatch }) {
   const [transitionPhase, setTransitionPhase] = useState<ClockPhase>("firstHalf");
 
   // ── Clock state ────────────────────────────────────────────────────────────
-  // If we have BSD data, use the authoritative BSD clock.
+  // If we have BSD data, use the authoritative BSD clock animated forward.
   // Otherwise fall back to the original time-math evaluator.
   let state: ClockState;
   if (match.source === "bsd" && match.bsd_period !== undefined && match.bsd_minute !== undefined) {
-    // BSD path: period + minute from live_stats — exact and authoritative
-    state = evaluateClockFromBSD(match.bsd_period, match.bsd_minute);
+    // BSD path: animate the minute forward by the seconds elapsed since the
+    // last data snapshot so the clock ticks smoothly between fetches.
+    void tick; // ensure re-render every second
+    const snap = bsdSnapshotRef.current;
+    const elapsedSec = snap ? (Date.now() - snap.arrivedAt) / 1000 : 0;
+    const period     = snap?.period ?? match.bsd_period;
+    const animatedMin = (snap?.minute ?? match.bsd_minute) + elapsedSec / 60;
+    state = evaluateClockFromBSD(period, animatedMin);
   } else {
     // Fallback path: pure wall-clock math (original logic, unchanged)
     const clock = readClocks()[match.id];
@@ -454,7 +475,7 @@ function LiveMatchCard({ match }: { match: NormalisedMatch }) {
 
           {/* Score */}
           <div className="flex flex-col items-center gap-1.5">
-            {isLive ? (
+            {isLive && match.source !== "bsd" ? (
               <div className="relative">
                 <div className="px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
                   <span
@@ -472,7 +493,7 @@ function LiveMatchCard({ match }: { match: NormalisedMatch }) {
                 </p>
               </div>
             ) : (
-              <div className="px-4 py-2.5 rounded-xl bg-white/10 border border-white/10">
+              <div className={`px-4 py-2.5 rounded-xl ${isLive ? "bg-red-500/10 border border-red-500/20" : "bg-white/10 border border-white/10"}`}>
                 <span className="font-mono font-black text-2xl text-white tracking-widest">
                   {match.home_score ?? "–"}&nbsp;–&nbsp;{match.away_score ?? "–"}
                 </span>
