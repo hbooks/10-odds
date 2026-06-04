@@ -28,34 +28,37 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 SUPABASE_URL: str          = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY: str  = os.environ["SUPABASE_SERVICE_KEY"]
-# Note: use a separate key env var so you can rotate independently
 FOOTBALL_DATA_API_KEY: str = os.environ.get(
     "FOOTBALL_DATA_API_KEY_H",
-    os.environ.get("FOOTBALL_DATA_API_KEY_H", ""),   # fallback to main key
+    os.environ.get("FOOTBALL_DATA_API_KEY_H", ""),
 )
+BSD_API_KEY: str = os.environ.get("BSD_API", "")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 FD_HEADERS         = {"X-Auth-Token": FOOTBALL_DATA_API_KEY}
 
-# —— League competition IDs (PL, La Liga, Serie A, Bundesliga, Ligue 1) ————————————————————————
+# BSD API (same as in main pipeline)
+BSD_API_BASE    = "https://sports.bzzoiro.com/api/v2"
+BSD_API_HEADERS = {"Authorization": f"Token {BSD_API_KEY}"}
+BSD_FRIENDLY_COMPETITION_ID = 31
+BSD_TEAM_ID_OFFSET = 9_000_000
+
+# League competition IDs
 LEAGUE_COMPETITION_IDS = "2021,2014,2019,2002,2015"
 
-# —— International competition IDs ———————————————————————————————
-# 2000 = FIFA World Cup  |  2018 = UEFA Euro  |  friendlies fetched separately
+# International competition IDs (WC, Euro)
 INTL_COMPETITION_IDS = "2000,2018"
 
-# Football-Data.org free tier: 10 req/min — wait 7 s between calls to be safe
+# Rate‑limit control
 REQUEST_DELAY = 7.0
-
-# Max retries on HTTP 429 (rate limit)
 MAX_RETRIES   = 3
 RETRY_DELAY   = 15.0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TEAM-NAME FUZZY MATCHING  (mirrors main pipeline)
+# TEAM-NAME FUZZY MATCHING
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _normalise(name: str) -> str:
@@ -82,8 +85,8 @@ def _find_api_match(
     match_date_str: str,
 ) -> Optional[Dict[str, Any]]:
     """
-    Find a match in the Football-Data API response by team names + date.
-    Date tolerance is ±1 day to handle UTC vs local-time differences.
+    Find a match in the API response (either Football-Data or BSD) by team names + date.
+    Date tolerance is ±1 day to handle UTC vs local‑time differences.
     """
     try:
         target_date = datetime.strptime(match_date_str, "%Y-%m-%d").date()
@@ -91,10 +94,15 @@ def _find_api_match(
         return None
 
     for m in api_matches:
-        api_home = m.get("homeTeam", {}).get("name", "")
-        api_away = m.get("awayTeam", {}).get("name", "")
-        api_date_str = (m.get("utcDate") or "")[:10]
+        # Different APIs store team names in different fields
+        if "homeTeam" in m:   # Football-Data format
+            api_home = m.get("homeTeam", {}).get("name", "")
+            api_away = m.get("awayTeam", {}).get("name", "")
+        else:                  # BSD format (already normalised)
+            api_home = m.get("home_team", "")
+            api_away = m.get("away_team", "")
 
+        api_date_str = (m.get("utcDate") or m.get("event_date") or "")[:10]
         try:
             api_date = datetime.strptime(api_date_str, "%Y-%m-%d").date()
         except ValueError:
@@ -110,117 +118,102 @@ def _find_api_match(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RESULT NORMALISATION  (API dict → flat result dict)
+# RESULT NORMALISATION (Football-Data & BSD → flat dict)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _normalise_api_match(api_match: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Extract the fields we care about from a raw Football-Data.org match object
-    into a flat, typed dict.  Returns None if the match is not yet fully reported.
-
-    Raw structure:
-        {
-          "status": "FINISHED",
-          "score": {
-            "winner": "HOME_TEAM" | "AWAY_TEAM" | "DRAW" | null,
-            "fullTime": {"home": 2, "away": 1}
-          },
-          ...
-        }
+    Extract result fields from either a Football-Data or BSD match object.
+    Returns None if the match is not finished or scores are missing.
     """
-    if api_match.get("status") != "FINISHED":
-        return None
+    # Football-Data format
+    if "status" in api_match and api_match.get("status") == "FINISHED":
+        score = api_match.get("score", {})
+        ft = score.get("fullTime", {})
+        home_score = ft.get("home")
+        away_score = ft.get("away")
+        winner = score.get("winner")
+        if home_score is not None and away_score is not None:
+            return {
+                "status": "FINISHED",
+                "home_score": int(home_score),
+                "away_score": int(away_score),
+                "winner": winner,
+            }
 
-    score = api_match.get("score", {})
-    ft    = score.get("fullTime", {})
+    # BSD format
+    if api_match.get("status") == "FINISHED":
+        home_score = api_match.get("home_score")
+        away_score = api_match.get("away_score")
+        if home_score is not None and away_score is not None:
+            winner = None
+            if home_score > away_score:
+                winner = "HOME_TEAM"
+            elif away_score > home_score:
+                winner = "AWAY_TEAM"
+            else:
+                winner = "DRAW"
+            return {
+                "status": "FINISHED",
+                "home_score": int(home_score),
+                "away_score": int(away_score),
+                "winner": winner,
+            }
 
-    home_score = ft.get("home")
-    away_score = ft.get("away")
-
-    if home_score is None or away_score is None:
-        return None  # scores not yet reported
-
-    return {
-        "status":     "FINISHED",
-        "home_score": int(home_score),
-        "away_score": int(away_score),
-        "winner":     score.get("winner"),   # "HOME_TEAM" | "AWAY_TEAM" | "DRAW"
-    }
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RESULT DETERMINATION
+# RESULT DETERMINATION (unchanged)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def determine_result(
     bet_type: str,
-    match: Dict[str, Any],   # normalised flat dict from _normalise_api_match()
+    match: Dict[str, Any],
 ) -> str:
-    """
-    Determine the outcome of a single prediction given the actual result.
-
-    Returns one of: WIN | LOSS | HALF_WIN | HALF_LOSS | VOID | PENDING
-
-    Supported bet types
-    ───────────────────
-    1X2:              HOME_WIN, DRAW, AWAY_WIN
-    Over/Under:       OVER_X.X, UNDER_X.X  (e.g. OVER_2.5, UNDER_1.5)
-    BTTS:             BTTS_YES, BTTS_NO
-    Exact goals:      TOTAL_GOALS_N         (e.g. TOTAL_GOALS_3)
-    Correct score:    CORRECT_SCORE_H_A     (e.g. CORRECT_SCORE_2_1)
-    """
     home_score  = match["home_score"]
     away_score  = match["away_score"]
-    winner      = match["winner"]        # "HOME_TEAM" | "AWAY_TEAM" | "DRAW"
+    winner      = match["winner"]
     total_goals = home_score + away_score
 
-    # ── 1X2 ───────────────────────────────────────────────────────────────
     if bet_type == "HOME_WIN":
         return "WIN" if winner == "HOME_TEAM" else "LOSS"
-
     if bet_type == "AWAY_WIN":
         return "WIN" if winner == "AWAY_TEAM" else "LOSS"
-
     if bet_type == "DRAW":
         return "WIN" if winner == "DRAW" else "LOSS"
 
-    # ── Over / Under ──────────────────────────────────────────────────────
     if bet_type.startswith("OVER_"):
         try:
-            line = float(bet_type[5:])    # "OVER_2.5" → 2.5
+            line = float(bet_type[5:])
         except ValueError:
             return "PENDING"
         if total_goals > line:   return "WIN"
-        if total_goals == line:  return "VOID"   # can't happen with .5 lines but safe
+        if total_goals == line:  return "VOID"
         return "LOSS"
 
     if bet_type.startswith("UNDER_"):
         try:
-            line = float(bet_type[6:])   # "UNDER_2.5" → 2.5
+            line = float(bet_type[6:])
         except ValueError:
             return "PENDING"
         if total_goals < line:   return "WIN"
         if total_goals == line:  return "VOID"
         return "LOSS"
 
-    # ── Both Teams to Score ───────────────────────────────────────────────
     if bet_type == "BTTS_YES":
         return "WIN" if (home_score > 0 and away_score > 0) else "LOSS"
-
     if bet_type == "BTTS_NO":
         return "WIN" if (home_score == 0 or away_score == 0) else "LOSS"
 
-    # ── Exact Total Goals ─────────────────────────────────────────────────
     if bet_type.startswith("TOTAL_GOALS_"):
         try:
-            target = int(bet_type[12:])   # "TOTAL_GOALS_3" → 3
+            target = int(bet_type[12:])
         except ValueError:
             return "PENDING"
         return "WIN" if total_goals == target else "LOSS"
 
-    # ── Correct Score ─────────────────────────────────────────────────────
     if bet_type.startswith("CORRECT_SCORE_"):
-        # Format: CORRECT_SCORE_H_A  e.g. CORRECT_SCORE_2_1
         parts = bet_type.split("_")
         if len(parts) == 4:
             try:
@@ -235,7 +228,7 @@ def determine_result(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# API FETCHING  (with rate-limit retry)
+# API FETCHING (with retry)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _fetch_with_retry(url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -259,18 +252,63 @@ def _fetch_with_retry(url: str, params: Dict[str, Any]) -> Optional[Dict[str, An
     return None
 
 
+def fetch_bsd_finished_fixtures_for_date(date_str: str) -> List[Dict[str, Any]]:
+    """
+    Fetch finished international friendlies from BSD API for a given date.
+    Returns a list of matches in a normalised dict (similar to Football-Data).
+    """
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    date_from = date_obj.strftime("%Y-%m-%d")
+    date_to = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    url = f"{BSD_API_BASE}/events/"
+    params = {
+        "league_id": BSD_FRIENDLY_COMPETITION_ID,
+        "date_from": date_from,
+        "date_to": date_to,
+        "status": "finished",
+    }
+
+    try:
+        resp = requests.get(url, headers=BSD_API_HEADERS, params=params, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("results", [])
+        if not isinstance(results, list):
+            return []
+
+        # Normalise BSD fixtures to a common shape
+        normalised = []
+        for m in results:
+            # Only take finished matches
+            if m.get("status") != "finished":
+                continue
+            # Build a dict that _find_api_match can understand
+            # We'll keep BSD-specific fields as well as the ones used for matching
+            norm = {
+                "id": int(m.get("id", 0)) + BSD_TEAM_ID_OFFSET,
+                "home_team": m.get("home_team", ""),
+                "away_team": m.get("away_team", ""),
+                "event_date": m.get("event_date", ""),
+                "status": "FINISHED",
+                "home_score": m.get("home_score"),
+                "away_score": m.get("away_score"),
+                "competition_id": BSD_FRIENDLY_COMPETITION_ID,
+            }
+            normalised.append(norm)
+        logger.info("BSD finished friendlies for %s: %d matches", date_str, len(normalised))
+        return normalised
+    except Exception as e:
+        logger.error("BSD finished fetch failed for %s: %s", date_str, e)
+        return []
+
+
 def fetch_finished_matches_for_date(date_str: str) -> List[Dict[str, Any]]:
     """
-    Fetch all FINISHED matches for a date window from Football-Data.org.
-
-    Makes three separate calls:
-      1. League competitions (PL, La Liga, Serie A, Bundesliga, Ligue 1)
-      2. International competitions (World Cup 2000, UEFA Euro 2018)
-      3. Broad call with no filter to catch International Friendlies
-         (tagged type=FRIENDLY by football-data.org)
-
-    Uses dateFrom=date, dateTo=date+1 to catch late UTC kick-offs.
-    Results are deduplicated by match ID across all three calls.
+    Fetch all FINISHED matches for a date window from:
+      1. Football-Data.org (leagues + international comps + friendlies)
+      2. BSD API (international friendlies not covered by Football-Data)
+    Results are deduplicated by match ID across both sources.
     """
     date_obj  = datetime.strptime(date_str, "%Y-%m-%d")
     date_next = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -292,16 +330,13 @@ def fetch_finished_matches_for_date(date_str: str) -> List[Dict[str, Any]]:
             if m["id"] not in seen_ids:
                 all_matches.append(m)
                 seen_ids.add(m["id"])
-        logger.info(
-            "League fetch: %d FINISHED matches for %s",
-            len(data.get("matches", [])), date_str,
-        )
+        logger.info("League fetch: %d FINISHED matches for %s", len(data.get("matches", [])), date_str)
     else:
         logger.warning("League fetch returned no data for %s", date_str)
 
-    time.sleep(REQUEST_DELAY)  # respect rate limit between calls
+    time.sleep(REQUEST_DELAY)
 
-    # -- 2. International competitions (WC, UEFA Euro) ---------------------------
+    # -- 2. International competitions (WC, Euro) --------------------------------
     data = _fetch_with_retry(
         f"{FOOTBALL_DATA_BASE}/matches",
         {
@@ -318,18 +353,13 @@ def fetch_finished_matches_for_date(date_str: str) -> List[Dict[str, Any]]:
                 all_matches.append(m)
                 seen_ids.add(m["id"])
                 intl_new += 1
-        logger.info(
-            "International fetch (WC/EC): %d new FINISHED matches for %s",
-            intl_new, date_str,
-        )
+        logger.info("International fetch (WC/EC): %d new FINISHED matches", intl_new)
     else:
         logger.warning("International competition fetch returned no data for %s", date_str)
 
     time.sleep(REQUEST_DELAY)
 
-    # -- 3. International Friendlies (no competition filter) ----------------------
-    # football-data.org returns all accessible matches when no competition filter
-    # is set, including NT friendlies tagged as type FRIENDLY.
+    # -- 3. International Friendlies via Football-Data (broad call) --------------
     data = _fetch_with_retry(
         f"{FOOTBALL_DATA_BASE}/matches",
         {
@@ -341,53 +371,48 @@ def fetch_finished_matches_for_date(date_str: str) -> List[Dict[str, Any]]:
     if data:
         friendly_new = 0
         for m in data.get("matches", []):
-            if m["id"] not in seen_ids:
-                comp = m.get("competition", {})
-                is_friendly = (
-                    comp.get("type") == "FRIENDLY" or
-                    "friendly" in comp.get("name", "").lower() or
-                    comp.get("code") == "IF"
-                )
-                area_name = m.get("area", {}).get("name", "")
-                is_intl = (
-                    area_name in ("World", "International") or
-                    comp.get("name", "").lower().startswith("international")
-                )
-                if is_friendly and is_intl:
-                    all_matches.append(m)
-                    seen_ids.add(m["id"])
-                    friendly_new += 1
-        logger.info(
-            "International Friendly fetch: %d new FINISHED matches for %s",
-            friendly_new, date_str,
-        )
+            if m["id"] in seen_ids:
+                continue
+            comp = m.get("competition", {})
+            is_friendly = (
+                comp.get("type") == "FRIENDLY" or
+                "friendly" in comp.get("name", "").lower() or
+                comp.get("code") == "IF"
+            )
+            area_name = m.get("area", {}).get("name", "")
+            is_intl = (
+                area_name in ("World", "International") or
+                comp.get("name", "").lower().startswith("international")
+            )
+            if is_friendly and is_intl:
+                all_matches.append(m)
+                seen_ids.add(m["id"])
+                friendly_new += 1
+        logger.info("Football-Data friendly fetch: %d new FINISHED matches", friendly_new)
     else:
         logger.warning("Broad fetch (friendlies) returned no data for %s", date_str)
 
+    # -- 4. BSD International Friendlies (fallback for those not in Football-Data) --
+    bsd_matches = fetch_bsd_finished_fixtures_for_date(date_str)
+    for m in bsd_matches:
+        # BSD uses a custom ID (offset) – we need to use that as unique identifier
+        if m["id"] not in seen_ids:
+            all_matches.append(m)
+            seen_ids.add(m["id"])
+
     logger.info(
-        "Total FINISHED matches for %s: %d (leagues + intl + friendlies)",
+        "Total FINISHED matches for %s: %d (all sources combined)",
         date_str, len(all_matches),
     )
     return all_matches
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SLIP STATUS UPDATER
+# SLIP STATUS UPDATER (unchanged)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _update_slip_status_for_date(slip_date_str: str) -> None:
-    """
-    After updating all predictions for a date, check if any slip for that date
-    should be closed.
-
-    A slip is:
-      WIN   — ALL its picks are WIN
-      LOSS  — ANY pick is LOSS (even one LOSS kills the accumulator)
-      VOID  — all picks are VOID
-      else  — leave PENDING (some picks still unresolved)
-    """
     try:
-        # Find the slip for this date
         slip_res = (supabase.table("ten_odds_slips")
                     .select("id, status")
                     .eq("slip_date", slip_date_str)
@@ -397,11 +422,8 @@ def _update_slip_status_for_date(slip_date_str: str) -> None:
 
         for slip in slip_res.data:
             if slip["status"] != "PENDING":
-                continue   # already resolved
-
+                continue
             slip_id = slip["id"]
-
-            # Get all pick statuses for this slip
             picks_res = (supabase.table("slip_picks")
                          .select("prediction_id")
                          .eq("slip_id", slip_id)
@@ -409,7 +431,6 @@ def _update_slip_status_for_date(slip_date_str: str) -> None:
             pick_ids = [p["prediction_id"] for p in (picks_res.data or [])]
             if not pick_ids:
                 continue
-
             pred_res = (supabase.table("predictions")
                         .select("status")
                         .in_("id", pick_ids)
@@ -417,8 +438,7 @@ def _update_slip_status_for_date(slip_date_str: str) -> None:
             statuses = [p["status"] for p in (pred_res.data or [])]
 
             if any(s == "PENDING" for s in statuses):
-                continue   # not all resolved yet
-
+                continue
             if any(s == "LOSS" for s in statuses):
                 new_status = "LOSS"
             elif all(s == "WIN" for s in statuses):
@@ -426,14 +446,10 @@ def _update_slip_status_for_date(slip_date_str: str) -> None:
             elif all(s == "VOID" for s in statuses):
                 new_status = "VOID"
             else:
-                # Mix of WIN / VOID / HALF_WIN etc.
                 new_status = "WIN" if all(s in ("WIN", "VOID", "HALF_WIN") for s in statuses) else "LOSS"
 
-            supabase.table("ten_odds_slips").update(
-                {"status": new_status}
-            ).eq("id", slip_id).execute()
+            supabase.table("ten_odds_slips").update({"status": new_status}).eq("id", slip_id).execute()
             logger.info("Slip %s (%s) → %s", slip_id, slip_date_str, new_status)
-
     except Exception as e:
         logger.error("Slip status update for %s: %s", slip_date_str, e)
 
@@ -447,20 +463,12 @@ def update_predictions_for_date(
     api_matches: List[Dict[str, Any]],
     match_date_str: str,
 ) -> None:
-    """
-    For every PENDING prediction on a given date:
-      1. Look up its match in our DB (for team names).
-      2. Find the corresponding match in the API response.
-      3. Normalise the API response into a flat result dict.
-      4. Update matches table with final score.
-      5. Evaluate prediction outcome and update predictions.status.
-    """
     for pred in predictions:
         match_id = pred["match_id"]
         pred_id  = pred["id"]
         bet_type = pred.get("bet_type", "")
 
-        # ── 1. Get team names from our DB ─────────────────────────────────
+        # Get team names from our DB
         try:
             m_res = (supabase.table("matches")
                      .select(
@@ -483,7 +491,7 @@ def update_predictions_for_date(
         home_name = stored["home_team"]["name"]
         away_name = stored["away_team"]["name"]
 
-        # ── 2. Find result in API response ────────────────────────────────
+        # Find result in API response (handles both Football-Data and BSD)
         api_match = _find_api_match(api_matches, home_name, away_name, match_date_str)
         if not api_match:
             logger.info(
@@ -492,7 +500,6 @@ def update_predictions_for_date(
             )
             continue
 
-        # ── 3. Normalise API response ─────────────────────────────────────
         result = _normalise_api_match(api_match)
         if not result:
             logger.info(
@@ -501,7 +508,7 @@ def update_predictions_for_date(
             )
             continue
 
-        # ── 4. Update match row in DB ─────────────────────────────────────
+        # Update match row in DB
         try:
             supabase.table("matches").update({
                 "status":     result["status"],
@@ -516,7 +523,7 @@ def update_predictions_for_date(
         except Exception as e:
             logger.error("Match update %s: %s", match_id, e)
 
-        # ── 5. Evaluate and update prediction ────────────────────────────
+        # Evaluate and update prediction
         new_status = determine_result(bet_type, result)
         if new_status != "PENDING":
             try:
@@ -542,9 +549,9 @@ def update_predictions_for_date(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    logger.info("═══ MK-806 Result Updater v5 (fixed) starting ═══")
+    logger.info("═══ MK-806 Result Updater v6 (BSD friendlies included) starting ═══")
 
-    # ── 1. Fetch all PENDING predictions with their match date ────────────
+    # Fetch all PENDING predictions
     try:
         pred_res = (supabase.table("predictions")
                     .select("id, match_id, bet_type, matches(utc_date)")
@@ -561,20 +568,19 @@ def main() -> None:
 
     logger.info("Found %d PENDING predictions", len(predictions))
 
-    # ── 2. Group by UTC date ──────────────────────────────────────────────
+    # Group by UTC date
     by_date: Dict[str, List[Dict[str, Any]]] = {}
     for pred in predictions:
         match_meta = pred.get("matches")
         if not match_meta:
             logger.warning("Prediction %s has no match metadata — skipping", pred["id"])
             continue
-        utc_date = match_meta["utc_date"][:10]   # YYYY-MM-DD
+        utc_date = match_meta["utc_date"][:10]
         by_date.setdefault(utc_date, []).append(pred)
 
     unique_dates = sorted(by_date.keys())
     logger.info("Processing %d unique date(s): %s", len(unique_dates), unique_dates)
 
-    # ── 3. Process each date ──────────────────────────────────────────────
     for idx, date_str in enumerate(unique_dates):
         logger.info(
             "─── Date %s (%d/%d) — %d predictions",
@@ -587,14 +593,13 @@ def main() -> None:
             update_predictions_for_date(by_date[date_str], api_matches, date_str)
             _update_slip_status_for_date(date_str)
         else:
-            logger.warning("No FINISHED matches from API for %s — skipping updates", date_str)
+            logger.warning("No FINISHED matches from any API for %s — skipping updates", date_str)
 
-        # Rate-limit courtesy delay (skip after last date)
         if idx < len(unique_dates) - 1:
             logger.info("Waiting %.0fs before next date request…", REQUEST_DELAY)
             time.sleep(REQUEST_DELAY)
 
-    logger.info("═══ MK-806 Result Updater v5 complete ═══")
+    logger.info("═══ MK-806 Result Updater v6 complete ═══")
 
 
 if __name__ == "__main__":
