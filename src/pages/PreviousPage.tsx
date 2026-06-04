@@ -73,15 +73,22 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
   );
 };
 
+const INTL_GLOBE_EMBLEM = "https://www.freelogovectors.net/wp-content/uploads/2018/04/globe-earth07.png";
+
 const getLeagueEmblem = (code: string): string => {
   const emblems: Record<string, string> = {
-    PL: "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png", 
-    PD: "https://www.freelogovectors.net/wp-content/uploads/2023/07/laliga-logo-02-freelogovectors.net_.png", 
-    SA: "https://www.freelogovectors.net/wp-content/uploads/2021/08/serie-a-logo-freelogovectors.net_.png",
-    BL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/bundesliga_logo.png", 
-    FL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/ligue1logo.png" 
+    PL:  "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png",
+    PD:  "https://www.freelogovectors.net/wp-content/uploads/2023/07/laliga-logo-02-freelogovectors.net_.png",
+    SA:  "https://www.freelogovectors.net/wp-content/uploads/2021/08/serie-a-logo-freelogovectors.net_.png",
+    BL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/bundesliga_logo.png",
+    FL1: "https://www.freelogovectors.net/wp-content/uploads/2020/08/ligue1logo.png",
+    // ── International ──────────────────────────────────────────────────────
+    WC:  "https://www.freelogovectors.net/wp-content/uploads/2025/07/fifa-world-cup-2026-freelogovectors.net_-478x480.png",
+    EC:  "https://www.freelogovectors.net/wp-content/uploads/2020/01/uefa-logo.png",   // UEFA Euro
+    CA:  INTL_GLOBE_EMBLEM,   // Copa América
+    IF:  INTL_GLOBE_EMBLEM,   // International Friendly
   };
-  return emblems[code] || "";
+  return emblems[code] || INTL_GLOBE_EMBLEM;
 };
 
 // ─── Previous Advisor Bar Component ──────────────────────────────────────────
