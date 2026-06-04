@@ -39,8 +39,12 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 FD_HEADERS         = {"X-Auth-Token": FOOTBALL_DATA_API_KEY}
 
-# Tracked competition IDs (PL, La Liga, Serie A, Bundesliga, Ligue 1)
-COMPETITION_IDS = "2021,2014,2019,2002,2015"
+# —— League competition IDs (PL, La Liga, Serie A, Bundesliga, Ligue 1) ————————————————————————
+LEAGUE_COMPETITION_IDS = "2021,2014,2019,2002,2015"
+
+# —— International competition IDs ———————————————————————————————
+# 2000 = FIFA World Cup  |  2018 = UEFA Euro  |  friendlies fetched separately
+INTL_COMPETITION_IDS = "2000,2018"
 
 # Football-Data.org free tier: 10 req/min — wait 7 s between calls to be safe
 REQUEST_DELAY = 7.0
@@ -259,28 +263,112 @@ def fetch_finished_matches_for_date(date_str: str) -> List[Dict[str, Any]]:
     """
     Fetch all FINISHED matches for a date window from Football-Data.org.
 
-    Uses dateFrom=date, dateTo=date+1 to catch matches that kick off late
-    in UTC or whose final score is reported a few hours after midnight.
+    Makes three separate calls:
+      1. League competitions (PL, La Liga, Serie A, Bundesliga, Ligue 1)
+      2. International competitions (World Cup 2000, UEFA Euro 2018)
+      3. Broad call with no filter to catch International Friendlies
+         (tagged type=FRIENDLY by football-data.org)
+
+    Uses dateFrom=date, dateTo=date+1 to catch late UTC kick-offs.
+    Results are deduplicated by match ID across all three calls.
     """
     date_obj  = datetime.strptime(date_str, "%Y-%m-%d")
     date_next = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
+    all_matches: List[Dict[str, Any]] = []
+    seen_ids: set = set()
 
+    # -- 1. League competitions --------------------------------------------------
     data = _fetch_with_retry(
         f"{FOOTBALL_DATA_BASE}/matches",
         {
             "dateFrom":     date_str,
             "dateTo":       date_next,
             "status":       "FINISHED",
-            "competitions": COMPETITION_IDS,
+            "competitions": LEAGUE_COMPETITION_IDS,
         },
     )
-    if not data:
-        logger.error("No data returned for date %s", date_str)
-        return []
+    if data:
+        for m in data.get("matches", []):
+            if m["id"] not in seen_ids:
+                all_matches.append(m)
+                seen_ids.add(m["id"])
+        logger.info(
+            "League fetch: %d FINISHED matches for %s",
+            len(data.get("matches", [])), date_str,
+        )
+    else:
+        logger.warning("League fetch returned no data for %s", date_str)
 
-    matches = data.get("matches", [])
-    logger.info("Fetched %d FINISHED matches for %s → %s", len(matches), date_str, date_next)
-    return matches
+    time.sleep(REQUEST_DELAY)  # respect rate limit between calls
+
+    # -- 2. International competitions (WC, UEFA Euro) ---------------------------
+    data = _fetch_with_retry(
+        f"{FOOTBALL_DATA_BASE}/matches",
+        {
+            "dateFrom":     date_str,
+            "dateTo":       date_next,
+            "status":       "FINISHED",
+            "competitions": INTL_COMPETITION_IDS,
+        },
+    )
+    if data:
+        intl_new = 0
+        for m in data.get("matches", []):
+            if m["id"] not in seen_ids:
+                all_matches.append(m)
+                seen_ids.add(m["id"])
+                intl_new += 1
+        logger.info(
+            "International fetch (WC/EC): %d new FINISHED matches for %s",
+            intl_new, date_str,
+        )
+    else:
+        logger.warning("International competition fetch returned no data for %s", date_str)
+
+    time.sleep(REQUEST_DELAY)
+
+    # -- 3. International Friendlies (no competition filter) ----------------------
+    # football-data.org returns all accessible matches when no competition filter
+    # is set, including NT friendlies tagged as type FRIENDLY.
+    data = _fetch_with_retry(
+        f"{FOOTBALL_DATA_BASE}/matches",
+        {
+            "dateFrom": date_str,
+            "dateTo":   date_next,
+            "status":   "FINISHED",
+        },
+    )
+    if data:
+        friendly_new = 0
+        for m in data.get("matches", []):
+            if m["id"] not in seen_ids:
+                comp = m.get("competition", {})
+                is_friendly = (
+                    comp.get("type") == "FRIENDLY" or
+                    "friendly" in comp.get("name", "").lower() or
+                    comp.get("code") == "IF"
+                )
+                area_name = m.get("area", {}).get("name", "")
+                is_intl = (
+                    area_name in ("World", "International") or
+                    comp.get("name", "").lower().startswith("international")
+                )
+                if is_friendly and is_intl:
+                    all_matches.append(m)
+                    seen_ids.add(m["id"])
+                    friendly_new += 1
+        logger.info(
+            "International Friendly fetch: %d new FINISHED matches for %s",
+            friendly_new, date_str,
+        )
+    else:
+        logger.warning("Broad fetch (friendlies) returned no data for %s", date_str)
+
+    logger.info(
+        "Total FINISHED matches for %s: %d (leagues + intl + friendlies)",
+        date_str, len(all_matches),
+    )
+    return all_matches
 
 
 # ══════════════════════════════════════════════════════════════════════════════

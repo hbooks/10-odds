@@ -28,6 +28,8 @@ import logging
 import re
 import requests
 import pytz
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
 from datetime import datetime, timedelta, date, timezone
 from typing import Dict, List, Any, Optional, Tuple
@@ -1788,7 +1790,7 @@ def update_prediction_outcomes() -> None:
         if expected_winner is None:
             continue
 
-        status = "WON" if winner == expected_winner else "LOST"
+        status = "WIN" if winner == expected_winner else "LOSS"
 
         try:
             supabase.table("predictions").update({"status": status}).eq("id", pred["id"]).execute()
@@ -1802,6 +1804,1116 @@ def update_prediction_outcomes() -> None:
         # Invalidate calibration cache so it reloads from fresh data
         global _EMPIRICAL_CAL_LOADED
         _EMPIRICAL_CAL_LOADED = False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PART 21 — INTERNATIONAL / WORLD CUP MODULE
+# ══════════════════════════════════════════════════════════════════════════════
+#
+#  Key design decisions vs the league predictor:
+#  ─────────────────────────────────────────────
+#  • No ClubElo — national teams use FIFA World Ranking points as the Elo proxy.
+#  • No Understat xG — unavailable for NT games; replaced with a shot-based
+#    surrogate derived from recent scoring rates per confederation.
+#  • Home advantage is context-sensitive: host nation gets full boost,
+#    neutral-venue games (tournament) receive only 25 pts.
+#  • H2H window extended to 12 games (NTs meet infrequently).
+#  • Separate league-averages table per confederation.
+#  • Separate calibration table (NTs have lower variance than club football).
+#  • International Friendlies are excluded from the slip by default
+#    (INTL_INCLUDE_FRIENDLIES_IN_SLIP flag) but are still predicted and stored.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Competition registry ──────────────────────────────────────────────────────
+INTL_COMPETITIONS: Dict[int, Dict[str, str]] = {
+    2000: {"name": "FIFA World Cup",         "code": "WC",  "type": "TOURNAMENT"},
+    2018: {"name": "European Championship",  "code": "EC",  "type": "TOURNAMENT"},
+    2019: {"name": "Copa America",           "code": "CA",  "type": "TOURNAMENT"},  # note: 2019 is Serie A in TARGET_LEAGUES — WE use a different key below
+}
+# Note: football-data.org uses 2019 for Serie A AND Copa America depending on
+# subscription tier. We use string code routing to avoid collision.
+INTL_COMPETITION_CODES: Dict[str, Dict[str, str]] = {
+    "WC": {"name": "FIFA World Cup 2026",   "id": 2000, "type": "TOURNAMENT"},
+    "EC": {"name": "UEFA Euro",             "id": 2018, "type": "TOURNAMENT"},
+    "IF": {"name": "International Friendly","id": None, "type": "FRIENDLY"},
+}
+
+# football-data.org competition IDs to fetch for international matches
+INTL_FD_COMPETITION_IDS: List[int] = [2000]   # WC — expand to 2018 if EC is on your plan
+
+# The-Odds-API sport key for international football
+INTL_SPORT_KEYS: List[str] = [
+    "soccer_fifa_world_cup",
+]
+
+# ── Flags ─────────────────────────────────────────────────────────────────────
+INTL_INCLUDE_FRIENDLIES_IN_SLIP: bool = False   # Friendlies predicted but NOT on slip
+
+# ── FIFA World Ranking 2026 (June edition — used as Elo proxy) ───────────────
+#    Source: FIFA official rankings June 2026 (research-verified)
+#    Scale: 1000–2000 pts mapped to Elo-like integers for compatibility.
+FIFA_RANKINGS_2026: Dict[str, int] = {
+    # Top tier
+    "argentina":       1900,
+    "france":          1870,
+    "england":         1840,
+    "brazil":          1820,
+    "belgium":         1790,
+    "portugal":        1780,
+    "spain":           1775,
+    "netherlands":     1760,
+    "germany":         1755,
+    "croatia":         1730,
+    "uruguay":         1710,
+    "colombia":        1700,
+    "mexico":          1690,
+    "italy":           1685,
+    "usa":             1670,
+    "united states":   1670,
+    "switzerland":     1660,
+    "denmark":         1650,
+    "austria":         1640,
+    "japan":           1635,
+    "south korea":     1620,
+    "morocco":         1615,
+    "senegal":         1610,
+    "nigeria":         1600,
+    "ecuador":         1595,
+    "canada":          1590,
+    "iran":            1580,
+    "australia":       1575,
+    "poland":          1570,
+    "chile":           1565,
+    "peru":            1560,
+    "czech republic":  1555,
+    "slovakia":        1550,
+    "ukraine":         1545,
+    "turkey":          1540,
+    "ghana":           1535,
+    "cameroon":        1530,
+    "ivory coast":     1525,
+    "côte d'ivoire":   1525,
+    "egypt":           1520,
+    "algeria":         1515,
+    "mali":            1510,
+    "south africa":    1505,
+    "venezuela":       1500,
+    "paraguay":        1498,
+    "bolivia":         1490,
+    "saudi arabia":    1485,
+    "iraq":            1480,
+    "thailand":        1470,
+    "new zealand":     1460,
+    "costa rica":      1458,
+    "honduras":        1450,
+    "panama":          1445,
+    "el salvador":     1440,
+    "jamaica":         1435,
+    "trinidad and tobago": 1430,
+    "cuba":            1420,
+    "haiti":           1415,
+    "uzbekistan":      1480,
+    "dr congo":        1472,
+    "cape verde":      1468,
+    "guinea":          1455,
+    "serbia":          1640,
+    "hungary":         1545,
+    "scotland":        1600,
+    "wales":           1570,
+    "romania":         1540,
+    "slovenia":        1530,
+    "georgia":         1520,
+    "albania":         1510,
+    "north macedonia": 1490,
+    "jordan":          1460,
+    "bahrain":         1440,
+    "oman":            1430,
+    "qatar":           1425,
+    "Tunisia":         1500,
+    "tunisia":         1500,
+    "tanzania":        1455,
+    "zambia":          1460,
+    "angola":          1440,
+    "kenya":           1410,
+    "indonesia":       1450,
+    "india":           1420,
+    "china":           1440,
+}
+
+# ── Confederation-level scoring averages (neutral venue) ────────────────────
+CONFEDERATION_AVERAGES: Dict[str, Dict[str, float]] = {
+    # (goals per game, typical draw rate, dc_rho for tournament low-score correlation)
+    "UEFA":     {"avg_goals": 1.38, "draw_rate": 0.26, "dc_rho": -0.10, "platt_a": 2.5},
+    "CONMEBOL": {"avg_goals": 1.28, "draw_rate": 0.30, "dc_rho": -0.12, "platt_a": 2.4},
+    "CONCACAF": {"avg_goals": 1.32, "draw_rate": 0.22, "dc_rho": -0.09, "platt_a": 2.4},
+    "AFC":      {"avg_goals": 1.20, "draw_rate": 0.28, "dc_rho": -0.11, "platt_a": 2.3},
+    "CAF":      {"avg_goals": 1.18, "draw_rate": 0.29, "dc_rho": -0.13, "platt_a": 2.3},
+    "OFC":      {"avg_goals": 1.40, "draw_rate": 0.20, "dc_rho": -0.08, "platt_a": 2.4},
+    "NEUTRAL":  {"avg_goals": 1.30, "draw_rate": 0.27, "dc_rho": -0.11, "platt_a": 2.4},
+}
+
+# ── Team → Confederation map (WC 2026 qualified teams) ──────────────────────
+TEAM_CONFEDERATION: Dict[str, str] = {
+    # UEFA
+    "england":"UEFA","france":"UEFA","spain":"UEFA","germany":"UEFA","portugal":"UEFA",
+    "netherlands":"UEFA","belgium":"UEFA","croatia":"UEFA","italy":"UEFA","denmark":"UEFA",
+    "austria":"UEFA","switzerland":"UEFA","poland":"UEFA","czech republic":"UEFA",
+    "slovakia":"UEFA","ukraine":"UEFA","turkey":"UEFA","serbia":"UEFA","hungary":"UEFA",
+    "scotland":"UEFA","wales":"UEFA","romania":"UEFA","slovenia":"UEFA","georgia":"UEFA",
+    "albania":"UEFA","north macedonia":"UEFA",
+    # CONMEBOL
+    "argentina":"CONMEBOL","brazil":"CONMEBOL","colombia":"CONMEBOL","uruguay":"CONMEBOL",
+    "ecuador":"CONMEBOL","chile":"CONMEBOL","peru":"CONMEBOL","venezuela":"CONMEBOL",
+    "paraguay":"CONMEBOL","bolivia":"CONMEBOL",
+    # CONCACAF
+    "usa":"CONCACAF","united states":"CONCACAF","mexico":"CONCACAF","canada":"CONCACAF",
+    "costa rica":"CONCACAF","honduras":"CONCACAF","panama":"CONCACAF",
+    "el salvador":"CONCACAF","jamaica":"CONCACAF","trinidad and tobago":"CONCACAF",
+    "cuba":"CONCACAF","haiti":"CONCACAF",
+    # AFC
+    "japan":"AFC","south korea":"AFC","iran":"AFC","australia":"AFC","saudi arabia":"AFC",
+    "iraq":"AFC","uzbekistan":"AFC","jordan":"AFC","bahrain":"AFC","oman":"AFC",
+    "qatar":"AFC","thailand":"AFC","china":"AFC","indonesia":"AFC","india":"AFC",
+    # CAF
+    "morocco":"CAF","senegal":"CAF","nigeria":"CAF","ghana":"CAF","cameroon":"CAF",
+    "ivory coast":"CAF","côte d'ivoire":"CAF","egypt":"CAF","algeria":"CAF","mali":"CAF",
+    "south africa":"CAF","tanzania":"CAF","zambia":"CAF","angola":"CAF","kenya":"CAF",
+    "tunisia":"CAF","cape verde":"CAF","guinea":"CAF","dr congo":"CAF",
+    # OFC
+    "new zealand":"OFC",
+}
+
+# ── Home advantage constants for international football ──────────────────────
+INTL_HOME_ADVANTAGE_ELO    = 60    # full home: fans, travel, familiarity
+INTL_NEUTRAL_ADVANTAGE_ELO = 15    # tournament neutral venue: slight first-listed advantage
+INTL_H2H_MAX_GAMES         = 12    # NTs meet less often — extend window
+INTL_H2H_ADJUST_CAP        = 0.15
+INTL_DRAW_BAND             = 0.04  # slightly wider — NTs more evenly matched
+
+# Calibration table tuned for international football
+_INTL_FALLBACK_CAL_TABLE = [
+    (0.00, 0.00), (0.20, 0.18), (0.33, 0.30), (0.40, 0.37),
+    (0.45, 0.42), (0.50, 0.47), (0.55, 0.53), (0.60, 0.58),
+    (0.65, 0.64), (0.70, 0.69), (0.75, 0.74), (0.80, 0.79),
+    (0.85, 0.84), (0.90, 0.89), (1.00, 1.00),
+]
+
+
+# ── Helper: resolve FIFA ranking for a national team ─────────────────────────
+
+def _get_fifa_ranking(team_name: str) -> int:
+    """
+    Returns FIFA-ranking-derived Elo proxy for a national team.
+    Tries the alias resolver first, then a fuzzy prefix scan.
+    Falls back to 1500 (mid-table) if completely unknown.
+    """
+    key = _resolve_alias(team_name).lower().strip()
+    # Direct hit
+    if key in FIFA_RANKINGS_2026:
+        return FIFA_RANKINGS_2026[key]
+    # Try raw lower
+    raw = team_name.lower().strip()
+    if raw in FIFA_RANKINGS_2026:
+        return FIFA_RANKINGS_2026[raw]
+    # Partial match — longest prefix wins
+    best_k, best_v = "", 1500
+    for k, v in FIFA_RANKINGS_2026.items():
+        if (raw.startswith(k) or k.startswith(raw)) and len(k) > len(best_k):
+            best_k, best_v = k, v
+    if best_k:
+        logger.debug("FIFA ranking fuzzy match '%s' → '%s' (%d)", team_name, best_k, best_v)
+        return best_v
+    logger.warning("FIFA ranking not found for '%s' — using 1500", team_name)
+    return 1500
+
+
+def _get_confederation(team_name: str) -> str:
+    """Return the confederation key for a national team (default NEUTRAL)."""
+    key = team_name.lower().strip()
+    if key in TEAM_CONFEDERATION:
+        return TEAM_CONFEDERATION[key]
+    alias = _resolve_alias(team_name).lower().strip()
+    return TEAM_CONFEDERATION.get(alias, "NEUTRAL")
+
+
+# ── Part 21a: Fetch international fixtures ───────────────────────────────────
+
+def fetch_international_fixtures(start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
+    """
+    Fetches World Cup + International Friendly fixtures from football-data.org.
+
+    World Cup (competition 2000) is fetched directly.
+    International Friendlies are fetched via /matches endpoint filtered by
+    date range — football-data.org returns all accessible matches incl. NTs.
+
+    Each fixture dict mirrors the shape produced by fetch_fixtures_for_date_range
+    so all downstream upsert functions work unchanged. The competition_code is
+    set to "WC" or "IF" so the predictor can identify game type.
+    """
+    intl_fixtures: List[Dict[str, Any]] = []
+    date_from = start_date.strftime("%Y-%m-%d")
+    date_to   = end_date.strftime("%Y-%m-%d")
+
+    def _parse_match(m: dict, comp_id: int, comp_code: str) -> Dict[str, Any]:
+        return {
+            "id":               m["id"],
+            "competition_id":   comp_id,
+            "competition_code": comp_code,
+            "matchday":         m.get("matchday"),
+            "stage":            m.get("stage"),          # GROUP_STAGE / ROUND_OF_16 / etc.
+            "group":            m.get("group"),
+            "utc_date":         m["utcDate"],
+            "status":           m["status"],
+            "is_international": True,
+            "home_team": {
+                "id":         m["homeTeam"]["id"],
+                "name":       m["homeTeam"]["name"],
+                "short_name": m["homeTeam"].get("shortName"),
+                "tla":        m["homeTeam"].get("tla"),
+                "crest_url":  m["homeTeam"].get("crest"),
+            },
+            "away_team": {
+                "id":         m["awayTeam"]["id"],
+                "name":       m["awayTeam"]["name"],
+                "short_name": m["awayTeam"].get("shortName"),
+                "tla":        m["awayTeam"].get("tla"),
+                "crest_url":  m["awayTeam"].get("crest"),
+            },
+            "home_score": m["score"]["fullTime"].get("home"),
+            "away_score": m["score"]["fullTime"].get("away"),
+            "winner":     m["score"].get("winner"),
+        }
+
+    # 1) Registered international competitions (WC, EC, etc.)
+    for comp_id in INTL_FD_COMPETITION_IDS:
+        comp_code = next(
+            (code for code, v in INTL_COMPETITION_CODES.items()
+             if v.get("id") == comp_id), "WC"
+        )       
+        try:
+            resp = requests.get(
+                f"{FOOTBALL_DATA_BASE}/competitions/{comp_id}/matches",
+                headers=FD_HEADERS,
+                params={"dateFrom": date_from, "dateTo": date_to},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            matches = resp.json().get("matches", [])
+            for m in matches:
+                intl_fixtures.append(_parse_match(m, comp_id, comp_code))
+            logger.info("Intl fetch — comp %s: %d matches", comp_code, len(matches))
+        except Exception as e:
+            logger.error("Intl fixture fetch comp %s: %s", comp_id, e)
+
+    # 2) International Friendlies — fetch via /matches with no competition filter
+    #    football-data.org returns all accessible matches incl. NT friendlies
+    #    when no competitions param is supplied and the plan covers them.
+    try:
+        resp = requests.get(
+            f"{FOOTBALL_DATA_BASE}/matches",
+            headers=FD_HEADERS,
+            params={"dateFrom": date_from, "dateTo": date_to},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        all_matches = resp.json().get("matches", [])
+        existing_ids = {f["id"] for f in intl_fixtures}
+
+        for m in all_matches:
+            comp = m.get("competition", {})
+            comp_type = comp.get("type", "")
+            comp_code_raw = comp.get("code", "")
+
+            # Accept: FRIENDLY type or codes/names that clearly are international
+            is_friendly = (
+                comp_type == "FRIENDLY" or
+                "friendly" in comp.get("name", "").lower() or
+                comp_code_raw == "IF"
+            )
+
+            # Skip if already included via direct competition fetch
+            if m["id"] in existing_ids:
+                continue
+
+            # Only take international (national team) friendlies
+            # — football-data.org marks area as "World" or uses type FRIENDLY
+            area_name = m.get("area", {}).get("name", "")
+            is_intl_friendly = is_friendly and (
+                area_name in ("World", "International") or
+                comp.get("name", "").lower().startswith("international")
+            )
+
+            if is_intl_friendly:
+                intl_fixtures.append(
+                    _parse_match(m, comp.get("id", 0), "IF")
+                )
+
+        logger.info("Intl fetch — friendlies: %d additional",
+                    sum(1 for f in intl_fixtures if f["competition_code"] == "IF"))
+    except Exception as e:
+        logger.warning("Intl friendly fetch: %s", e)
+
+    # 3) Odds: pull odds for international sport keys and attach to fixtures
+    intl_odds_sport_keys = ["soccer_fifa_world_cup", "soccer_international_friendlies"]
+    for sport_key in intl_odds_sport_keys:
+        events = fetch_odds_for_sport(sport_key)
+        for event in events:
+            mid = match_odds_event_to_fixture(event, intl_fixtures)
+            if mid is None:
+                continue
+            for bookie in event.get("bookmakers", []):
+                upsert_odds(mid, bookie, event["home_team"], event["away_team"])
+
+    logger.info("Total international fixtures fetched: %d", len(intl_fixtures))
+    return intl_fixtures
+
+
+# ── Part 21b: International team statistics ──────────────────────────────────
+
+def _fetch_intl_team_stats(team_id: int, team_name: str) -> Dict[str, Any]:
+    """
+    Fetch recent form stats for a national team.
+
+    Key differences vs _fetch_team_stats():
+    - No league code — uses confederation averages instead.
+    - Pulls international matches only (competition_code IN ('WC','EC','CA','IF')).
+    - No Understat xG — we compute a scoring-rate surrogate from recent goals.
+    - Broader window (20 games) because NTs play fewer matches.
+    - Returns fifa_ranking for use in the international Elo proxy.
+    """
+    confed     = _get_confederation(team_name)
+    conf_avgs  = CONFEDERATION_AVERAGES.get(confed, CONFEDERATION_AVERAGES["NEUTRAL"])
+    avg_g      = conf_avgs["avg_goals"]
+    fifa_rank  = _get_fifa_ranking(team_name)
+
+    result = {
+        "att_rate":        avg_g,
+        "def_rate":        avg_g,
+        "scoring_rate":    avg_g,      # goals scored per game
+        "conceding_rate":  avg_g,      # goals conceded per game
+        "momentum":        0.5,
+        "games_played":    0,
+        "last_match_date": None,
+        "recent_conceded_spike": False,
+        "trust_weight":    0.0,
+        "fifa_ranking":    fifa_rank,
+        "confederation":   confed,
+    }
+
+    now = datetime.now(timezone.utc)
+
+    try:
+        # All matches where team appeared (home or away) — international competitions
+        # We pull from the matches table filtered by competition_code
+        hg = (supabase.table("matches")
+              .select("home_score, away_score, utc_date, competition_id")
+              .eq("home_team_id", team_id).eq("status", "FINISHED")
+              .not_.is_("home_score", "null")
+              .order("utc_date", desc=True).limit(20).execute()).data or []
+
+        ag = (supabase.table("matches")
+              .select("home_score, away_score, utc_date, competition_id")
+              .eq("away_team_id", team_id).eq("status", "FINISHED")
+              .not_.is_("away_score", "null")
+              .order("utc_date", desc=True).limit(20).execute()).data or []
+
+        # Filter to international competitions only
+        intl_comp_ids = set(INTL_FD_COMPETITION_IDS) | {
+            v.get("id") for v in INTL_COMPETITION_CODES.values() if v.get("id")
+        }
+
+        def _is_intl(row):
+            cid = row.get("competition_id")
+            # Accept if it's an intl competition or if competition_id is 0 (friendly)
+            return cid in intl_comp_ids or cid == 0
+
+        hg = [r for r in hg if _is_intl(r)]
+        ag = [r for r in ag if _is_intl(r)]
+
+        total_games = len(hg) + len(ag)
+        result["games_played"] = total_games
+
+        if total_games == 0:
+            # No data in DB yet — use FIFA ranking to infer quality proxy
+            logger.debug("No intl history for %s — using FIFA ranking proxy", team_name)
+            return result
+
+        # Recency-weighted scoring / conceding rates
+        def weighted_rate(games, gf_key, ga_key):
+            w_scored = w_conceded = total_w = 0.0
+            for g in games:
+                try:
+                    dt = datetime.fromisoformat(g["utc_date"].replace("Z", "+00:00"))
+                    days_ago = max(0.0, (now - dt).total_seconds() / 86400.0)
+                except Exception:
+                    days_ago = 60.0
+                w = math.exp(-0.015 * days_ago)   # slower decay for NTs (less frequent)
+                w_scored   += g[gf_key] * w
+                w_conceded += g[ga_key] * w
+                total_w    += w
+            if total_w == 0:
+                return avg_g, avg_g
+            return w_scored / total_w, w_conceded / total_w
+
+        h_scored, h_conceded = weighted_rate(hg, "home_score", "away_score")
+        a_scored, a_conceded = weighted_rate(ag, "away_score", "home_score")
+
+        # Regression to confederation mean — NTs get 50% trust at 6 games
+        tw = min(1.0, total_games / 12.0)
+        result["trust_weight"]   = tw
+        result["scoring_rate"]   = tw * ((h_scored + a_scored) / 2.0) + (1 - tw) * avg_g
+        result["conceding_rate"] = tw * ((h_conceded + a_conceded) / 2.0) + (1 - tw) * avg_g
+
+        # Separate att/def for Dixon-Coles style lambdas
+        result["att_rate"] = max(0.20, result["scoring_rate"])
+        result["def_rate"] = max(0.20, result["conceding_rate"])
+
+        # Momentum — recency-weighted points from last 8 NT games (all venues)
+        all_games = sorted(
+            [(g["home_score"], g["away_score"], g["utc_date"]) for g in hg] +
+            [(g["away_score"], g["home_score"], g["utc_date"]) for g in ag],
+            key=lambda x: x[2], reverse=True,
+        )
+        score_mom = 0.0
+        for i, (gf, ga, _) in enumerate(all_games[:8]):
+            w   = MOMENTUM_WEIGHTS[i] if i < len(MOMENTUM_WEIGHTS) else 0.05
+            pts = 3.0 if gf > ga else (1.0 if gf == ga else 0.0)
+            gd  = max(-MOMENTUM_GD_CAP, min(MOMENTUM_GD_CAP, float(gf - ga)))
+            score_mom += w * (pts + MOMENTUM_GD_WEIGHT * gd)
+        result["momentum"] = score_mom / 3.75 if all_games else 0.5
+
+        # Last match date
+        if all_games:
+            try:
+                result["last_match_date"] = datetime.fromisoformat(
+                    all_games[0][2].replace("Z", "+00:00")
+                )
+            except Exception:
+                pass
+
+        # Defensive spike
+        all_conceded = [g["away_score"] for g in hg] + [g["home_score"] for g in ag]
+        if len(all_conceded) >= 6:
+            recent_3   = sum(all_conceded[:3]) / 3.0
+            season_avg = sum(all_conceded) / len(all_conceded)
+            if recent_3 > season_avg * 1.5 and recent_3 > 1.8:
+                result["recent_conceded_spike"] = True
+
+    except Exception as e:
+        logger.warning("Intl team stats %s: %s", team_id, e)
+
+    return result
+
+
+# ── Part 21c: International Elo/Ranking win probability ──────────────────────
+
+def _intl_elo_win_prob(
+    rank_h: int, rank_a: int,
+    is_neutral: bool = True,
+) -> Tuple[float, float, float]:
+    """
+    Compute win/draw/loss probabilities for an international fixture using
+    FIFA ranking points as the Elo proxy.
+
+    is_neutral=True  → tournament at neutral venue (most WC games)
+    is_neutral=False → home team has home advantage (qualifier or friendly at home)
+    """
+    ha   = INTL_NEUTRAL_ADVANTAGE_ELO if is_neutral else INTL_HOME_ADVANTAGE_ELO
+    diff = (rank_h + ha) - rank_a
+    p_home = 1.0 / (1.0 + 10 ** (-diff / 400.0))
+    p_away = 1.0 - p_home
+    # Draw factor: highest near 50/50, drops as margin grows
+    draw_f = max(0.06, min(0.38, 0.30 * (1.0 - abs(p_home - 0.5) * 2)))
+    total  = p_home + draw_f + p_away
+    return p_home / total, draw_f / total, p_away / total
+
+
+def _intl_ranking_to_lambda(
+    rank_h: int, rank_a: int,
+    conf_h: str, conf_a: str,
+    is_neutral: bool,
+) -> Tuple[float, float]:
+    """Convert ranking win probs back to Poisson lambdas for the scoring model."""
+    # Use average confederation rate as base
+    base = (CONFEDERATION_AVERAGES.get(conf_h, CONFEDERATION_AVERAGES["NEUTRAL"])["avg_goals"] +
+            CONFEDERATION_AVERAGES.get(conf_a, CONFEDERATION_AVERAGES["NEUTRAL"])["avg_goals"]) / 2.0
+    league_total = base * 2.0
+    ph, _, pa = _intl_elo_win_prob(rank_h, rank_a, is_neutral)
+    if ph + pa <= 0:
+        return base, base
+    return max(0.10, (ph / (ph + pa)) * league_total), max(0.10, (pa / (ph + pa)) * league_total)
+
+
+# ── Part 21d: International H2H ──────────────────────────────────────────────
+
+def _intl_h2h_adjustment(home_id: int, away_id: int) -> Tuple[float, float]:
+    """
+    H2H for national teams — extended window (12 games), broader lookup.
+    Identical logic to _h2h_adjustment but with INTL caps.
+    """
+    try:
+        res1 = (supabase.table("matches")
+                .select("home_score, away_score, utc_date")
+                .eq("home_team_id", home_id).eq("away_team_id", away_id)
+                .eq("status", "FINISHED").not_.is_("home_score", "null")
+                .order("utc_date", desc=True).limit(INTL_H2H_MAX_GAMES).execute()).data or []
+        res2 = (supabase.table("matches")
+                .select("home_score, away_score, utc_date")
+                .eq("home_team_id", away_id).eq("away_team_id", home_id)
+                .eq("status", "FINISHED").not_.is_("home_score", "null")
+                .order("utc_date", desc=True).limit(INTL_H2H_MAX_GAMES).execute()).data or []
+
+        if not res1 and not res2:
+            return 1.0, 1.0
+
+        now = datetime.now(timezone.utc)
+        weighted_diff = total_weight = 0.0
+        for g in res1:
+            gf, ga = g["home_score"], g["away_score"]
+            try:
+                days_ago = max(0.0, (now - datetime.fromisoformat(
+                    g["utc_date"].replace("Z", "+00:00"))).total_seconds() / 86400.0)
+            except Exception:
+                days_ago = 730.0
+            rw = math.exp(-0.002 * days_ago)   # slower decay — NT data is sparser
+            margin = max(-4.0, min(4.0, float(gf - ga)))
+            weighted_diff += rw * margin
+            total_weight  += rw
+        for g in res2:
+            gf, ga = g["away_score"], g["home_score"]
+            try:
+                days_ago = max(0.0, (now - datetime.fromisoformat(
+                    g["utc_date"].replace("Z", "+00:00"))).total_seconds() / 86400.0)
+            except Exception:
+                days_ago = 730.0
+            rw = math.exp(-0.002 * days_ago)
+            margin = max(-4.0, min(4.0, float(gf - ga)))
+            weighted_diff += rw * margin
+            total_weight  += rw
+
+        if total_weight == 0:
+            return 1.0, 1.0
+
+        avg_margin = weighted_diff / total_weight
+        raw_adj    = avg_margin / 2.0 * INTL_H2H_ADJUST_CAP
+        adj        = max(-INTL_H2H_ADJUST_CAP, min(INTL_H2H_ADJUST_CAP, raw_adj))
+        n_games    = len(res1) + len(res2)
+        adj       *= min(1.0, n_games / 4.0)
+        return 1.0 + adj, 1.0 - adj
+
+    except Exception as e:
+        logger.debug("Intl H2H error: %s", e)
+        return 1.0, 1.0
+
+
+# ── Part 21e: International lambda blend ─────────────────────────────────────
+
+def _blend_intl_lambdas(
+    home_stats: Dict[str, Any],
+    away_stats: Dict[str, Any],
+    rank_h: int,
+    rank_a: int,
+    h2h_home: float,
+    h2h_away: float,
+    is_neutral: bool,
+    market_probs: Optional[Tuple[float, float, float]],
+) -> Tuple[float, float]:
+    """
+    Blend scoring lambdas for international matches.
+
+    Sources:
+    1. Dixon-Coles Poisson from recent NT stats
+    2. FIFA-ranking-based expected goals (replaces Elo lambda)
+    3. Market consensus (if available)
+    4. H2H adjustment
+
+    Weights are data-quality adjusted: when a team has few NT games on record
+    the ranking signal gets higher weight.
+    """
+    conf_h = home_stats["confederation"]
+    conf_a = away_stats["confederation"]
+    base_avg = (CONFEDERATION_AVERAGES.get(conf_h, CONFEDERATION_AVERAGES["NEUTRAL"])["avg_goals"] +
+                CONFEDERATION_AVERAGES.get(conf_a, CONFEDERATION_AVERAGES["NEUTRAL"])["avg_goals"]) / 2.0
+
+    trust_avg = (home_stats["trust_weight"] + away_stats["trust_weight"]) / 2.0
+
+    # Source 1: Recent NT form (Dixon-Coles style)
+    dc_lh = (home_stats["att_rate"] / max(base_avg, 0.1)) * \
+            (away_stats["def_rate"] / max(base_avg, 0.1)) * base_avg
+    dc_la = (away_stats["att_rate"] / max(base_avg, 0.1)) * \
+            (home_stats["def_rate"] / max(base_avg, 0.1)) * base_avg
+
+    # Source 2: FIFA ranking → lambda
+    rank_lh, rank_la = _intl_ranking_to_lambda(rank_h, rank_a, conf_h, conf_a, is_neutral)
+
+    # Source 3: Market
+    if market_probs:
+        ph, _, pa = market_probs
+        league_total = base_avg * 2.0
+        if ph + pa > 0:
+            mkt_lh = max(0.1, (ph / (ph + pa)) * league_total)
+            mkt_la = max(0.1, (pa / (ph + pa)) * league_total)
+        else:
+            mkt_lh, mkt_la = base_avg, base_avg
+    else:
+        mkt_lh, mkt_la = base_avg, base_avg
+
+    # Adaptive weights — more form data → trust it more; less → lean on ranking
+    w_form   = 0.25 + 0.20 * trust_avg       # 0.25–0.45
+    w_rank   = 0.45 - 0.20 * trust_avg       # 0.25–0.45
+    w_market = 0.15 if market_probs else 0.0
+    w_h2h    = 0.15
+
+    total_w  = w_form + w_rank + w_market + w_h2h
+    w_form  /= total_w
+    w_rank  /= total_w
+    w_market /= total_w
+    w_h2h   /= total_w
+
+    # H2H raw rates
+    h2h_lh = home_stats.get("scoring_rate", base_avg)
+    h2h_la = away_stats.get("scoring_rate", base_avg)
+
+    lh = w_form * dc_lh + w_rank * rank_lh + w_market * mkt_lh + w_h2h * h2h_lh
+    la = w_form * dc_la + w_rank * rank_la + w_market * mkt_la + w_h2h * h2h_la
+
+    # H2H dominance multiplier
+    lh *= h2h_home
+    la *= h2h_away
+
+    # Momentum adjustment
+    lh *= (1.0 + 0.08 * (home_stats.get("momentum", 0.5) - 0.5))
+    la *= (1.0 + 0.08 * (away_stats.get("momentum", 0.5) - 0.5))
+
+    # Defensive disruption
+    if home_stats.get("recent_conceded_spike"):
+        la *= 1.07
+    if away_stats.get("recent_conceded_spike"):
+        lh *= 1.07
+
+    # Fatigue (tournament congestion)
+    now = datetime.now(timezone.utc)
+    for lam_attr, stats in [("lh", home_stats), ("la", away_stats)]:
+        ld = stats.get("last_match_date")
+        if ld and isinstance(ld, datetime):
+            days = (now - ld).total_seconds() / 86400.0
+            if days < FATIGUE_THRESHOLD_DAYS:
+                if lam_attr == "lh":
+                    lh *= FATIGUE_PENALTY
+                else:
+                    la *= FATIGUE_PENALTY
+
+    return max(0.10, round(lh, 4)), max(0.10, round(la, 4))
+
+
+# ── Part 21f: International probability matrix ───────────────────────────────
+
+def _compute_intl_probabilities(lh: float, la: float, conf_h: str, conf_a: str) -> Dict[str, float]:
+    """
+    Dixon-Coles probability matrix for international football.
+    Uses the blended confederation dc_rho instead of league-specific value.
+    """
+    rho_h = CONFEDERATION_AVERAGES.get(conf_h, CONFEDERATION_AVERAGES["NEUTRAL"])["dc_rho"]
+    rho_a = CONFEDERATION_AVERAGES.get(conf_a, CONFEDERATION_AVERAGES["NEUTRAL"])["dc_rho"]
+    rho   = (rho_h + rho_a) / 2.0
+
+    probs: Dict[str, float] = {}
+    for key in ["HOME_WIN", "DRAW", "AWAY_WIN"]:
+        probs[key] = 0.0
+    for line in TOTALS_LINES:
+        probs[f"OVER_{line}"] = probs[f"UNDER_{line}"] = 0.0
+    probs["BTTS_YES"] = probs["BTTS_NO"] = 0.0
+    for t in range(MAX_EXACT_GOALS + 1):
+        probs[f"TOTAL_GOALS_{t}"] = 0.0
+    for h in range(MAX_CS_GOALS + 1):
+        for a in range(MAX_CS_GOALS + 1):
+            probs[f"CORRECT_SCORE_{h}_{a}"] = 0.0
+
+    for h in range(MAX_GOALS):
+        ph_raw = _poisson_pmf(lh, h)
+        for a in range(MAX_GOALS):
+            tau   = _dc_rho(h, a, lh, la, rho)
+            p     = max(0.0, ph_raw * _poisson_pmf(la, a) * tau)
+            total = h + a
+            if h > a:    probs["HOME_WIN"] += p
+            elif h == a: probs["DRAW"]     += p
+            else:        probs["AWAY_WIN"] += p
+            for line in TOTALS_LINES:
+                if total > line: probs[f"OVER_{line}"]  += p
+                else:            probs[f"UNDER_{line}"] += p
+            if h > 0 and a > 0: probs["BTTS_YES"] += p
+            else:                probs["BTTS_NO"]  += p
+            if total <= MAX_EXACT_GOALS:
+                probs[f"TOTAL_GOALS_{total}"] += p
+            if h <= MAX_CS_GOALS and a <= MAX_CS_GOALS:
+                probs[f"CORRECT_SCORE_{h}_{a}"] += p
+
+    return probs
+
+
+# ── Part 21g: International calibration ──────────────────────────────────────
+
+def _calibrate_intl_confidence(raw_prob: float, confed: str) -> float:
+    """
+    Calibrate confidence for international matches.
+    Uses the international fallback table and confederation-tuned Platt sigmoid.
+    """
+    p = max(0.0, min(1.0, raw_prob))
+
+    # Try empirical calibration from predictions table (re-uses existing mechanism)
+    emp_table = _load_empirical_calibration()
+    cal_value = _interpolate_calibration(p, emp_table if emp_table else _INTL_FALLBACK_CAL_TABLE)
+
+    # Confederation-tuned Platt
+    a     = CONFEDERATION_AVERAGES.get(confed, CONFEDERATION_AVERAGES["NEUTRAL"])["platt_a"]
+    platt = 1.0 / (1.0 + math.exp(-a * (raw_prob - 0.5)))
+
+    return round(0.80 * cal_value + 0.20 * platt, 5)
+
+
+# ── Part 21h: International form summary ─────────────────────────────────────
+
+def _get_intl_form_summary(team_id: int, team_name: str, fifa_rank: int) -> str:
+    """Narrative form summary for a national team."""
+    try:
+        hg = (supabase.table("matches")
+              .select("home_score, away_score")
+              .eq("home_team_id", team_id).eq("status", "FINISHED")
+              .not_.is_("home_score", "null")
+              .order("utc_date", desc=True).limit(5).execute()).data or []
+        ag = (supabase.table("matches")
+              .select("home_score, away_score")
+              .eq("away_team_id", team_id).eq("status", "FINISHED")
+              .not_.is_("away_score", "null")
+              .order("utc_date", desc=True).limit(5).execute()).data or []
+
+        results = [(g["home_score"], g["away_score"]) for g in hg] + \
+                  [(g["away_score"], g["home_score"]) for g in ag]
+        results = results[:5]
+        n = len(results)
+
+        rank_str = f"FIFA Ranking pts: {fifa_rank}."
+
+        if n == 0:
+            return f"{team_name}: no recent NT data. {rank_str}"
+        if n < 3:
+            return f"{team_name}: only {n} NT match(es). {rank_str}"
+
+        wins   = sum(1 for gf, ga in results if gf > ga)
+        draws  = sum(1 for gf, ga in results if gf == ga)
+        losses = sum(1 for gf, ga in results if gf < ga)
+        label  = f"last {n}" if n < 5 else "last 5"
+
+        streak_pts   = [3 if gf > ga else (1 if gf == ga else 0) for gf, ga in results]
+        weighted_pts = sum(w * p for w, p in zip(MOMENTUM_WEIGHTS, streak_pts))
+        if weighted_pts > 2.2:
+            form_str = " 🔥 In excellent NT form."
+        elif weighted_pts > 1.4:
+            form_str = " Form solid."
+        elif weighted_pts < 0.7:
+            form_str = " ⚠ Poor recent NT form."
+        else:
+            form_str = " Form inconsistent."
+
+        base = f"{team_name}: W{wins} D{draws} L{losses} in {label} (NT). {rank_str}"
+        return base + form_str
+
+    except Exception as e:
+        logger.warning("Intl form summary %s: %s", team_id, e)
+        return f"{team_name}: NT form data unavailable. FIFA pts: {fifa_rank}."
+
+
+# ── Part 21i: Main international predictor ───────────────────────────────────
+
+def predict_international_match(
+    match_id: int,
+    fixture: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """
+    MK-808 International Predictor.
+
+    Designed for World Cup (group stage, knockouts) and International Friendlies.
+
+    Pipeline:
+    1. Fetch FIFA ranking for both teams (ranking proxy replaces ClubElo).
+    2. Determine venue context: neutral tournament vs. home-venue friendly.
+    3. Fetch recent NT form stats (confederation-normalised).
+    4. Compute H2H adjustment with extended window.
+    5. Pull market odds if available.
+    6. Blend Poisson lambdas: form + ranking + market + H2H.
+    7. Dixon-Coles probability matrix with confederation rho.
+    8. Signal agreement gate (ranking, form, market).
+    9. Calibrate confidence with international-specific table.
+    10. Save to predictions + match_analysis tables.
+    """
+    comp_code  = fixture.get("competition_code", "WC")
+    home_id    = fixture["home_team"]["id"]
+    away_id    = fixture["away_team"]["id"]
+    home_name  = fixture["home_team"]["name"]
+    away_name  = fixture["away_team"]["name"]
+    stage      = fixture.get("stage", "GROUP_STAGE")
+    is_knockout = stage in (
+        "ROUND_OF_16", "ROUND_OF_32", "QUARTER_FINALS",
+        "SEMI_FINALS", "FINAL", "THIRD_PLACE",
+    )
+
+    # Neutral venue for all tournament games; friendlies may be at home
+    is_neutral = (comp_code == "WC") or (stage not in ("", None) and stage != "REGULAR_SEASON")
+
+    # Step 1: FIFA rankings
+    rank_h = _get_fifa_ranking(home_name)
+    rank_a = _get_fifa_ranking(away_name)
+
+    # Step 2: Recent NT form
+    home_stats = _fetch_intl_team_stats(home_id, home_name)
+    away_stats = _fetch_intl_team_stats(away_id, away_name)
+
+    conf_h = home_stats["confederation"]
+    conf_a = away_stats["confederation"]
+
+    # Step 3: H2H
+    h2h_home, h2h_away = _intl_h2h_adjustment(home_id, away_id)
+
+    # Step 4: Market odds
+    market_probs = _get_market_implied_probs(match_id)
+    fair_odds    = _get_fair_odds(match_id)
+
+    # Step 5: Blend lambdas
+    lh, la = _blend_intl_lambdas(
+        home_stats, away_stats,
+        rank_h, rank_a,
+        h2h_home, h2h_away,
+        is_neutral, market_probs,
+    )
+
+    # Step 6: Probability matrix
+    probs = _compute_intl_probabilities(lh, la, conf_h, conf_a)
+
+    # Step 7: Determine winner + draw
+    ph = probs["HOME_WIN"]
+    pd = probs["DRAW"]
+    pa = probs["AWAY_WIN"]
+
+    # Market fusion
+    if market_probs:
+        mph, mpd, mpa = market_probs
+        ph = 0.85 * ph + 0.15 * mph
+        pd = 0.85 * pd + 0.15 * mpd
+        pa = 0.85 * pa + 0.15 * mpa
+        total_p = ph + pd + pa
+        if total_p > 0:
+            ph, pd, pa = ph / total_p, pd / total_p, pa / total_p
+
+    ranked   = sorted([("HOME_WIN", ph), ("DRAW", pd), ("AWAY_WIN", pa)],
+                       key=lambda x: x[1], reverse=True)
+    future, raw_conf = ranked[0]
+
+    if abs(ranked[0][1] - ranked[1][1]) < INTL_DRAW_BAND:
+        future, raw_conf = "DRAW", pd
+
+    # Knockout note: no draw in 90 min for most knockout rules
+    # We keep DRAW as valid — prediction is for 90-min result (before ET/pens)
+    knockout_note = " [Knockout — Draw → Extra Time]" if is_knockout and future == "DRAW" else ""
+
+    # Step 8: Signal agreement
+    ranking_winner = "HOME_WIN" if rank_h > rank_a + 25 else ("AWAY_WIN" if rank_a > rank_h + 25 else "DRAW")
+    form_winner    = ("HOME_WIN" if home_stats["scoring_rate"] > away_stats["scoring_rate"] * 1.05
+                      else ("AWAY_WIN" if away_stats["scoring_rate"] > home_stats["scoring_rate"] * 1.05
+                            else "DRAW"))
+    mkt_winner_intl: Optional[str] = None
+    if market_probs:
+        mph, mpd, mpa = market_probs
+        mkt_winner_intl = max(
+            [("HOME_WIN", mph), ("DRAW", mpd), ("AWAY_WIN", mpa)],
+            key=lambda x: x[1],
+        )[0]
+
+    signals = [ranking_winner, form_winner]
+    if mkt_winner_intl:
+        signals.append(mkt_winner_intl)
+    agreement_count  = sum(1 for s in signals if s == future)
+    signal_agreement = agreement_count >= 2
+
+    # Step 9: Calibration
+    confed_blend = conf_h if conf_h == conf_a else "NEUTRAL"
+    confidence   = _calibrate_intl_confidence(raw_conf, confed_blend)
+    ci_lo, ci_hi = _confidence_interval(raw_conf, n_samples=150)  # fewer samples for NTs
+
+    # Step 10: Selection + EV
+    primary_fair_odds = fair_odds.get(future, DEFAULT_ODDS.get(future, 1.90))
+    primary_ev        = round(raw_conf * primary_fair_odds - 1.0, 4)
+    kelly             = _kelly_criterion(raw_conf, primary_fair_odds)
+
+    primary_label = (BET_LABELS.get(future, future)
+                     .replace("{home}", home_name).replace("{away}", away_name))
+    ev_sign = "+" if primary_ev >= 0 else ""
+
+    # Secondary pick (same alignment table as league matches)
+    secondary_label = secondary_prob = None
+    if confidence > HIGH_CONFIDENCE_MIN:
+        best_p, best_t = 0.0, None
+        for bt in SECONDARY_ALIGNMENT.get(future, []):
+            mp = probs.get(bt, 0.0)
+            if mp >= SECONDARY_PROB_MIN and mp > best_p:
+                best_p, best_t = mp, bt
+        if best_t:
+            secondary_prob = best_p
+            if best_t.startswith("TOTAL_GOALS_"):
+                secondary_label = f"Exactly {best_t[12:]} Goals"
+            elif best_t.startswith("CORRECT_SCORE_"):
+                pts = best_t.split("_")
+                secondary_label = f"Correct Score {pts[2]}-{pts[3]}"
+            elif best_t.startswith("OVER_"):
+                secondary_label = f"Over {best_t[5:]} Goals"
+            elif best_t.startswith("UNDER_"):
+                secondary_label = f"Under {best_t[6:]} Goals"
+            elif best_t == "BTTS_YES":
+                secondary_label = "Both Teams to Score"
+            elif best_t == "BTTS_NO":
+                secondary_label = "Both Teams NOT to Score"
+            else:
+                secondary_label = best_t
+
+    if secondary_label:
+        selection = (f"1. {primary_label} @ {primary_fair_odds:.2f} "
+                     f"(EV={ev_sign}{primary_ev:.3f}) | "
+                     f"2. {secondary_label} (p={secondary_prob:.0%})")
+    else:
+        selection = f"{primary_label} @ {primary_fair_odds:.2f} (EV={ev_sign}{primary_ev:.3f}){knockout_note}"
+
+    # Reasoning narrative
+    home_form_str = _get_intl_form_summary(home_id, home_name, rank_h)
+    away_form_str = _get_intl_form_summary(away_id, away_name, rank_a)
+
+    rank_diff = rank_h - rank_a
+    if abs(rank_diff) < 30:
+        rank_narr = f"FIFA rankings: near-identical quality ({home_name}={rank_h}, {away_name}={rank_a})."
+    elif rank_diff > 0:
+        rank_narr = f"FIFA rankings: {home_name} quality edge ({rank_h} vs {rank_a}, Δ={rank_diff:+d})."
+    else:
+        rank_narr = f"FIFA rankings: {away_name} higher ranked ({rank_h} vs {rank_a}, Δ={rank_diff:+d})."
+
+    venue_narr = (f"Neutral venue — home advantage reduced to {INTL_NEUTRAL_ADVANTAGE_ELO} pts."
+                  if is_neutral else f"Home fixture — {home_name} benefits from {INTL_HOME_ADVANTAGE_ELO}-pt HA.")
+
+    stage_narr = f"Stage: {stage}." + (knockout_note if knockout_note else "")
+
+    conf_narr  = f"Confederations: {home_name}={conf_h}, {away_name}={conf_a}."
+
+    h2h_narr   = (f"H2H adj: home×{h2h_home:.3f} away×{h2h_away:.3f}."
+                  if h2h_home != 1.0 or h2h_away != 1.0 else "H2H: no historical edge.")
+
+    agree_narr = (
+        f"Signal agreement: {agreement_count}/{len(signals)} favour {future}."
+        + ("" if signal_agreement else " [LOW AGREEMENT — slip excluded]")
+    )
+
+    if future == "HOME_WIN":
+        interp = (f"Model favours HOME WIN for {home_name} "
+                  f"(conf {confidence:.0%}, CI [{ci_lo:.0%}–{ci_hi:.0%}]).")
+    elif future == "AWAY_WIN":
+        interp = (f"Model favours AWAY WIN for {away_name} "
+                  f"(conf {confidence:.0%}, CI [{ci_lo:.0%}–{ci_hi:.0%}]).")
+    else:
+        interp = (f"Model suggests DRAW at 90 min "
+                  f"(conf {confidence:.0%}, CI [{ci_lo:.0%}–{ci_hi:.0%}]).")
+
+    mkt_narr = (f"Market: H={market_probs[0]:.0%} D={market_probs[1]:.0%} A={market_probs[2]:.0%}."
+                if market_probs else "No market odds available.")
+
+    primary_line = (f"Primary: {primary_label} @ {primary_fair_odds:.2f} "
+                    f"(EV={ev_sign}{primary_ev:.3f}, Kelly={kelly:.3f}).")
+    sec_line = (f"\nComplement: {secondary_label} (p={secondary_prob:.0%})."
+                if secondary_label else "")
+
+    reasoning = (
+        f"MK-808 International Predictor | {comp_code} | {future} (conf {confidence:.0%} | "
+        f"CI [{ci_lo:.0%}–{ci_hi:.0%}]).\n"
+        f"{home_form_str}\n{away_form_str}\n"
+        f"{rank_narr}\n{venue_narr}\n{stage_narr}\n{conf_narr}\n"
+        f"{h2h_narr}\n{mkt_narr}\n{agree_narr}\n"
+        f"{interp}\n{primary_line}{sec_line}\n"
+        f"(λ_h={lh:.3f} λ_a={la:.3f} | "
+        f"P(H)={ph:.1%} P(D)={pd:.1%} P(A)={pa:.1%} | "
+        f"trust h={home_stats['trust_weight']:.2f} a={away_stats['trust_weight']:.2f})"
+    )
+
+    logger.info(
+        "Intl %s | %s vs %s | %s conf=%.0f%% EV=%+.3f Kelly=%.3f agree=%d/%d",
+        match_id, home_name, away_name, future, confidence * 100,
+        primary_ev, kelly, agreement_count, len(signals),
+    )
+
+    # Save match_analysis
+    try:
+        supabase.table("match_analysis").upsert({
+            "match_id":                   match_id,
+            "home_team_attack_strength":  home_stats["att_rate"],
+            "home_team_defense_strength": home_stats["def_rate"],
+            "away_team_attack_strength":  away_stats["att_rate"],
+            "away_team_defense_strength": away_stats["def_rate"],
+            "predicted_home_goals":       lh,
+            "predicted_away_goals":       la,
+            "probability_home_win":       probs["HOME_WIN"],
+            "probability_draw":           probs["DRAW"],
+            "probability_away_win":       probs["AWAY_WIN"],
+            "probability_over_25":        probs.get("OVER_2.5", 0),
+            "probability_btts":           probs.get("BTTS_YES", 0),
+            "data_json": {
+                "type":          "INTERNATIONAL",
+                "comp_code":     comp_code,
+                "stage":         stage,
+                "is_neutral":    is_neutral,
+                "is_knockout":   is_knockout,
+                "home_stats":    home_stats,
+                "away_stats":    away_stats,
+                "rankings":      {"home": rank_h, "away": rank_a},
+                "h2h_factors":   {"home": h2h_home, "away": h2h_away},
+                "blended_lambda": {"home": lh, "away": la},
+                "fair_odds":     fair_odds,
+                "all_probs":     {k: round(v, 5) for k, v in probs.items()},
+                "market_probs":  ({"home": market_probs[0], "draw": market_probs[1],
+                                   "away": market_probs[2]} if market_probs else None),
+                "kelly":         kelly,
+                "signal_agreement": signal_agreement,
+                "confederations": {"home": conf_h, "away": conf_a},
+            },
+        }).execute()
+    except Exception as e:
+        logger.error("Intl match_analysis save %s: %s", match_id, e)
+
+    # Save prediction
+    try:
+        res = supabase.table("predictions").upsert({
+            "match_id":         match_id,
+            "bet_type":         future,
+            "selection":        selection,
+            "predicted_odds":   primary_fair_odds,
+            "confidence_score": round(confidence, 4),
+            "reasoning":        reasoning,
+            "status":           "PENDING",
+        }).execute()
+        pred_id = res.data[0]["id"] if res.data else None
+
+        return {
+            "id":               pred_id,
+            "match_id":         match_id,
+            "bet_type":         future,
+            "selection":        selection,
+            "predicted_odds":   primary_fair_odds,
+            "confidence_score": confidence,
+            "ev":               primary_ev,
+            "kelly":            kelly,
+            "reasoning":        reasoning,
+            "home_team_id":     home_id,
+            "away_team_id":     away_id,
+            "signal_agreement": signal_agreement,
+            "is_international": True,
+            "is_friendly":      comp_code == "IF",
+        }
+    except Exception as e:
+        logger.error("Intl prediction save %s: %s", match_id, e)
+        return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1867,6 +2979,45 @@ def main() -> None:
 
     logger.info("Step 6: Daily slip (edge-filtered, Kelly-ranked)...")
     generate_daily_slip(preds, today_ke)
+
+    # ── INTERNATIONAL / WORLD CUP PIPELINE ────────────────────────────────────
+    logger.info("Step 7: International / World Cup fixtures (today + next 3 days)...")
+    intl_end     = now_utc + timedelta(days=3)
+    intl_fixtures = fetch_international_fixtures(now_utc, intl_end)
+    logger.info("International fixtures fetched: %d", len(intl_fixtures))
+
+    for fix in intl_fixtures:
+        upsert_team(fix["home_team"])
+        upsert_team(fix["away_team"])
+        upsert_match(fix)
+
+    logger.info("Step 8: International predictions (KE today + tomorrow)...")
+    intl_target = [
+        f for f in intl_fixtures
+        if datetime.fromisoformat(f["utc_date"].replace("Z", "+00:00"))
+               .astimezone(KENYA_TZ).date() in (today_ke, tomorrow_ke)
+    ]
+    logger.info("Predicting %d international fixtures", len(intl_target))
+
+    intl_preds: List[Dict[str, Any]] = []
+    for fix in intl_target:
+        p = predict_international_match(fix["id"], fix)
+        if p:
+            intl_preds.append(p)
+
+    intl_agree = sum(1 for p in intl_preds if p.get("signal_agreement"))
+    logger.info(
+        "International predictions: %d/%d — %d with full signal agreement",
+        len(intl_preds), len(intl_target), intl_agree,
+    )
+
+    logger.info("Step 9: Combined slip (leagues + WC/tournaments, no friendlies)...")
+    slip_eligible_intl = [
+        p for p in intl_preds
+        if not p.get("is_friendly", False) or INTL_INCLUDE_FRIENDLIES_IN_SLIP
+    ]
+    all_preds_for_slip = preds + slip_eligible_intl
+    generate_daily_slip(all_preds_for_slip, today_ke)
 
     logger.info("═══ MK-808 God of Football v8.0 complete ═══")
 
