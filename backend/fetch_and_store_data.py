@@ -1,24 +1,24 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║          MK-808  "God of Football"  — fetch_and_store_data.py               ║
+║          MK-808  "God of Football"  — fetch_and_store_data.py                ║
 ║                                                                              ║
 ║  UPGRADES vs MK-807                                                          ║
-║  ─────────────────────────────────────────────────────────────────────────  ║
-║  FIX-1  xG venue-split       — home xGF/xGA uses HOME games only,           ║
-║                                 away xGF/xGA uses AWAY games only           ║
-║  FIX-2  Elo double-count     — Elo enters the blend ONCE (lambda blending)  ║
+║  ─────────────────────────────────────────────────────────────────────────   ║
+║  FIX-1  xG venue-split       — home xGF/xGA uses HOME games only,            ║
+║                                 away xGF/xGA uses AWAY games only            ║
+║  FIX-2  Elo double-count     — Elo enters the blend ONCE (lambda blending)   ║
 ║                                 and is removed from the selector fuse        ║
-║  FIX-3  Empirical calibration — self-updating isotonic calibration fitted   ║
+║  FIX-3  Empirical calibration — self-updating isotonic calibration fitted    ║
 ║                                 from predictions table outcomes in Supabase  ║
-║  FIX-4  Momentum venue-split — momentum_home uses home games only,          ║
+║  FIX-4  Momentum venue-split — momentum_home uses home games only,           ║
 ║                                 momentum_away uses away games only           ║
-║  FIX-5  Draw suppression     — removed flat constant; DC rho is now         ║
+║  FIX-5  Draw suppression     — removed flat constant; DC rho is now          ║
 ║                                 per-league and correctly handles draws       ║
-║  NEW-1  Edge filter          — slip only includes picks with EV > +0.02     ║
+║  NEW-1  Edge filter          — slip only includes picks with EV > +0.02      ║
 ║                                 (model prob > market implied prob)           ║
-║  NEW-2  Confidence intervals — proper bootstrap SE, not Bernoulli noise     ║
+║  NEW-2  Confidence intervals — proper bootstrap SE, not Bernoulli noise      ║
 ║  NEW-3  Name alias dict      — prevents Manchester United/City collision     ║
-║  NEW-4  Selectivity gate     — only bet when all 3 signals agree            ║
+║  NEW-4  Selectivity gate     — only bet when all 3 signals agree             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -58,18 +58,26 @@ SUPABASE_URL: str          = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY: str  = os.environ["SUPABASE_SERVICE_KEY"]
 FOOTBALL_DATA_API_KEY: str = os.environ["FOOTBALL_DATA_API_KEY"]
 ODDS_API_KEY: str          = os.environ["ODDS_API_KEY"]
+BSD_API_KEY: str           = os.environ["BSD_API"]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 FD_HEADERS = {"X-Auth-Token": FOOTBALL_DATA_API_KEY}
 
+# BSD API — server-side key; base URL follows the BSD standard REST pattern.
+BSD_API_BASE    = "https://sports.bzzoiro.com/api/v2"   # Migrated to v2 of BSD
+BSD_API_HEADERS = {"Authorization": f"Token {BSD_API_KEY}"}
+
 TARGET_LEAGUES: Dict[int, Dict[str, str]] = {
-    2021: {"name": "Premier League", "code": "PL",  "area": "England"},
-    2014: {"name": "La Liga",        "code": "PD",  "area": "Spain"},
-    2019: {"name": "Serie A",        "code": "SA",  "area": "Italy"},
-    2002: {"name": "Bundesliga",     "code": "BL1", "area": "Germany"},
-    2015: {"name": "Ligue 1",        "code": "FL1", "area": "France"},
+    2021: {"name": "Premier League",    "code": "PL",  "area": "England"},
+    2014: {"name": "La Liga",           "code": "PD",  "area": "Spain"},
+    2019: {"name": "Serie A",           "code": "SA",  "area": "Italy"},
+    2002: {"name": "Bundesliga",        "code": "BL1", "area": "Germany"},
+    2015: {"name": "Ligue 1",           "code": "FL1", "area": "France"},
+    # Champions League added separately — uses its own fetch/predict pipeline
+    # (listed here for upsert_competitions only)
+    2001: {"name": "UEFA Champions League", "code": "CL", "area": "Europe"},
 }
 
 SD_LEAGUE_MAP: Dict[str, str] = {
@@ -78,6 +86,7 @@ SD_LEAGUE_MAP: Dict[str, str] = {
     "SA":  "ITA-Serie A",
     "BL1": "GER-Bundesliga",
     "FL1": "FRA-Ligue 1",
+    # CL has no Understat feed — omitted intentionally; fallback handles it
 }
 
 SPORT_KEY_MAPPING: Dict[str, str] = {
@@ -86,6 +95,7 @@ SPORT_KEY_MAPPING: Dict[str, str] = {
     "SA":  "soccer_italy_serie_a",
     "BL1": "soccer_germany_bundesliga",
     "FL1": "soccer_france_ligue_one",
+    # CL odds fetched separately via CL-specific sport key
 }
 
 # FIX-5: Per-league DC rho values — estimated from historical 0-0, 1-0, 0-1, 1-1 rates.
@@ -106,6 +116,12 @@ LEAGUE_AVERAGES: Dict[str, Dict[str, float]] = {
     "FL1": {"home": 1.44, "away": 1.08, "xg": 1.26, "platt_a": 2.6,
             "home_advantage_elo": 92,  "draw_rate": 0.255, "variance": 0.041,
             "dc_rho": -0.14},
+    # Champions League — elite-level club football.
+    # Lower home advantage (neutral-ish legs), higher individual quality → fewer draws.
+    # No Understat xG; model falls back to Poisson + Elo blend.
+    "CL":  {"home": 1.60, "away": 1.25, "xg": 1.42, "platt_a": 2.9,
+            "home_advantage_elo": 75,  "draw_rate": 0.220, "variance": 0.038,
+            "dc_rho": -0.10},
 }
 
 SLIP_SIZE              = 10
@@ -430,6 +446,18 @@ def upsert_competitions() -> None:
             }).execute()
         except Exception as e:
             logger.error("Competition upsert %s: %s", info["name"], e)
+
+    # ─── ADD BSD FRIENDLIES COMPETITION (ID=31) ────────────────────────────────
+    try:
+        supabase.table("competitions").upsert({
+            "id": 31,
+            "name": "International Friendlies",
+            "code": "IF",
+            "area_name": "World",
+        }).execute()
+        logger.info("Competition 31 (IF) upserted")
+    except Exception as e:
+        logger.error("Competition 31 upsert failed: %s", e)
 
 
 def upsert_team(team: Dict[str, Any]) -> None:
@@ -2917,8 +2945,228 @@ def predict_international_match(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MAIN
+# PART 22 — BSD API: INTERNATIONAL FRIENDLIES
 # ══════════════════════════════════════════════════════════════════════════════
+#
+#  football-data.org does not offer international friendlies on most plan tiers.
+#  BSD API fills this gap — it provides friendly fixtures including team IDs,
+#  kick-off times, and scores.
+#
+#  Design:
+#  • fetch_bsd_friendly_fixtures()  — pulls upcoming friendlies and normalises
+#    them into the same fixture dict shape used by every other feed so that
+#    upsert_team / upsert_match / predict_international_match work unchanged.
+#  • BSD competition_id is stored as 9999 (sentinel for friendlies from BSD)
+#    and competition_code "IF" — identical to the football-data.org friendly code
+#    so predictions / slip logic treat them identically.
+#  • BSD uses numeric team IDs that may conflict with football-data.org IDs.
+#    We prefix them with 9_000_000 to guarantee no collision:
+#      bsd_team_id 123  →  stored as 9_000_123.
+# ══════════════════════════════════════════════════════════════════════════════
+BSD_FRIENDLY_COMPETITION_ID = 31
+BSD_TEAM_ID_OFFSET = 9_000_000
+
+def fetch_bsd_friendly_fixtures(
+    start_date: datetime, end_date: datetime
+) -> List[Dict[str, Any]]:
+    """
+    Fetch international friendly fixtures from BSD API v2.
+    Handles pagination and maps BSD fields to canonical shape.
+    """
+    date_from = start_date.strftime("%Y-%m-%d")
+    date_to = end_date.strftime("%Y-%m-%d")
+    fixtures: List[Dict[str, Any]] = []
+    url = f"{BSD_API_BASE}/events/"
+    params = {
+        "league_id": BSD_FRIENDLY_COMPETITION_ID,
+        "date_from": date_from,
+        "date_to": date_to,
+    }
+
+    while url:
+        try:
+            resp = requests.get(url, headers=BSD_API_HEADERS, params=params, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+
+            # ✅ CORRECT: BSD v2 uses "results", not "events"
+            results = data.get("results", [])
+            if not isinstance(results, list):
+                results = []
+
+            for m in results:
+                # ── Team IDs (top-level) ──────────────────────────────────────
+                raw_home_id = m.get("home_team_id", 0)
+                raw_away_id = m.get("away_team_id", 0)
+                home_id_safe = int(raw_home_id) + BSD_TEAM_ID_OFFSET if raw_home_id else 0
+                away_id_safe = int(raw_away_id) + BSD_TEAM_ID_OFFSET if raw_away_id else 0
+
+                # Team names (strings, not dicts)
+                home_name = m.get("home_team", "")
+                away_name = m.get("away_team", "")
+
+                # Match date (ISO with timezone)
+                utc_date = m.get("event_date", "")
+
+                # Status mapping
+                status_raw = (m.get("status") or "notstarted").upper()
+                if status_raw in ("FINISHED", "FT", "FULL_TIME", "COMPLETED"):
+                    status = "FINISHED"
+                elif status_raw in ("IN_PROGRESS", "LIVE", "HT"):
+                    status = "IN_PLAY"
+                elif status_raw in ("POSTPONED", "CANCELLED", "CANCELED"):
+                    status = "POSTPONED"
+                else:
+                    status = "TIMED"
+
+                # Scores
+                home_score = m.get("home_score")
+                away_score = m.get("away_score")
+                try:
+                    home_score = int(home_score) if home_score is not None else None
+                except (ValueError, TypeError):
+                    home_score = None
+                try:
+                    away_score = int(away_score) if away_score is not None else None
+                except (ValueError, TypeError):
+                    away_score = None
+
+                # Winner logic
+                winner = None
+                if home_score is not None and away_score is not None:
+                    if home_score > away_score:
+                        winner = "HOME_TEAM"
+                    elif away_score > home_score:
+                        winner = "AWAY_TEAM"
+                    else:
+                        winner = "DRAW"
+
+                # Build fixture in your canonical shape
+                fixture = {
+                    "id": int(m.get("id", 0)) + BSD_TEAM_ID_OFFSET,
+                    "competition_id": BSD_FRIENDLY_COMPETITION_ID,
+                    "competition_code": "IF",
+                    "matchday": m.get("round_number"),
+                    "stage": "FRIENDLY",
+                    "group": m.get("group_name"),
+                    "utc_date": utc_date,
+                    "status": status,
+                    "is_international": True,
+                    "home_team": {
+                        "id": home_id_safe,
+                        "name": home_name,
+                        "short_name": home_name,
+                        "tla": None,
+                        "crest_url": None,
+                    },
+                    "away_team": {
+                        "id": away_id_safe,
+                        "name": away_name,
+                        "short_name": away_name,
+                        "tla": None,
+                        "crest_url": None,
+                    },
+                    "home_score": home_score,
+                    "away_score": away_score,
+                    "winner": winner,
+                }
+                fixtures.append(fixture)
+
+            # ✅ Pagination: follow "next" URL
+            url = data.get("next")
+            params = None  # subsequent URLs already contain all query params
+        except Exception as e:
+            logger.error(f"BSD API fetch failed: {e}")
+            break
+
+    logger.info(f"BSD API v2 — international friendlies fetched: {len(fixtures)}")
+    return fixtures
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PART 23 — CHAMPIONS LEAGUE: FETCH + PREDICT
+# ══════════════════════════════════════════════════════════════════════════════
+#
+#  Uses football-data.org competition 2001 (UEFA Champions League).
+#  Fixture shape is identical to the domestic leagues.
+#
+#  Prediction engine: reuses predict_match_outcome() unchanged.
+#  The "CL" league code resolves to the LEAGUE_AVERAGES["CL"] entry defined
+#  above so Dixon-Coles, calibration, and EV all use CL-tuned parameters.
+#
+#  Key adaptations vs domestic leagues:
+#  • No Understat xG for CL → the blend auto-shifts weight to Poisson + Elo.
+#  • Lower home advantage ELO (75 pts) — away legs at elite grounds differ
+#    from typical home fortress assumptions.
+#  • Odds fetched via "soccer_uefa_champions_league" sport key.
+# ══════════════════════════════════════════════════════════════════════════════
+
+CL_COMPETITION_ID   = 2001
+CL_COMPETITION_CODE = "CL"
+CL_SPORT_KEY        = "soccer_uefa_champs_league"
+
+
+def fetch_cl_fixtures(start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
+    """
+    Fetch Champions League fixtures from football-data.org (competition 2001).
+    Returns the same fixture dict shape as fetch_fixtures_for_date_range().
+    """
+    date_from = start_date.strftime("%Y-%m-%d")
+    date_to   = end_date.strftime("%Y-%m-%d")
+    fixtures: List[Dict[str, Any]] = []
+
+    try:
+        resp = requests.get(
+            f"{FOOTBALL_DATA_BASE}/competitions/{CL_COMPETITION_ID}/matches",
+            headers=FD_HEADERS,
+            params={"dateFrom": date_from, "dateTo": date_to},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        for m in resp.json().get("matches", []):
+            fixtures.append({
+                "id":               m["id"],
+                "competition_id":   CL_COMPETITION_ID,
+                "competition_code": CL_COMPETITION_CODE,
+                "matchday":         m.get("matchday"),
+                "stage":            m.get("stage"),
+                "group":            m.get("group"),
+                "utc_date":         m["utcDate"],
+                "status":           m["status"],
+                "home_team": {
+                    "id":         m["homeTeam"]["id"],
+                    "name":       m["homeTeam"]["name"],
+                    "short_name": m["homeTeam"].get("shortName"),
+                    "tla":        m["homeTeam"].get("tla"),
+                    "crest_url":  m["homeTeam"].get("crest"),
+                },
+                "away_team": {
+                    "id":         m["awayTeam"]["id"],
+                    "name":       m["awayTeam"]["name"],
+                    "short_name": m["awayTeam"].get("shortName"),
+                    "tla":        m["awayTeam"].get("tla"),
+                    "crest_url":  m["awayTeam"].get("crest"),
+                },
+                "home_score": m["score"]["fullTime"].get("home"),
+                "away_score": m["score"]["fullTime"].get("away"),
+                "winner":     m["score"].get("winner"),
+            })
+        logger.info("CL fetch — %d fixtures (%s to %s)", len(fixtures), date_from, date_to)
+    except Exception as e:
+        logger.error("CL fixture fetch: %s", e)
+
+    # Pull CL odds from the-odds-api
+    for event in fetch_odds_for_sport(CL_SPORT_KEY):
+        mid = match_odds_event_to_fixture(event, fixtures)
+        if mid is None:
+            continue
+        for bookie in event.get("bookmakers", []):
+            upsert_odds(mid, bookie, event["home_team"], event["away_team"])
+
+    return fixtures
+
+
 
 def main() -> None:
     logger.info("═══ MK-808 God of Football v8.0 starting ═══")
@@ -3018,6 +3266,77 @@ def main() -> None:
     ]
     all_preds_for_slip = preds + slip_eligible_intl
     generate_daily_slip(all_preds_for_slip, today_ke)
+
+    # ── BSD: INTERNATIONAL FRIENDLIES ─────────────────────────────────────────
+    logger.info("Step 10: BSD API — international friendly fixtures (today + next 3 days)...")
+    bsd_end      = now_utc + timedelta(days=3)
+    bsd_fixtures = fetch_bsd_friendly_fixtures(now_utc, bsd_end)
+    logger.info("BSD friendly fixtures: %d", len(bsd_fixtures))
+
+    for fix in bsd_fixtures:
+        upsert_team(fix["home_team"])
+        upsert_team(fix["away_team"])
+        upsert_match(fix)
+
+    logger.info("Step 11: BSD friendly predictions (KE today + tomorrow)...")
+    bsd_target = [
+        f for f in bsd_fixtures
+        if f["utc_date"] and
+        datetime.fromisoformat(f["utc_date"].replace("Z", "+00:00"))
+               .astimezone(KENYA_TZ).date() in (today_ke, tomorrow_ke)
+    ]
+    logger.info("Predicting %d BSD friendly fixtures", len(bsd_target))
+
+    bsd_preds: List[Dict[str, Any]] = []
+    for fix in bsd_target:
+        p = predict_international_match(fix["id"], fix)
+        if p:
+            bsd_preds.append(p)
+
+    bsd_agree = sum(1 for p in bsd_preds if p.get("signal_agreement"))
+    logger.info(
+        "BSD friendly predictions: %d/%d — %d with full signal agreement",
+        len(bsd_preds), len(bsd_target), bsd_agree,
+    )
+    # Friendlies obey INTL_INCLUDE_FRIENDLIES_IN_SLIP flag — same policy as WC friendlies
+    if INTL_INCLUDE_FRIENDLIES_IN_SLIP and bsd_preds:
+        generate_daily_slip(preds + slip_eligible_intl + bsd_preds, today_ke)
+
+    # ── CHAMPIONS LEAGUE ──────────────────────────────────────────────────────
+    logger.info("Step 12: Champions League fixtures (today + next 3 days)...")
+    cl_end      = now_utc + timedelta(days=3)
+    cl_fixtures = fetch_cl_fixtures(now_utc, cl_end)
+    logger.info("Champions League fixtures: %d", len(cl_fixtures))
+
+    for fix in cl_fixtures:
+        upsert_team(fix["home_team"])
+        upsert_team(fix["away_team"])
+        upsert_match(fix)
+
+    logger.info("Step 13: Champions League predictions (KE today + tomorrow)...")
+    cl_target = [
+        f for f in cl_fixtures
+        if datetime.fromisoformat(f["utc_date"].replace("Z", "+00:00"))
+               .astimezone(KENYA_TZ).date() in (today_ke, tomorrow_ke)
+    ]
+    logger.info("Predicting %d CL fixtures", len(cl_target))
+
+    cl_preds: List[Dict[str, Any]] = []
+    for fix in cl_target:
+        p = predict_match_outcome(fix["id"], fix)
+        if p:
+            cl_preds.append(p)
+
+    cl_agree = sum(1 for p in cl_preds if p.get("signal_agreement"))
+    logger.info(
+        "CL predictions: %d/%d — %d with full signal agreement",
+        len(cl_preds), len(cl_target), cl_agree,
+    )
+
+    logger.info("Step 14: Final combined slip (leagues + CL + WC/tournaments)...")
+    slip_eligible_cl = cl_preds  # CL always included in slip (competitive, not friendly)
+    final_preds_for_slip = preds + slip_eligible_intl + slip_eligible_cl
+    generate_daily_slip(final_preds_for_slip, today_ke)
 
     logger.info("═══ MK-808 God of Football v8.0 complete ═══")
 
