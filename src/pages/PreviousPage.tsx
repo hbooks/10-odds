@@ -75,8 +75,11 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
 
 const INTL_GLOBE_EMBLEM = "https://www.freelogovectors.net/wp-content/uploads/2018/04/globe-earth07.png";
 
+const CL_EMBLEM = "https://www.freelogovectors.net/wp-content/uploads/2018/04/uefa_champions_league_logo-385x375.png";
+
 const getLeagueEmblem = (code: string): string => {
   const emblems: Record<string, string> = {
+    CL:  CL_EMBLEM,
     PL:  "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png",
     PD:  "https://www.freelogovectors.net/wp-content/uploads/2023/07/laliga-logo-02-freelogovectors.net_.png",
     SA:  "https://www.freelogovectors.net/wp-content/uploads/2021/08/serie-a-logo-freelogovectors.net_.png",
@@ -90,6 +93,18 @@ const getLeagueEmblem = (code: string): string => {
   };
   return emblems[code] || INTL_GLOBE_EMBLEM;
 };
+
+// League sort order — CL always first, rest alphabetical
+const LEAGUE_SORT_ORDER: Record<string, number> = {
+  "UEFA Champions League": 0,
+};
+const sortLeagues = (entries: [string, Prediction[]][]): [string, Prediction[]][] =>
+  entries.sort(([a], [b]) => {
+    const oa = LEAGUE_SORT_ORDER[a] ?? 999;
+    const ob = LEAGUE_SORT_ORDER[b] ?? 999;
+    if (oa !== ob) return oa - ob;
+    return a.localeCompare(b);
+  });
 
 // ─── Previous Advisor Bar Component ──────────────────────────────────────────
 function PreviousAdvisorBar({
@@ -432,19 +447,41 @@ const PreviousPage = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {Object.entries(groupedByLeague).map(([leagueName, leaguePredictions]) => {
+            {sortLeagues(Object.entries(groupedByLeague)).map(([leagueName, leaguePredictions]) => {
               const first = leaguePredictions[0];
-              const emblem = getLeagueEmblem(first.matches.competition.code);
+              const code = first.matches.competition.code;
+              const emblem = getLeagueEmblem(code);
+              const isCL = code === "CL";
               const isExpanded = expandedLeagues.has(leagueName);
               return (
-                <div key={leagueName} className="rounded-xl border border-border bg-card overflow-hidden">
+                <div
+                  key={leagueName}
+                  className={`rounded-xl border overflow-hidden ${
+                    isCL
+                      ? "border-blue-500/40 bg-gradient-to-r from-[#0a1628]/80 to-card shadow-[0_0_18px_rgba(0,80,200,0.15)]"
+                      : "border-border bg-card"
+                  }`}
+                >
                   <button
                     onClick={() => toggleLeague(leagueName)}
                     className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      {emblem && <img src={emblem} alt="" className="h-6 w-6 object-contain" />}
-                      <span className="font-heading font-semibold text-foreground">{leagueName}</span>
+                      {emblem && (
+                        <img
+                          src={emblem}
+                          alt=""
+                          className={`object-contain ${isCL ? "h-8 w-8" : "h-6 w-6"}`}
+                        />
+                      )}
+                      <span className={`font-heading font-semibold ${isCL ? "text-blue-200" : "text-foreground"}`}>
+                        {leagueName}
+                      </span>
+                      {isCL && (
+                        <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                          UCL
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         ({leaguePredictions.length} prediction{leaguePredictions.length !== 1 ? "s" : ""})
                       </span>
