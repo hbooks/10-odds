@@ -1,5 +1,5 @@
 import { useState } from "react";
-import altCrest from "@/assets/crest_c.png";   
+import altCrest from "@/assets/crest.png";   
 
 const IMAGE_PROXY = "https://wsrv.nl/?url=";
 
