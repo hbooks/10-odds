@@ -75,11 +75,9 @@ const StatusBadge = ({ status }: { status: PredictionResult }) => {
 
 const INTL_GLOBE_EMBLEM = "https://www.freelogovectors.net/wp-content/uploads/2018/04/globe-earth07.png";
 
-const CL_EMBLEM = "https://www.freelogovectors.net/wp-content/uploads/2018/04/uefa_champions_league_logo-385x375.png";
-
 const getLeagueEmblem = (code: string): string => {
   const emblems: Record<string, string> = {
-    CL:  CL_EMBLEM,
+    CL:  "https://www.freelogovectors.net/wp-content/uploads/2018/04/uefa_champions_league_logo-385x375.png",
     PL:  "https://cdn.freelogovectors.net/wp-content/uploads/2020/08/epl-premierleague-logo.png",
     PD:  "https://www.freelogovectors.net/wp-content/uploads/2023/07/laliga-logo-02-freelogovectors.net_.png",
     SA:  "https://www.freelogovectors.net/wp-content/uploads/2021/08/serie-a-logo-freelogovectors.net_.png",
@@ -88,15 +86,14 @@ const getLeagueEmblem = (code: string): string => {
     // ── International ──────────────────────────────────────────────────────
     WC:  "https://www.freelogovectors.net/wp-content/uploads/2025/07/fifa-world-cup-2026-freelogovectors.net_-478x480.png",
     EC:  "https://www.freelogovectors.net/wp-content/uploads/2020/01/uefa-logo.png",   // UEFA Euro
-    CA:  INTL_GLOBE_EMBLEM,   // Copa América
-    IF:  INTL_GLOBE_EMBLEM,   // International Friendly
   };
   return emblems[code] || INTL_GLOBE_EMBLEM;
 };
 
-// League sort order — CL always first, rest alphabetical
+// League sort order — international tournaments first, then domestic leagues alphabetically
 const LEAGUE_SORT_ORDER: Record<string, number> = {
   "UEFA Champions League": 0,
+  "FIFA World Cup":        1,
 };
 const sortLeagues = (entries: [string, Prediction[]][]): [string, Prediction[]][] =>
   entries.sort(([a], [b]) => {
@@ -169,11 +166,11 @@ function PreviousAdvisorBar({
     >
       <div className="px-4 py-3 flex items-start gap-3">
         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold select-none shrink-0">
-          <span>806</span>
+          <span>808</span>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-xs font-semibold text-white/90">_806</span>
+            <span className="text-xs font-semibold text-white/90">_808</span>
             <BadgeCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
             {advice.animal ? (
               <span className="flex items-center gap-1 text-xs font-bold text-gold ml-auto">
@@ -239,7 +236,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
 <div className="p-6 text-white">
   <div className="flex items-center justify-between gap-4 mb-4">
     <div className="flex flex-col items-center gap-2">
-      <CrestImage url={match.home_team.crest_url} alt="" size="lg" className="drop-shadow-lg" />
+      <CrestImage url={match.home_team.crest_url} alt={match.home_team.name} size="lg" className="drop-shadow-lg" />
       <span className="font-heading text-xl font-bold text-center">{match.home_team.name}</span>
     </div>
     <div className="text-center">
@@ -251,7 +248,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
       )}
     </div>
     <div className="flex flex-col items-center gap-2">
-      <CrestImage url={match.away_team.crest_url} alt="" size="lg" className="drop-shadow-lg" />
+      <CrestImage url={match.away_team.crest_url} alt={match.away_team.name} size="lg" className="drop-shadow-lg" />
       <span className="font-heading text-xl font-bold text-center">{match.away_team.name}</span>
     </div>
   </div>
@@ -269,7 +266,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
 
             <div className="bg-black/40 backdrop-blur-sm rounded-xl p-4 border border-white/10">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-white/70 text-sm uppercase tracking-wide">MK‑806 Prediction</span>
+                <span className="text-white/70 text-sm uppercase tracking-wide">MK‑808 Prediction</span>
                 <StatusBadge status={prediction.status} />
               </div>
               <div className="flex items-baseline justify-between mb-3">
@@ -452,6 +449,7 @@ const PreviousPage = () => {
               const code = first.matches.competition.code;
               const emblem = getLeagueEmblem(code);
               const isCL = code === "CL";
+              const isWC = code === "WC";
               const isExpanded = expandedLeagues.has(leagueName);
               return (
                 <div
@@ -459,6 +457,8 @@ const PreviousPage = () => {
                   className={`rounded-xl border overflow-hidden ${
                     isCL
                       ? "border-blue-500/40 bg-gradient-to-r from-[#0a1628]/80 to-card shadow-[0_0_18px_rgba(0,80,200,0.15)]"
+                      : isWC
+                      ? "border-yellow-500/40 bg-gradient-to-r from-[#1a1200]/80 to-card shadow-[0_0_18px_rgba(200,140,0,0.15)]"
                       : "border-border bg-card"
                   }`}
                 >
@@ -471,15 +471,20 @@ const PreviousPage = () => {
                         <img
                           src={emblem}
                           alt=""
-                          className={`object-contain ${isCL ? "h-8 w-8" : "h-6 w-6"}`}
+                          className={`object-contain ${isCL || isWC ? "h-8 w-8" : "h-6 w-6"}`}
                         />
                       )}
-                      <span className={`font-heading font-semibold ${isCL ? "text-blue-200" : "text-foreground"}`}>
+                      <span className={`font-heading font-semibold ${isCL ? "text-blue-200" : isWC ? "text-yellow-200" : "text-foreground"}`}>
                         {leagueName}
                       </span>
                       {isCL && (
                         <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30">
                           UCL
+                        </span>
+                      )}
+                      {isWC && (
+                        <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-400/30">
+                          WC
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">

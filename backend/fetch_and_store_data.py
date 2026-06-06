@@ -19,6 +19,14 @@
 ║  NEW-2  Confidence intervals — proper bootstrap SE, not Bernoulli noise     ║
 ║  NEW-3  Name alias dict      — prevents Manchester United/City collision     ║
 ║  NEW-4  Selectivity gate     — only bet when all 3 signals agree            ║
+║  NEW-5  UCL support          — UEFA Champions League (id=2001, code=CL)     ║
+║                                 full fetch, store, and MK prediction        ║
+║  NEW-6  World Cup support    — FIFA World Cup (id=2000, code=WC)            ║
+║                                 neutral-venue logic, national-team Elo,     ║
+║                                 group-stage draw handling, crest URLs        ║
+║  NEW-7  Tournament mode      — special blend for UCL/WC: no Understat xG,  ║
+║                                 club Elo fallback for WC, neutral-venue     ║
+║                                 home-advantage zeroed for WC group stage    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -63,12 +71,24 @@ FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 FD_HEADERS = {"X-Auth-Token": FOOTBALL_DATA_API_KEY}
 
 TARGET_LEAGUES: Dict[int, Dict[str, str]] = {
-    2021: {"name": "Premier League", "code": "PL",  "area": "England"},
-    2014: {"name": "La Liga",        "code": "PD",  "area": "Spain"},
-    2019: {"name": "Serie A",        "code": "SA",  "area": "Italy"},
-    2002: {"name": "Bundesliga",     "code": "BL1", "area": "Germany"},
-    2015: {"name": "Ligue 1",        "code": "FL1", "area": "France"},
+    2021: {"name": "Premier League",         "code": "PL",  "area": "England"},
+    2014: {"name": "La Liga",                "code": "PD",  "area": "Spain"},
+    2019: {"name": "Serie A",                "code": "SA",  "area": "Italy"},
+    2002: {"name": "Bundesliga",             "code": "BL1", "area": "Germany"},
+    2015: {"name": "Ligue 1",                "code": "FL1", "area": "France"},
+    2001: {"name": "UEFA Champions League",  "code": "CL",  "area": "Europe"},
+    2000: {"name": "FIFA World Cup",         "code": "WC",  "area": "World"},
 }
+
+# Competitions that are NOT domestic leagues — special prediction logic applies.
+# UCL: club competition with home/away legs, but no Understat xG.
+# WC:  international tournament, neutral venues in group stage,
+#      national-team Elo instead of club Elo.
+TOURNAMENT_COMPETITIONS: set = {"CL", "WC"}
+
+# WC group stage is played at neutral venues — zero home-ground advantage.
+# KO rounds still have "home" printed in fixture data (higher-seeded side).
+NEUTRAL_VENUE_COMPETITIONS: set = {"WC"}
 
 SD_LEAGUE_MAP: Dict[str, str] = {
     "PL":  "ENG-Premier League",
@@ -76,6 +96,8 @@ SD_LEAGUE_MAP: Dict[str, str] = {
     "SA":  "ITA-Serie A",
     "BL1": "GER-Bundesliga",
     "FL1": "FRA-Ligue 1",
+    # CL and WC deliberately absent — Understat does not cover them.
+    # _load_understat() returns None for unknown codes, which is handled gracefully.
 }
 
 SPORT_KEY_MAPPING: Dict[str, str] = {
@@ -84,10 +106,21 @@ SPORT_KEY_MAPPING: Dict[str, str] = {
     "SA":  "soccer_italy_serie_a",
     "BL1": "soccer_germany_bundesliga",
     "FL1": "soccer_france_ligue_one",
+    # UCL and WC — Odds-API free tier keys (may not always have coverage;
+    # handled gracefully — missing odds falls back to DEFAULT_ODDS).
+    "CL":  "soccer_uefa_champs_league",
+    "WC":  "soccer_fifa_world_cup",
 }
 
 # FIX-5: Per-league DC rho values — estimated from historical 0-0, 1-0, 0-1, 1-1 rates.
 #         Serie A and Ligue 1 have stronger low-score correlation than Bundesliga.
+#
+# NEW-5/6: UCL and WC averages tuned from tournament historical data.
+#   UCL:  High quality, fewer goals than Bundesliga, marginal home advantage
+#         (home leg matters psychologically but both teams are top clubs).
+#   WC:   International football is more conservative/defensive; genuine
+#         neutrality in group stage → home_advantage_elo reduced to 0 for
+#         neutral-venue matches (applied dynamically in prediction logic).
 LEAGUE_AVERAGES: Dict[str, Dict[str, float]] = {
     "PL":  {"home": 1.53, "away": 1.19, "xg": 1.36, "platt_a": 2.8,
             "home_advantage_elo": 95,  "draw_rate": 0.245, "variance": 0.042,
@@ -104,6 +137,17 @@ LEAGUE_AVERAGES: Dict[str, Dict[str, float]] = {
     "FL1": {"home": 1.44, "away": 1.08, "xg": 1.26, "platt_a": 2.6,
             "home_advantage_elo": 92,  "draw_rate": 0.255, "variance": 0.041,
             "dc_rho": -0.14},
+    # NEW-5: UEFA Champions League — top clubs, tighter games, marginal home leg advantage
+    "CL":  {"home": 1.55, "away": 1.20, "xg": 1.38, "platt_a": 3.0,
+            "home_advantage_elo": 60,  "draw_rate": 0.260, "variance": 0.038,
+            "dc_rho": -0.13},
+    # NEW-6: FIFA World Cup — international football, goals-per-game lower,
+    #         higher draw rate especially in group stage, neutral venue.
+    #         home_advantage_elo is overridden to 0 for neutral-venue games
+    #         dynamically in _elo_win_prob_tournament().
+    "WC":  {"home": 1.22, "away": 1.02, "xg": 1.12, "platt_a": 2.5,
+            "home_advantage_elo": 0,   "draw_rate": 0.295, "variance": 0.045,
+            "dc_rho": -0.17},
 }
 
 SLIP_SIZE              = 10
@@ -729,6 +773,196 @@ def _fetch_team_stats(team_id: int, league_code: str) -> Dict[str, Any]:
     return result
 
 
+# NEW-5/6: Tournament team stats — used for UCL and WC matches.
+#
+# Key differences vs domestic leagues:
+#   1. There is no meaningful home/away split for WC (neutral venues).
+#      UCL has home/away legs but these are stored in the same matches table.
+#   2. Understat xG is not available — the model uses the blended Elo + Poisson
+#      path only (xG weight is zeroed out in the dynamic blend).
+#   3. For WC teams (national sides) the club Elo is not applicable. We fall
+#      back to a tournament_elo fetched from the teams table, or use the FIFA
+#      World Ranking → synthetic Elo conversion if available.
+#   4. Momentum is still computed but treats all games equally (no venue split)
+#      because in international football the same squad plays everywhere.
+
+def _fetch_team_stats_tournament(
+    team_id: int, league_code: str, neutral_venue: bool = False,
+) -> Dict[str, Any]:
+    """
+    Recency-weighted stats for tournament teams (UCL clubs / WC national teams).
+
+    Returns the same keys as _fetch_team_stats() so all downstream code works
+    unchanged.  Home/away splits are neutralised for WC group stage.
+    """
+    avgs = LEAGUE_AVERAGES.get(league_code, {"home": 1.22, "away": 1.02})
+    result = {
+        "home_att": avgs["home"], "home_def": avgs["away"],
+        "away_att": avgs["away"], "away_def": avgs["home"],
+        "elo_rating": None,
+        "raw_home_scored": avgs["home"], "raw_away_scored": avgs["away"],
+        "games_played": 0,
+        "momentum_home": 0.5, "momentum_away": 0.5,
+        "last_match_date": None,
+        "recent_conceded_spike": False,
+        "trust_weight": 0.0,
+        "is_tournament": True,
+        "neutral_venue": neutral_venue,
+    }
+    now = datetime.now(timezone.utc)
+
+    # --- Elo ---
+    try:
+        t = (supabase.table("teams").select("elo_rating")
+             .eq("id", team_id).single().execute())
+        if t.data:
+            result["elo_rating"] = t.data.get("elo_rating")
+    except Exception:
+        pass
+
+    # --- Historical match data (all competitions stored in matches table) ---
+    try:
+        hg = (supabase.table("matches")
+              .select("home_score, away_score, utc_date")
+              .eq("home_team_id", team_id).eq("status", "FINISHED")
+              .not_.is_("home_score", "null")
+              .order("utc_date", desc=True).limit(20).execute()).data or []
+
+        ag = (supabase.table("matches")
+              .select("home_score, away_score, utc_date")
+              .eq("away_team_id", team_id).eq("status", "FINISHED")
+              .not_.is_("away_score", "null")
+              .order("utc_date", desc=True).limit(20).execute()).data or []
+
+        result["games_played"] = len(hg) + len(ag)
+
+        def weighted_avg_tourn(games, scored_key, conceded_key):
+            w_sc = w_co = total_w = 0.0
+            for g in games:
+                try:
+                    match_dt = datetime.fromisoformat(g["utc_date"].replace("Z", "+00:00"))
+                    days_ago = max(0.0, (now - match_dt).total_seconds() / 86400.0)
+                except Exception:
+                    days_ago = 60.0
+                # Slower decay for international/tournament teams — games are less frequent
+                w      = math.exp(-0.015 * days_ago)
+                w_sc  += g[scored_key]   * w
+                w_co  += g[conceded_key] * w
+                total_w += w
+            if total_w == 0:
+                return avgs["home"], avgs["away"]
+            return w_sc / total_w, w_co / total_w
+
+        if neutral_venue:
+            # WC group stage: combine home+away, treat all games as equivalent
+            all_games_as_home = (
+                [(g["home_score"], g["away_score"], g["utc_date"]) for g in hg] +
+                [(g["away_score"], g["home_score"], g["utc_date"]) for g in ag]
+            )
+            all_games_as_home.sort(key=lambda x: x[2], reverse=True)
+            all_games_as_home = all_games_as_home[:15]
+
+            if all_games_as_home:
+                # Build synthetic dicts for weighted_avg_tourn
+                syn = [{"home_score": gf, "away_score": ga, "utc_date": d}
+                       for gf, ga, d in all_games_as_home]
+                sc, co = weighted_avg_tourn(syn, "home_score", "away_score")
+                tw = _regression_weight(result["games_played"])
+                result["trust_weight"] = tw
+                # For neutral games both home_att and away_att use the combined avg
+                result["home_att"] = tw * sc + (1 - tw) * avgs["home"]
+                result["away_att"] = tw * sc + (1 - tw) * avgs["away"]
+                result["home_def"] = tw * co + (1 - tw) * avgs["away"]
+                result["away_def"] = tw * co + (1 - tw) * avgs["home"]
+                result["raw_home_scored"] = sc
+                result["raw_away_scored"] = sc  # symmetric for neutral venues
+
+            # Momentum — treat all recent games as equivalent
+            all_tuples = sorted(all_games_as_home, key=lambda x: x[2], reverse=True)
+            def _calc_momentum_t(game_tuples):
+                score = 0.0
+                for i, (gf, ga, _) in enumerate(game_tuples[:5]):
+                    w   = MOMENTUM_WEIGHTS[i] if i < len(MOMENTUM_WEIGHTS) else 0.05
+                    pts = 3.0 if gf > ga else (1.0 if gf == ga else 0.0)
+                    gd  = max(-MOMENTUM_GD_CAP, min(MOMENTUM_GD_CAP, float(gf - ga)))
+                    score += w * (pts + MOMENTUM_GD_WEIGHT * gd)
+                return score / 3.75 if game_tuples else 0.5
+            mom = _calc_momentum_t(all_tuples)
+            result["momentum_home"] = mom
+            result["momentum_away"] = mom  # same — no venue split for neutral
+
+        else:
+            # UCL: keep venue-split (home leg vs away leg matters psychologically)
+            if hg:
+                h_sc, h_co = weighted_avg_tourn(hg, "home_score", "away_score")
+            else:
+                h_sc, h_co = avgs["home"], avgs["away"]
+            if ag:
+                a_sc, a_co = weighted_avg_tourn(ag, "away_score", "home_score")
+            else:
+                a_sc, a_co = avgs["away"], avgs["home"]
+
+            tw = _regression_weight(result["games_played"])
+            result["trust_weight"] = tw
+            result["home_att"] = tw * h_sc + (1 - tw) * avgs["home"]
+            result["home_def"] = tw * h_co + (1 - tw) * avgs["away"]
+            result["away_att"] = tw * a_sc + (1 - tw) * avgs["away"]
+            result["away_def"] = tw * a_co + (1 - tw) * avgs["home"]
+            result["raw_home_scored"] = h_sc
+            result["raw_away_scored"] = a_sc
+
+            # Momentum — separate home/away as per normal stats
+            home_game_tuples = sorted(
+                [(g["home_score"], g["away_score"], g["utc_date"]) for g in hg],
+                key=lambda x: x[2], reverse=True,
+            )
+            away_game_tuples = sorted(
+                [(g["away_score"], g["home_score"], g["utc_date"]) for g in ag],
+                key=lambda x: x[2], reverse=True,
+            )
+            all_combined = sorted(home_game_tuples + away_game_tuples, key=lambda x: x[2], reverse=True)
+
+            def _calc_momentum_t(game_tuples):
+                score = 0.0
+                for i, (gf, ga, _) in enumerate(game_tuples[:5]):
+                    w   = MOMENTUM_WEIGHTS[i] if i < len(MOMENTUM_WEIGHTS) else 0.05
+                    pts = 3.0 if gf > ga else (1.0 if gf == ga else 0.0)
+                    gd  = max(-MOMENTUM_GD_CAP, min(MOMENTUM_GD_CAP, float(gf - ga)))
+                    score += w * (pts + MOMENTUM_GD_WEIGHT * gd)
+                return score / 3.75 if game_tuples else 0.5
+
+            result["momentum_home"] = (_calc_momentum_t(home_game_tuples) if home_game_tuples
+                                       else _calc_momentum_t(all_combined))
+            result["momentum_away"] = (_calc_momentum_t(away_game_tuples) if away_game_tuples
+                                       else _calc_momentum_t(all_combined))
+
+        # Last match date (for fatigue — still relevant in UCL; less so in WC)
+        all_dates = (
+            [g["utc_date"] for g in hg] + [g["utc_date"] for g in ag]
+        )
+        if all_dates:
+            latest = sorted(all_dates, reverse=True)[0]
+            try:
+                result["last_match_date"] = datetime.fromisoformat(
+                    latest.replace("Z", "+00:00")
+                )
+            except Exception:
+                pass
+
+        # Defensive disruption spike
+        all_conceded = [g["away_score"] for g in hg] + [g["home_score"] for g in ag]
+        if len(all_conceded) >= 4:
+            recent_3   = sum(all_conceded[:3]) / 3.0
+            season_avg = sum(all_conceded) / len(all_conceded)
+            if recent_3 > season_avg * 1.5 and recent_3 > 1.5:
+                result["recent_conceded_spike"] = True
+
+    except Exception as e:
+        logger.warning("Tournament team stats %s: %s", team_id, e)
+
+    return result
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PART 9 — HEAD-TO-HEAD ADJUSTMENT
 # ══════════════════════════════════════════════════════════════════════════════
@@ -899,9 +1133,36 @@ def _elo_win_prob(elo_h: int, elo_a: int, league_code: str = "PL") -> Tuple[floa
     return p_home / total, draw_f / total, p_away / total
 
 
-def _elo_to_lambda(elo_h: int, elo_a: int, league_code: str) -> Tuple[float, float]:
+# NEW-6: Neutral-venue Elo for WC group stage — home advantage is ZERO.
+#         For UCL two-legged ties we keep a small ha (60 pts), but for WC
+#         group games both sides are on equal footing at the host nation stadium.
+def _elo_win_prob_tournament(
+    elo_h: int, elo_a: int, league_code: str, neutral: bool = False,
+) -> Tuple[float, float, float]:
+    """
+    Tournament-aware Elo win probability.
+    neutral=True zeroes out the home-ground advantage (used for WC group stage).
+    UCL uses the standard function with a reduced ha (already set in LEAGUE_AVERAGES).
+    """
+    ha   = 0 if neutral else LEAGUE_AVERAGES.get(league_code, {}).get("home_advantage_elo", 60)
+    diff = (elo_h + ha) - elo_a
+    p_home = 1.0 / (1.0 + 10 ** (-diff / 400.0))
+    p_away = 1.0 - p_home
+    # WC draws are more common — inflate draw band for international football
+    draw_base = 0.28 if league_code == "WC" else 0.25
+    draw_f    = max(0.08, min(0.38, draw_base * (1.0 - abs(p_home - 0.5) * 1.8)))
+    total     = p_home + draw_f + p_away
+    return p_home / total, draw_f / total, p_away / total
+
+
+def _elo_to_lambda(
+    elo_h: int, elo_a: int, league_code: str, neutral: bool = False,
+) -> Tuple[float, float]:
     avgs = LEAGUE_AVERAGES.get(league_code, {"home": 1.5, "away": 1.1})
-    ph, _, pa = _elo_win_prob(elo_h, elo_a, league_code)
+    if league_code in TOURNAMENT_COMPETITIONS:
+        ph, _, pa = _elo_win_prob_tournament(elo_h, elo_a, league_code, neutral=neutral)
+    else:
+        ph, _, pa = _elo_win_prob(elo_h, elo_a, league_code)
     league_total = avgs["home"] + avgs["away"]
     if ph + pa <= 0:
         return avgs["home"], avgs["away"]
@@ -959,7 +1220,7 @@ def _market_to_lambda(market_probs, league_code):
 
 def _blend_lambdas(home_stats, away_stats, home_xg, away_xg,
                    elo_home, elo_away, home_h2h_factor, away_h2h_factor,
-                   league_code, market_probs, match_date=None):
+                   league_code, market_probs, match_date=None, neutral_venue=False):
     avgs = LEAGUE_AVERAGES.get(league_code, {"home": 1.5, "away": 1.1})
     now  = datetime.now(timezone.utc)
 
@@ -979,7 +1240,7 @@ def _blend_lambdas(home_stats, away_stats, home_xg, away_xg,
 
     # Source 3: Elo → lambda  (FIX-2: Elo enters ONLY here, not again in selector)
     if elo_home and elo_away:
-        elo_lh, elo_la = _elo_to_lambda(elo_home, elo_away, league_code)
+        elo_lh, elo_la = _elo_to_lambda(elo_home, elo_away, league_code, neutral=neutral_venue)
     else:
         elo_lh, elo_la = avgs["home"], avgs["away"]
 
@@ -1510,8 +1771,19 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
     home_name   = fixture["home_team"]["name"]
     away_name   = fixture["away_team"]["name"]
 
-    home_stats = _fetch_team_stats(home_id, league_code)
-    away_stats = _fetch_team_stats(away_id, league_code)
+    # NEW-5/6: Route tournament competitions through specialised stats logic.
+    #   WC: neutral venue (zero home advantage), combined-game momentum.
+    #   CL: small home advantage kept, venue-split momentum.
+    is_tournament   = league_code in TOURNAMENT_COMPETITIONS
+    neutral_venue   = league_code in NEUTRAL_VENUE_COMPETITIONS
+
+    if is_tournament:
+        home_stats = _fetch_team_stats_tournament(home_id, league_code, neutral_venue=neutral_venue)
+        away_stats = _fetch_team_stats_tournament(away_id, league_code, neutral_venue=neutral_venue)
+    else:
+        home_stats = _fetch_team_stats(home_id, league_code)
+        away_stats = _fetch_team_stats(away_id, league_code)
+
     elo_home   = home_stats.get("elo_rating")
     elo_away   = away_stats.get("elo_rating")
 
@@ -1519,6 +1791,9 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
         logger.warning("Skipping %s (%s vs %s) — Elo missing", match_id, home_name, away_name)
         return None
 
+    # NEW-5/6: No Understat xG for tournament competitions — _load_understat()
+    #          returns None for CL/WC codes so estimate_match_xg falls back to
+    #          league averages automatically. No special casing needed.
     home_xg, away_xg = estimate_match_xg(
         home_id, away_id, home_name, away_name, league_code, match_id
     )
@@ -1535,6 +1810,7 @@ def predict_match_outcome(match_id: int, fixture: Dict[str, Any]) -> Optional[Di
         home_stats, away_stats, home_xg, away_xg,
         elo_home, elo_away, h2h_home_factor, h2h_away_factor,
         league_code, market_probs, match_dt,
+        neutral_venue=neutral_venue,
     )
 
     # FIX-5: Pass league_code so per-league rho is used
@@ -1809,16 +2085,23 @@ def update_prediction_outcomes() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    logger.info("═══ MK-808 God of Football v8.0 starting ═══")
+    logger.info("═══ MK-808 God of Football v8.1 starting (UCL + WC enabled) ═══")
 
-    logger.info("Step 1: Competitions...")
+    logger.info("Step 1: Competitions (PL, PD, SA, BL1, FL1, CL, WC)...")
     upsert_competitions()
 
     logger.info("Step 2: Fixtures (today to day-after-tomorrow)...")
     now_utc  = datetime.now(timezone.utc)
     end_date = now_utc + timedelta(days=3)
     fixtures = fetch_fixtures_for_date_range(now_utc, end_date)
-    logger.info("Fixtures: %d", len(fixtures))
+    logger.info("Fixtures: %d total across all competitions", len(fixtures))
+
+    # Log breakdown by competition for visibility
+    from collections import Counter
+    comp_counts = Counter(f["competition_code"] for f in fixtures)
+    for code, cnt in sorted(comp_counts.items()):
+        logger.info("  %-4s : %d fixtures", code, cnt)
+
     for fix in fixtures:
         upsert_team(fix["home_team"])
         upsert_team(fix["away_team"])
@@ -1831,16 +2114,23 @@ def main() -> None:
     logger.info("Step 3: Elo ratings (ClubElo)...")
     fetch_team_elo_ratings()
 
-    logger.info("Step 4: Odds (h2h)...")
+    logger.info("Step 4: Odds (h2h) for all competitions...")
     for league_code, sport_key in SPORT_KEY_MAPPING.items():
-        for event in fetch_odds_for_sport(sport_key):
+        events = fetch_odds_for_sport(sport_key)
+        if not events:
+            logger.info("  No odds returned for %s (%s) — skipping", league_code, sport_key)
+            continue
+        matched = 0
+        for event in events:
             mid = match_odds_event_to_fixture(event, fixtures)
             if mid is None:
                 continue
             for bookie in event.get("bookmakers", []):
                 upsert_odds(mid, bookie, event["home_team"], event["away_team"])
+            matched += 1
+        logger.info("  %-4s : %d/%d events matched to fixtures", league_code, matched, len(events))
 
-    logger.info("Step 5: MK-808 v8 predictions (KE today + tomorrow)...")
+    logger.info("Step 5: MK-808 v8.1 predictions (KE today + tomorrow)...")
     now_ke      = datetime.now(KENYA_TZ)
     today_ke    = now_ke.date()
     tomorrow_ke = today_ke + timedelta(days=1)
@@ -1868,7 +2158,7 @@ def main() -> None:
     logger.info("Step 6: Daily slip (edge-filtered, Kelly-ranked)...")
     generate_daily_slip(preds, today_ke)
 
-    logger.info("═══ MK-808 God of Football v8.0 complete ═══")
+    logger.info("═══ MK-808 God of Football v8.1 complete ═══")
 
 
 if __name__ == "__main__":

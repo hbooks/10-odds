@@ -39,8 +39,12 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 FD_HEADERS         = {"X-Auth-Token": FOOTBALL_DATA_API_KEY}
 
-# Tracked competition IDs (PL, La Liga, Serie A, Bundesliga, Ligue 1)
-COMPETITION_IDS = "2021,2014,2019,2002,2015"
+# Tracked competition IDs — all seven competitions MK-808 covers:
+#   2021 Premier League  | 2014 La Liga      | 2019 Serie A
+#   2002 Bundesliga      | 2015 Ligue 1
+#   2001 UEFA Champions League (UCL)
+#   2000 FIFA World Cup  (WC)
+COMPETITION_IDS = "2021,2014,2019,2002,2015,2001,2000"
 
 # Football-Data.org free tier: 10 req/min — wait 7 s between calls to be safe
 REQUEST_DELAY = 7.0
@@ -454,7 +458,7 @@ def update_predictions_for_date(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    logger.info("═══ MK-806 Result Updater v5 (fixed) starting ═══")
+    logger.info("═══ MK-808 Result Updater v5.1 (UCL + WC) starting ═══")
 
     # ── 1. Fetch all PENDING predictions with their match date ────────────
     try:
@@ -506,7 +510,7 @@ def main() -> None:
             logger.info("Waiting %.0fs before next date request…", REQUEST_DELAY)
             time.sleep(REQUEST_DELAY)
 
-    logger.info("═══ MK-806 Result Updater v5 complete ═══")
+    logger.info("═══ MK-808 Result Updater v5.1 complete ═══")
 
 
 if __name__ == "__main__":

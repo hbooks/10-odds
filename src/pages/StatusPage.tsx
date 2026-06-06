@@ -97,7 +97,7 @@ const PATTERN_UI: Record<PatternType, { icon: React.ElementType; color: string; 
   INSUFFICIENT_DATA: { icon: HelpCircle,    color: "text-muted-foreground", label: "NEW Pattern", barColor: "bg-muted-foreground" },
 };
 
-// ─── Advisor Bar (_806) ───────────────────────────────────────────────────────
+// ─── Advisor Bar (_808) ───────────────────────────────────────────────────────
 function AdvisorBar({
   confidenceScore,
   selection,
@@ -111,7 +111,7 @@ function AdvisorBar({
 
   useEffect(() => {
     let cancelled = false;
-    const fetch806 = async () => {
+    const fetch808 = async () => {
       setLoading(true);
       try {
         const res = await fetch(`${FUNCTIONS_BASE}/get-pattern-advice`, {
@@ -128,7 +128,7 @@ function AdvisorBar({
         if (!cancelled) setLoading(false);
       }
     };
-    fetch806();
+    fetch808();
     return () => { cancelled = true; };
   }, [confidenceScore, selection]);
 
@@ -168,14 +168,14 @@ function AdvisorBar({
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group"
       >
-        {/* _806 avatar */}
+        {/* _808 avatar */}
         <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#4A5BA8] to-[#1e2f7a] flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-1 ring-white/20">
-          806
+          808
         </div>
 
         <div className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-white/90">_806 </span>
+            <span className="text-xs font-semibold text-white/90">_808 </span>
             <BadgeCheck className="h-3.5 w-3.5 text-[#4A5BA8] shrink-0" />
             {animal && (
               <span className={`flex items-center gap-1 text-[10px] font-medium ${ui.color} opacity-80`}>
@@ -343,7 +343,7 @@ function MarketCard({ label, fullMarket, selection, confidence, isPrimary, isBes
           <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
             {isPrimary ? (
               <span className="text-[9px] font-bold bg-gold text-black px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                MK‑806
+                MK‑808
               </span>
             ) : (
               <svg className="h-4 w-4 text-gold drop-shadow-[0_0_4px_rgba(212,175,55,0.8)]" viewBox="0 0 20 20" fill="currentColor">
@@ -637,7 +637,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
               </span>
             </div>
 
-            {/* ──────── MK-806 Prediction card ──────── */}
+            {/* ──────── MK-808 Prediction card ──────── */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -652,7 +652,7 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-gold shadow-[0_0_6px_rgba(212,175,55,0.9)]" />
                   <span className="text-[11px] font-semibold text-white/50 uppercase tracking-widest">
-                    MK‑806 Primary Pick
+                    MK‑808 Primary Pick
                   </span>
                 </div>
                 {isLive ? (
@@ -779,9 +779,9 @@ const PredictionModal = ({ prediction, onClose }: PredictionModalProps) => {
                   </div>
 
                   <div className="grid grid-cols-5 gap-2 pt-3">
-                    {/* MK-806 as primary card */}
+                    {/* MK-808 as primary card */}
                     <MarketCard
-                      label="MK‑806"
+                      label="MK‑808"
                       fullMarket={prediction.bet_type}
                       selection={prediction.selection}
                       confidence={mkConfidencePct}
@@ -1019,7 +1019,7 @@ const StatusPage = () => {
           </button>
         </div>
         <p className="text-muted-foreground mb-4 text-sm">
-          Live status of MK-806's current picks. Tap a row to see full analysis.
+          Live status of MK-808's current picks. Tap a row to see full analysis.
         </p>
 
         <AnimatePresence>
@@ -1036,7 +1036,7 @@ const StatusPage = () => {
                   <div>
                     <p className="font-semibold text-white mb-1">Read Before Building Your Betslip</p>
                     <p className="text-slate-300 leading-relaxed">
-                      Understanding how MK-806, _806 and Hippo AI work together can help you make more informed decisions.
+                      Understanding how MK-808, _808 and Hippo AI work together can help you make more informed decisions.
                       We strongly recommend reading our{" "}
                       <Link to="/guide" className="text-gold underline hover:no-underline font-semibold">
                         Pattern & Prediction Guide

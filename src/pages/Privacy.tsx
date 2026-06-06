@@ -44,7 +44,7 @@ function Section({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 const PrivacyPage = () => {
-  const lastUpdated = "21 May 2026";
+  const lastUpdated = "6 June 2026";
 
   return (
     <Layout>
@@ -151,7 +151,11 @@ const PrivacyPage = () => {
           <Section index={3} number="03" title="How We Use Your Information">
             <p>We use the information we collect to:</p>
             <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li>Deliver and improve the Site's prediction content and features.</li>
+              <li>
+                Deliver and improve the Site's prediction content and features across all
+                seven covered competitions — Premier League, La Liga, Serie A, Bundesliga,
+                Ligue 1, UEFA Champions League, and FIFA World Cup.
+              </li>
               <li>
                 Send you prediction updates, slip notifications, or service
                 announcements (only if you have opted in).
@@ -191,21 +195,33 @@ const PrivacyPage = () => {
 
 <Section index={5} number="05" title="Data Processors for Live Features">
   <p>
-    To provide the Live Market Monitor, we share limited match information with the following data processors:
+    To provide the Live Market Monitor and our expanded prediction coverage, we share limited match
+    information with the following data processors:
   </p>
   <ul className="list-disc list-inside space-y-1.5 pl-2">
     <li>
-      <strong className="text-foreground">Bzzoiro Sports Data (BSD)</strong> – receives match identifiers to 
-      return live statistics and incidents. No personal data is shared.
+      <strong className="text-foreground">Football-Data.org</strong> — receives date-range queries
+      to return fixture schedules, match results, and team data for all seven covered competitions,
+      including the UEFA Champions League (id 2001) and FIFA World Cup (id 2000). No personal data
+      is shared; only date parameters and competition identifiers are sent.
     </li>
     <li>
-      <strong className="text-foreground">Groq</strong> – receives match statistics and incident data to 
+      <strong className="text-foreground">The Odds API</strong> — receives sport-key identifiers
+      to return bookmaker odds used for fair-value probability calculations. No personal data is
+      shared.
+    </li>
+    <li>
+      <strong className="text-foreground">Bzzoiro Sports Data (BSD)</strong> – receives match identifiers to
+      return live statistics and incidents for the Live Market Monitor. No personal data is shared.
+    </li>
+    <li>
+      <strong className="text-foreground">Groq</strong> – receives match statistics and incident data to
       generate probability charts. No user‑identifiable information is included in these requests.
     </li>
   </ul>
   <p>
-    These processors are used only for the purpose of delivering the Live Market feature and do not have access 
-    to your personal information.
+    These processors are used only for the purpose of delivering the Site's prediction and live
+    market features and do not have access to your personal information.
   </p>
 </Section>
 
@@ -232,6 +248,18 @@ const PrivacyPage = () => {
                     Supabase Privacy Policy
                   </a>
                   .
+                </p>
+              </div>
+              <div className="bg-muted/40 rounded-lg p-3.5">
+                <p className="text-foreground font-medium mb-1">Match Data Providers</p>
+                <p>
+                  To deliver predictions across all seven competitions, our pipeline
+                  queries <strong className="text-foreground">Football-Data.org</strong> for
+                  fixture and results data, and{" "}
+                  <strong className="text-foreground">The Odds API</strong> for
+                  bookmaker odds. These requests contain only competition identifiers,
+                  date ranges, and sport keys — no personal data is ever transmitted
+                  to these providers.
                 </p>
               </div>
               <div className="bg-muted/40 rounded-lg p-3.5">
