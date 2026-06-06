@@ -202,7 +202,7 @@ const PrivacyPage = () => {
     <li>
       <strong className="text-foreground">Football-Data.org</strong> — receives date-range queries
       to return fixture schedules, match results, and team data for all seven covered competitions,
-      including the UEFA Champions League (id 2001) and FIFA World Cup (id 2000). No personal data
+      including the UEFA Champions League and FIFA World Cup. No personal data
       is shared; only date parameters and competition identifiers are sent.
     </li>
     <li>
