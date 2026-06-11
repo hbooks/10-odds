@@ -1510,7 +1510,7 @@ def _load_empirical_calibration() -> Optional[List[Tuple[float, float]]]:
 
     Expects predictions table to have:
       - confidence_score  FLOAT   (model's raw probability at prediction time)
-      - status            TEXT    ('WON', 'LOST', 'PENDING')
+      - status            TEXT    ('WIN', 'LOSS', 'PENDING')
 
     Returns a list of (raw_prob_bucket_midpoint, empirical_hit_rate) pairs
     sorted by raw_prob, or None if insufficient data.
@@ -1524,7 +1524,7 @@ def _load_empirical_calibration() -> Optional[List[Tuple[float, float]]]:
     try:
         res = (supabase.table("predictions")
                .select("confidence_score, status")
-               .in_("status", ["WON", "LOST"])
+               .in_("status", ["WIN", "LOSS"])
                .execute())
         rows = res.data or []
     except Exception as e:
@@ -1541,7 +1541,7 @@ def _load_empirical_calibration() -> Optional[List[Tuple[float, float]]]:
     buckets: Dict[int, List[int]] = {i: [] for i in range(10)}
     for row in rows:
         conf   = row.get("confidence_score", 0)
-        won    = 1 if row.get("status") == "WON" else 0
+        won    = 1 if row.get("status") == "WIN" else 0
         bucket = min(int(conf * 10), 9)
         buckets[bucket].append(won)
 
@@ -2163,7 +2163,7 @@ def generate_daily_slip(predictions: List[Dict[str, Any]], slip_date: date) -> N
 def update_prediction_outcomes() -> None:
     """
     FIX-3 support: Fetch completed matches and update prediction statuses
-    to WON/LOST so the empirical calibration table can learn from them.
+    to WIN/LOSS so the empirical calibration table can learn from them.
 
     This should run AFTER fixtures are fetched (so scores are populated).
     """
@@ -2211,7 +2211,7 @@ def update_prediction_outcomes() -> None:
         if expected_winner is None:
             continue
 
-        status = "WON" if winner == expected_winner else "LOST"
+        status = "WIN" if winner == expected_winner else "LOSS"
 
         try:
             supabase.table("predictions").update({"status": status}).eq("id", pred["id"]).execute()
