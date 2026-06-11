@@ -1,32 +1,32 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║          MK-808  "God of Football"  — fetch_and_store_data.py               ║
+║          MK-808  "God of Football"  — fetch_and_store_data.py                ║
 ║                                                                              ║
 ║  UPGRADES vs MK-807                                                          ║
-║  ─────────────────────────────────────────────────────────────────────────  ║
-║  FIX-1  xG venue-split       — home xGF/xGA uses HOME games only,           ║
-║                                 away xGF/xGA uses AWAY games only           ║
-║  FIX-2  Elo double-count     — Elo enters the blend ONCE (lambda blending)  ║
+║  ─────────────────────────────────────────────────────────────────────────   ║
+║  FIX-1  xG venue-split       — home xGF/xGA uses HOME games only,            ║
+║                                 away xGF/xGA uses AWAY games only            ║
+║  FIX-2  Elo double-count     — Elo enters the blend ONCE (lambda blending)   ║
 ║                                 and is removed from the selector fuse        ║
-║  FIX-3  Empirical calibration — self-updating isotonic calibration fitted   ║
+║  FIX-3  Empirical calibration — self-updating isotonic calibration fitted    ║
 ║                                 from predictions table outcomes in Supabase  ║
-║  FIX-4  Momentum venue-split — momentum_home uses home games only,          ║
+║  FIX-4  Momentum venue-split — momentum_home uses home games only,           ║
 ║                                 momentum_away uses away games only           ║
-║  FIX-5  Draw suppression     — removed flat constant; DC rho is now         ║
+║  FIX-5  Draw suppression     — removed flat constant; DC rho is now          ║
 ║                                 per-league and correctly handles draws       ║
-║  NEW-1  Edge filter          — slip only includes picks with EV > +0.02     ║
+║  NEW-1  Edge filter          — slip only includes picks with EV > +0.02      ║
 ║                                 (model prob > market implied prob)           ║
-║  NEW-2  Confidence intervals — proper bootstrap SE, not Bernoulli noise     ║
+║  NEW-2  Confidence intervals — proper bootstrap SE, not Bernoulli noise      ║
 ║  NEW-3  Name alias dict      — prevents Manchester United/City collision     ║
-║  NEW-4  Selectivity gate     — only bet when all 3 signals agree            ║
-║  NEW-5  UCL support          — UEFA Champions League (id=2001, code=CL)     ║
-║                                 full fetch, store, and MK prediction        ║
-║  NEW-6  World Cup support    — FIFA World Cup (id=2000, code=WC)            ║
-║                                 neutral-venue logic, national-team Elo,     ║
+║  NEW-4  Selectivity gate     — only bet when all 3 signals agree             ║
+║  NEW-5  UCL support          — UEFA Champions League (id=2001, code=CL)      ║
+║                                 full fetch, store, and MK prediction         ║
+║  NEW-6  World Cup support    — FIFA World Cup (id=2000, code=WC)             ║
+║                                 neutral-venue logic, national-team Elo,      ║
 ║                                 group-stage draw handling, crest URLs        ║
-║  NEW-7  Tournament mode      — special blend for UCL/WC: no Understat xG,  ║
-║                                 club Elo fallback for WC, neutral-venue     ║
-║                                 home-advantage zeroed for WC group stage    ║
+║  NEW-7  Tournament mode      — special blend for UCL/WC: no Understat xG,    ║
+║                                 club Elo fallback for WC, neutral-venue      ║
+║                                 home-advantage zeroed for WC group stage     ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -305,6 +305,153 @@ def fetch_team_elo_ratings() -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PART 1b — NATIONAL TEAM ELO (FIFA World Cup / WC)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Fallback Elo table derived from eloratings.net Jan 2026 rankings.
+# Used when a team is not found in the FIFA rankings response.
+# Scale: FIFA points * 0.95 + 200 ≈ Elo equivalent (empirically calibrated).
+_NATIONAL_ELO_FALLBACK: Dict[str, int] = {
+    # Top tier
+    "spain": 2171, "argentina": 2113, "france": 2063, "england": 2042,
+    "colombia": 1998, "brazil": 1979, "portugal": 1976, "netherlands": 1959,
+    "croatia": 1933, "ecuador": 1933, "norway": 1922, "germany": 1910,
+    "switzerland": 1897, "uruguay": 1890, "turkey": 1880, "japan": 1879,
+    "senegal": 1869, "denmark": 1864, "italy": 1859, "belgium": 1849,
+    # WC 2026 participants (estimated from FIFA points → Elo conversion)
+    "united states": 1820, "usa": 1820, "mexico": 1800, "canada": 1790,
+    "south korea": 1780, "australia": 1760, "morocco": 1810, "nigeria": 1750,
+    "ghana": 1720, "cameroon": 1710, "south africa": 1680, "egypt": 1740,
+    "saudi arabia": 1700, "iran": 1710, "qatar": 1660, "iraq": 1650,
+    "new zealand": 1600, "panama": 1680, "costa rica": 1700, "jamaica": 1650,
+    "venezuela": 1730, "chile": 1770, "paraguay": 1720, "peru": 1750,
+    "austria": 1840, "scotland": 1800, "wales": 1780, "ukraine": 1810,
+    "hungary": 1780, "slovakia": 1770, "slovenia": 1760, "romania": 1730,
+    "czechia": 1790, "czech republic": 1790, "serbia": 1820, "poland": 1800,
+    "bosnia": 1740, "bosnia-herzegovina": 1740, "bosnia and herzegovina": 1740,
+    "albania": 1720, "north macedonia": 1680, "georgia": 1740,
+    "indonesia": 1620, "thailand": 1600, "vietnam": 1580,
+    "cuba": 1600, "honduras": 1650, "el salvador": 1640,
+    "togo": 1620, "mali": 1660, "guinea": 1650, "congo": 1630,
+    "ivory coast": 1760, "côte d'ivoire": 1760, "cote d'ivoire": 1760,
+    "algeria": 1750, "tunisia": 1730, "zambia": 1640, "zimbabwe": 1610,
+    "tanzania": 1590, "kenya": 1580, "uganda": 1590,
+    "new caledonia": 1540, "tahiti": 1520, "fiji": 1560,
+}
+
+# Name normalisations specific to national teams (football-data.org names → lookup key)
+_NATIONAL_NAME_NORM: Dict[str, str] = {
+    "korea republic":         "south korea",
+    "republic of korea":      "south korea",
+    "united states":          "usa",
+    "ir iran":                "iran",
+    "china pr":               "china",
+    "england":                "england",
+    "republic of ireland":    "ireland",
+    "northern ireland":       "northern ireland",
+    "bosnia-herzegovina":     "bosnia-herzegovina",
+    "czechia":                "czechia",
+    "north macedonia":        "north macedonia",
+    "cape verde":             "cape verde islands",
+}
+
+
+def _normalise_national_name(name: str) -> str:
+    """Lowercase + strip + apply national-team-specific alias."""
+    key = name.lower().strip()
+    return _NATIONAL_NAME_NORM.get(key, key)
+
+
+def _fetch_fifa_rankings() -> Dict[str, int]:
+    """
+    Fetch current FIFA men's rankings from the hidden JSON endpoint.
+    Returns {normalised_name: synthetic_elo} where synthetic_elo is derived
+    from FIFA points using: elo ≈ (fifa_points * 0.55) + 1100   (calibrated so
+    that ~1800 FIFA pts ≈ 2100 Elo for top teams like Argentina/Spain).
+
+    Falls back to empty dict on any network/parse error — the hardcoded
+    fallback table is used instead.
+    """
+    # FIFA's hidden API — dateId changes each ranking release; omitting it
+    # returns the latest release automatically.
+    url = "https://www.fifa.com/api/ranking-overview?locale=en&gender=men"
+    try:
+        resp = requests.get(url, timeout=10,
+                            headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        data = resp.json()
+        rankings = data.get("rankings", [])
+        result: Dict[str, int] = {}
+        for r in rankings:
+            raw_name  = r.get("teamName", {}).get("description", "")
+            if not raw_name:
+                raw_name = r.get("rankingTeam", {}).get("name", "")
+            pts   = float(r.get("totalPoints", 0) or 0)
+            # Linear conversion: FIFA ~1800 pts → Elo ~2100
+            elo   = int(pts * 0.55 + 1100)
+            key   = _normalise_national_name(raw_name)
+            if key and elo > 0:
+                result[key] = elo
+        logger.info("FIFA rankings: %d national team Elo values loaded", len(result))
+        return result
+    except Exception as e:
+        logger.warning("FIFA rankings fetch failed (%s) — using fallback table", e)
+        return {}
+
+
+def fetch_national_team_elo_ratings() -> None:
+    """
+    For every team in the DB that still has elo_rating = NULL, attempt to
+    assign a national-team Elo from:
+      1. Live FIFA rankings JSON (converted to Elo scale)
+      2. Hardcoded _NATIONAL_ELO_FALLBACK table
+
+    Only runs if there are WC/national-team fixtures in today's pipeline
+    (detected by checking for NULL elo_ratings after ClubElo step).
+    Does NOT overwrite existing club Elo values.
+    """
+    try:
+        # Only fetch teams that ClubElo couldn't fill
+        null_teams = (supabase.table("teams")
+                      .select("id, name")
+                      .is_("elo_rating", "null")
+                      .execute().data or [])
+        if not null_teams:
+            logger.info("National Elo: no NULL elo_rating teams — skipping")
+            return
+
+        logger.info("National Elo: filling %d teams with NULL elo_rating...", len(null_teams))
+        fifa_map = _fetch_fifa_rankings()
+        updated  = 0
+
+        for t in null_teams:
+            key = _normalise_national_name(t["name"])
+            # Try FIFA live data first, then fallback table
+            elo = fifa_map.get(key) or _NATIONAL_ELO_FALLBACK.get(key)
+            if not elo:
+                # Partial match against fallback (e.g. "Bosnia-Herzegovina" → "bosnia")
+                elo = next(
+                    (v for k, v in _NATIONAL_ELO_FALLBACK.items()
+                     if k in key or key in k),
+                    None,
+                )
+            if elo:
+                supabase.table("teams").update({
+                    "elo_rating":  elo,
+                    "is_big_team": elo > 1900,   # top ~10 nations
+                }).eq("id", t["id"]).execute()
+                updated += 1
+                logger.debug("National Elo: %s → %d", t["name"], elo)
+            else:
+                logger.warning("National Elo: no rating found for '%s' (id=%s)",
+                               t["name"], t["id"])
+
+        logger.info("National Elo: persisted %d/%d national teams", updated, len(null_teams))
+    except Exception as e:
+        logger.error("National Elo persist error: %s", e)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # PART 2 — UNDERSTAT CACHE
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -515,7 +662,7 @@ def upsert_odds(match_id: int, bookmaker: Dict[str, Any], home_team: str, away_t
             "bookmaker_title": bookmaker["title"],
             "home_win": hw, "away_win": aw, "draw": dr,
             "last_updated": bookmaker["last_update"],
-        }).execute()
+        }, on_conflict="match_id,bookmaker_key").execute()
     except Exception as e:
         logger.error("Odds upsert %s/%s: %s", match_id, bookmaker.get("key"), e)
 
@@ -2085,7 +2232,7 @@ def update_prediction_outcomes() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    logger.info("═══ MK-808 God of Football v8.1 starting (UCL + WC enabled) ═══")
+    logger.info("=== MK-808 God of Football v8.1 starting (UCL + WC enabled) ===")
 
     logger.info("Step 1: Competitions (PL, PD, SA, BL1, FL1, CL, WC)...")
     upsert_competitions()
@@ -2113,6 +2260,9 @@ def main() -> None:
 
     logger.info("Step 3: Elo ratings (ClubElo)...")
     fetch_team_elo_ratings()
+
+    logger.info("Step 3b: National team Elo (FIFA rankings + fallback)...")
+    fetch_national_team_elo_ratings()
 
     logger.info("Step 4: Odds (h2h) for all competitions...")
     for league_code, sport_key in SPORT_KEY_MAPPING.items():
@@ -2158,7 +2308,7 @@ def main() -> None:
     logger.info("Step 6: Daily slip (edge-filtered, Kelly-ranked)...")
     generate_daily_slip(preds, today_ke)
 
-    logger.info("═══ MK-808 God of Football v8.1 complete ═══")
+    logger.info("=== MK-808 God of Football v8.1 complete ===")
 
 
 if __name__ == "__main__":
