@@ -272,10 +272,10 @@ const AboutPage = () => {
                 animate="visible"
                 variants={fadeUp}
                 className={`group relative rounded-xl border p-4 flex flex-col items-center gap-3 transition-all duration-300 hover:shadow-lg cursor-default
-                  ${comp.code === "CL"
-                    ? "border-blue-500/30 bg-gradient-to-b from-blue-500/5 to-card hover:border-blue-400/50"
-                    : comp.code === "WC"
-                    ? "border-yellow-500/30 bg-gradient-to-b from-yellow-500/5 to-card hover:border-yellow-400/50"
+                  ${comp.code === "Added Recently."
+                    ? "border-black-500/30 bg-gradient-to-b from-blue-500/5 to-card hover:border-blue-400/50"
+                    : comp.code === "Added Recently"
+                    ? "border-black-500/30 bg-gradient-to-b from-yellow-500/5 to-card hover:border-yellow-400/50"
                     : "border-border bg-card hover:border-gold/30"
                   }`}
               >
