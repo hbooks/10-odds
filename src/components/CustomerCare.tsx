@@ -1034,7 +1034,7 @@ const CustomerCare = () => {
                 fontFamily: "'DM Sans', 'Segoe UI', sans-serif", whiteSpace: "nowrap",
               }}
             >
-              Support
+              <span>Contact Us</span>
             </span>
           </div>
         </motion.button>

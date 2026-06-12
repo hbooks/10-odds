@@ -16,16 +16,17 @@ const SupportPortal = () => {
 
   return (
     <>
-      {/* Floating trigger button – bottom‑right with breathing space */}
-      <div className="fixed bottom-8 right-8 z-40">
-        <button
-          onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 font-medium text-sm"
-        >
-          <Heart className="h-4 w-4 group-hover:animate-pulse" />
-          Support Project
-        </button>
-      </div>
+<div className="fixed bottom-8 right-8 z-40">
+  <button
+    onClick={() => setIsOpen(true)}
+    className="group flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 font-medium text-sm overflow-hidden"
+  >
+    <Heart className="h-4 w-4 group-hover:animate-pulse shrink-0" />
+    <span className="max-w-0 group-hover:max-w-xs overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out">
+      Support Project
+    </span>
+  </button>
+</div>
 
       {/* Portal overlay */}
       <AnimatePresence>
