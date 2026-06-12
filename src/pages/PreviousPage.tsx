@@ -477,16 +477,6 @@ const PreviousPage = () => {
                       <span className={`font-heading font-semibold ${isCL ? "text-blue-200" : isWC ? "text-yellow-200" : "text-foreground"}`}>
                         {leagueName}
                       </span>
-                      {isCL && (
-                        <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                          UCL
-                        </span>
-                      )}
-                      {isWC && (
-                        <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-400/30">
-                          World Cup
-                        </span>
-                      )}
                       <span className="text-xs text-black">
                         ({leaguePredictions.length} prediction{leaguePredictions.length !== 1 ? "s" : ""})
                       </span>
