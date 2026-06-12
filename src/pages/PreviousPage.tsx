@@ -515,10 +515,10 @@ const PreviousPage = () => {
                                 className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
                                 onClick={() => setSelectedPrediction(p)}
                               >
-                                <td className="px-4 py-3 text-muted-foreground text-gold font-mono ml-auto">{formatDate(p.created_at)}</td>
-                                <td className="px-4 py-3 font-medium text-black font-bold">{fixtureName}</td>
+                                <td className="px-4 py-3 text-muted-foreground text-black/50 font-mono ml-auto">{formatDate(p.created_at)}</td>
+                                <td className="px-4 py-3 font-medium text-black">{fixtureName}</td>
                                 <td className="px-4 py-3 text-muted-foreground text-black/85 ">{p.selection}</td>
-                                <td className="px-4 py-3 font-semibold text-black font-mono ml-auto">{p.predicted_odds.toFixed(2)}</td>
+                                <td className="px-4 py-3 font-semibold text-gold/75 font-mono ml-auto">{p.predicted_odds.toFixed(2)}</td>
                                 <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                               </tr>
                             );
