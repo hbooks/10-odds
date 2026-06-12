@@ -484,10 +484,10 @@ const PreviousPage = () => {
                       )}
                       {isWC && (
                         <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-400/30">
-                          WC
+                          World Cup
                         </span>
                       )}
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground text-black/100 font-mono ml-auto">
                         ({leaguePredictions.length} prediction{leaguePredictions.length !== 1 ? "s" : ""})
                       </span>
                     </div>
@@ -515,10 +515,10 @@ const PreviousPage = () => {
                                 className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
                                 onClick={() => setSelectedPrediction(p)}
                               >
-                                <td className="px-4 py-3 text-muted-foreground">{formatDate(p.created_at)}</td>
-                                <td className="px-4 py-3 font-medium">{fixtureName}</td>
-                                <td className="px-4 py-3 text-muted-foreground">{p.selection}</td>
-                                <td className="px-4 py-3 font-semibold text-gold">{p.predicted_odds.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-muted-foreground text-gold font-mono ml-auto">{formatDate(p.created_at)}</td>
+                                <td className="px-4 py-3 font-medium text-black font-bold">{fixtureName}</td>
+                                <td className="px-4 py-3 text-muted-foreground text-black/85 ">{p.selection}</td>
+                                <td className="px-4 py-3 font-semibold text-black font-mono ml-auto">{p.predicted_odds.toFixed(2)}</td>
                                 <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                               </tr>
                             );
