@@ -342,7 +342,7 @@ const PrivacyPage = () => {
             </ul>
             <p>
               To exercise any of these rights, please contact us at{" "}
-              <span className="text-gold">privacy@10odds.com</span>. We will respond
+              <span className="text-gold">legal@hpbooks.uk</span>. We will respond
               within 30 days.
             </p>
           </Section>
@@ -391,7 +391,7 @@ const PrivacyPage = () => {
             <p>
               If you believe we have inadvertently collected information from a minor,
               please contact us immediately at{" "}
-              <span className="text-gold">privacy@10odds.com</span> and we will take
+              <span className="text-gold">legal@hpbooks.uk</span> and we will take
               prompt action to delete it.
             </p>
           </Section>
@@ -417,15 +417,15 @@ const PrivacyPage = () => {
             <div className="bg-muted/40 rounded-lg p-4 space-y-1">
               <p>
                 <span className="text-foreground font-medium">Privacy enquiries:</span>{" "}
-                privacy@10odds.com
+                legal@hpbooks.uk
               </p>
               <p>
                 <span className="text-foreground font-medium">General contact:</span>{" "}
-                hello@10odds.com
+                support@hpbooks.uk
               </p>
               <p>
                 <span className="text-foreground font-medium">Website:</span>{" "}
-                10odds.com
+                Domain change coming soon stay tuned!
               </p>
             </div>
           </Section>

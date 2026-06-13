@@ -662,8 +662,8 @@ const AboutPage = () => {
                 <ExternalLink className="h-3.5 w-3.5" />
                 Privacy Policy
               </Link>
-              <a href="mailto:hello@10odds.com" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                hello@10odds.com
+              <a href="mailto:tenodds@hpbooks.uk" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                tenodds@hpbooks.uk
               </a>
             </div>
           </div>

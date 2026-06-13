@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-
+import { Mail } from "lucide-react";
 const Footer = () => {
   return (
     <footer className="border-t border-border bg-card mt-auto">
@@ -78,6 +78,15 @@ const Footer = () => {
                   <path d="M22 2 11 13" />
                   <path d="M22 2 15 22l-4-9-9-4 20-7Z" />
                 </svg>
+              </a>
+
+              {/* Email */}
+              <a
+                href="mailto:tenodds@hpbooks.uk"
+                className="h-9 w-9 rounded-xl flex items-center justify-center bg-white/5 hover:bg-red/10 text-black/50 hover:text-gold transition-colors"
+                aria-label="Email support"
+              >
+                <Mail className="h-4 w-4" />
               </a>
 
               {/* Facebook */}
