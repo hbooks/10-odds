@@ -159,30 +159,38 @@ function Badge({
 }
 
 function StatCard({
-  index, icon: Icon, label, value, sub, accent = GOLD, accentBg = GOLD_LIGHT, trend,
+  index, icon: Icon, label, value, sub, accent = GOLD, accentBg = GOLD_LIGHT, trend, featured = false,
 }: {
   index: number; icon: React.ElementType; label: string;
   value: string | number; sub?: string; accent?: string;
-  accentBg?: string; trend?: "up" | "down";
+  accentBg?: string; trend?: "up" | "down"; featured?: boolean;
 }) {
   return (
     <motion.div custom={index} initial="hidden" animate="visible" variants={fadeUp}
-      className="relative rounded-2xl bg-white border border-slate-100 p-5 flex flex-col gap-3
-        shadow-sm overflow-hidden group hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
+      className={`relative rounded-2xl border p-5 flex flex-col gap-3
+        overflow-hidden group hover:-translate-y-0.5 transition-all duration-300
+        ${featured
+          ? "shadow-md hover:shadow-lg border-transparent"
+          : "bg-white border-slate-100 shadow-sm hover:shadow-md"}`}
+      style={featured ? { background: `linear-gradient(150deg,${accent}10 0%,#ffffff 60%)`, borderColor: `${accent}22` } : undefined}>
       <div className="absolute -top-10 -right-10 h-28 w-28 rounded-full opacity-40 pointer-events-none"
         style={{ background: accentBg }} />
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ background: `linear-gradient(90deg,transparent,${accent}60,transparent)` }} />
+      <div className={`absolute bottom-0 left-0 right-0 h-0.5 transition-opacity
+        ${featured ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+        style={{ background: `linear-gradient(90deg,transparent,${accent}${featured?"90":"60"},transparent)` }} />
 
       <div className="flex items-center justify-between relative z-10">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</span>
-        <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-sm"
+        <span className={`font-bold uppercase tracking-widest text-slate-400
+          ${featured ? "text-[10.5px]" : "text-[10px]"}`}>{label}</span>
+        <div className={`rounded-xl flex items-center justify-center shadow-sm
+          ${featured ? "h-10 w-10" : "h-9 w-9"}`}
           style={{ background: accentBg }}>
-          <Icon className="h-4 w-4" style={{ color: accent }} />
+          <Icon className={featured ? "h-4.5 w-4.5" : "h-4 w-4"} style={{ color: accent }} />
         </div>
       </div>
       <div className="relative z-10">
-        <p className="text-[2rem] font-black tabular-nums leading-none tracking-tight"
+        <p className={`font-black tabular-nums leading-none tracking-tight
+          ${featured ? "text-[2.5rem]" : "text-[2rem]"}`}
           style={{ color: accent }}>{value}</p>
         {sub && (
           <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
@@ -323,8 +331,9 @@ function ProgressRow({ label, winRate, wins, total, color }: {
 function processPredictions(predictions: Prediction[]) {
   const empty = {
     summary: { total:0,wins:0,losses:0,voids:0,winRate:0,roi:0,streak:0,
-      streakType:"win" as const,profitUnits:0 },
+      streakType:"win" as const,profitUnits:0,maxDrawdown:0 },
     weekly:[],cumulative:[],leagueBreakdown:[],betTypeBreakdown:[],confidenceBuckets:[],
+    betTypePerformance:[],oddsBuckets:[],
   };
   if (!predictions.length) return empty;
 
@@ -357,7 +366,7 @@ function processPredictions(predictions: Prediction[]) {
     } else break;
   }
 
-  const summary={total:predictions.length,wins,losses,voids,winRate,roi,streak,streakType,profitUnits};
+  const summary={total:predictions.length,wins,losses,voids,winRate,roi,streak,streakType,profitUnits,maxDrawdown:0};
 
   // Weekly breakdown
   const wkMap:Record<string,{wins:number;losses:number;stake:number;ret:number}>={}; 
@@ -398,6 +407,15 @@ function processPredictions(predictions: Prediction[]) {
     cumulative.push({day:`D${i+1}`,roi:Math.round(((rr-rs)/Math.max(rs,1))*1000)/10});
   });
 
+  // Max drawdown — largest peak-to-trough drop in cumulative ROI
+  let peak = -Infinity, maxDrawdown = 0;
+  cumulative.forEach(c => {
+    if (c.roi > peak) peak = c.roi;
+    const dd = peak - c.roi;
+    if (dd > maxDrawdown) maxDrawdown = dd;
+  });
+  summary.maxDrawdown = Math.round(maxDrawdown * 10) / 10;
+
   // League
   const lgMap:Record<string,{wins:number;total:number;color:string}>={};
   sorted.forEach(p=>{
@@ -433,7 +451,58 @@ function processPredictions(predictions: Prediction[]) {
     return{range:bk.range,count:inB.length,winRate:inB.length>0?(bw/inB.length)*100:0};
   }).filter(b=>b.count>0);
 
-  return{summary,weekly,cumulative,leagueBreakdown,betTypeBreakdown,confidenceBuckets};
+  // Bet type performance — win rate & ROI per bet type (not just volume)
+  const btPerfMap:Record<string,{wins:number;losses:number;total:number;stake:number;ret:number;color:string}>={};
+  sorted.forEach(p=>{
+    const lbl=BET_TYPE_LABELS[p.bet_type]||p.bet_type;
+    if(!btPerfMap[lbl])btPerfMap[lbl]={wins:0,losses:0,total:0,stake:0,ret:0,color:BET_TYPE_COLORS[p.bet_type]||"#64748b"};
+    const b=btPerfMap[lbl];
+    b.total++; b.stake++;
+    if(p.status==="WIN"){b.wins++;b.ret+=p.predicted_odds;}
+    else if(p.status==="LOSS"){b.losses++;}
+    else if(p.status==="HALF_WIN"){b.wins+=0.5;b.ret+=1+(p.predicted_odds-1)/2;}
+    else if(p.status==="HALF_LOSS"){b.losses+=0.5;b.ret+=0.5;}
+    else if(p.status==="VOID"){b.ret+=1;}
+  });
+  const betTypePerformance=Object.entries(btPerfMap)
+    .map(([name,d])=>{
+      const settledB=d.wins+d.losses;
+      return{
+        name,color:d.color,total:d.total,wins:d.wins,losses:d.losses,
+        winRate:settledB>0?(d.wins/settledB)*100:0,
+        roi:d.stake>0?((d.ret-d.stake)/d.stake)*100:0,
+      };
+    })
+    .filter(b=>b.total>0)
+    .sort((a,b)=>b.total-a.total)
+    .slice(0,8);
+
+  // Odds vs outcome — bucket predictions by predicted odds, show actual win rate per bucket
+  const oddsBucketDefs=[
+    {min:1.00,max:1.50,range:"1.00–1.50"},
+    {min:1.50,max:2.00,range:"1.50–2.00"},
+    {min:2.00,max:3.00,range:"2.00–3.00"},
+    {min:3.00,max:5.00,range:"3.00–5.00"},
+    {min:5.00,max:Infinity,range:"5.00+"},
+  ];
+  const oddsBuckets=oddsBucketDefs.map(bk=>{
+    const inB=sorted.filter(p=>p.predicted_odds>=bk.min&&p.predicted_odds<bk.max
+      &&["WIN","LOSS","HALF_WIN","HALF_LOSS"].includes(p.status));
+    let bw=0,bStake=0,bRet=0;
+    inB.forEach(p=>{
+      bStake++;
+      if(p.status==="WIN"){bw++;bRet+=p.predicted_odds;}
+      else if(p.status==="HALF_WIN"){bw+=0.5;bRet+=1+(p.predicted_odds-1)/2;}
+      else if(p.status==="HALF_LOSS"){bw+=0.5;bRet+=0.5;}
+    });
+    return{
+      range:bk.range,count:inB.length,
+      winRate:inB.length>0?(bw/inB.length)*100:0,
+      roi:bStake>0?((bRet-bStake)/bStake)*100:0,
+    };
+  }).filter(b=>b.count>0);
+
+  return{summary,weekly,cumulative,leagueBreakdown,betTypeBreakdown,confidenceBuckets,betTypePerformance,oddsBuckets};
 }
 
 // ─── Hippo data parsing ───────────────────────────────────────────────────────
@@ -675,11 +744,10 @@ const AnalyticsPage = () => {
   const mk    = processPredictions(predictions);
   const hippoEvals = processHippoMarkets(hippoRows);
   const hippo = computeHippoAnalytics(hippoEvals);
-  const { summary,weekly,cumulative,leagueBreakdown,betTypeBreakdown,confidenceBuckets } = mk;
+  const { summary,weekly,cumulative,leagueBreakdown,betTypeBreakdown,confidenceBuckets,betTypePerformance,oddsBuckets } = mk;
   const voidPct  = summary.total>0?(summary.voids/summary.total)*100:0;
   const lossPct  = summary.total>0?(summary.losses/summary.total)*100:0;
   const roiColor = summary.roi>=0 ? EMERALD : ROSE;
-  const roiBg    = summary.roi>=0 ? EMERALD_LIGHT : ROSE_LIGHT;
 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) return (
@@ -745,7 +813,11 @@ const AnalyticsPage = () => {
               </p>
               {lastUpdated && (
                 <p className="text-[11px] text-slate-300 mt-2 flex items-center gap-1.5">
-                  <Activity className="h-3 w-3" />
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping"
+                      style={{ background: EMERALD }} />
+                    <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: EMERALD }} />
+                  </span>
                   Refreshed at {lastUpdated.toLocaleTimeString()}
                 </p>
               )}
@@ -765,28 +837,38 @@ const AnalyticsPage = () => {
 
           {/* KPI row */}
           <motion.div initial="hidden" animate="visible" variants={staggerWrap}
-            className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-            <StatCard index={0} icon={Target}     label="Total Predictions"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <StatCard index={0} icon={Trophy}     label="Win Rate"
+              value={`${summary.winRate.toFixed(1)}%`} sub="Settled picks only"
+              accent={EMERALD} accentBg={EMERALD_LIGHT}
+              trend={summary.winRate>=50?"up":"down"} featured />
+            <StatCard index={1} icon={DollarSign} label="Season ROI"
+              value={`${summary.roi>=0?"+":""}${summary.roi.toFixed(1)}%`}
+              sub={`${summary.profitUnits>=0?"+":""}${summary.profitUnits.toFixed(1)} units profit`}
+              accent={roiColor} accentBg={summary.roi>=0?EMERALD_LIGHT:ROSE_LIGHT}
+              trend={summary.roi>=0?"up":"down"} featured />
+          </motion.div>
+
+          <motion.div initial="hidden" animate="visible" variants={staggerWrap}
+            className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+            <StatCard index={2} icon={Target}     label="Total Predictions"
               value={summary.total}
               sub={`${summary.wins.toFixed(1)}W · ${summary.losses.toFixed(1)}L · ${summary.voids}V`}
               accent={GOLD} accentBg={GOLD_LIGHT} />
-            <StatCard index={1} icon={Trophy}     label="Win Rate"
-              value={`${summary.winRate.toFixed(1)}%`} sub="Settled picks only"
-              accent={EMERALD} accentBg={EMERALD_LIGHT}
-              trend={summary.winRate>=50?"up":"down"} />
-            <StatCard index={2} icon={DollarSign} label="Season ROI"
-              value={`${summary.roi>=0?"+":""}${summary.roi.toFixed(1)}%`}
-              sub={`${summary.profitUnits>=0?"+":""}${summary.profitUnits.toFixed(1)} units profit`}
-              accent={SAPPHIRE} accentBg={SAPPHIRE_LIGHT}
-              trend={summary.roi>=0?"up":"down"} />
             <StatCard index={3} icon={Flame}
               label={`${summary.streakType==="win"?"Win":"Loss"} Streak`}
               value={`${summary.streak} ${summary.streakType==="win"?"✓":"✗"}`}
-              sub="Most recent consecutive outcomes"
+              sub="Recent consecutive outcomes"
               accent={summary.streakType==="win"?EMERALD:ROSE}
               accentBg={summary.streakType==="win"?EMERALD_LIGHT:ROSE_LIGHT}
               trend={summary.streakType==="win"?"up":"down"} />
+            <StatCard index={4} icon={TrendingDown} label="Max Drawdown"
+              value={`-${summary.maxDrawdown.toFixed(1)}%`}
+              sub="Peak-to-trough ROI dip"
+              accent={ROSE} accentBg={ROSE_LIGHT}
+              trend="down" />
           </motion.div>
+
 
           {/* Gauge + Bet-type donut */}
           <div className="grid md:grid-cols-2 gap-4 mb-4">
@@ -945,7 +1027,8 @@ const AnalyticsPage = () => {
                     return (
                       <motion.tr key={w.week} initial={{opacity:0,x:-6}} animate={{opacity:1,x:0}}
                         transition={{delay:0.25+i*0.035}}
-                        className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors">
+                        className={`border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors
+                          ${i%2===1 ? "bg-slate-50/50" : ""}`}>
                         <td className="py-2.5 font-bold text-slate-700 pr-3">{w.week}</td>
                         <td className="py-2.5 font-mono font-semibold pr-3" style={{color:EMERALD}}>
                           {w.wins.toFixed(1)}
@@ -985,6 +1068,109 @@ const AnalyticsPage = () => {
               </div>
             )}
           </Card>
+
+          {/* Bet type performance + Odds vs outcome */}
+          <div className="grid md:grid-cols-2 gap-4 mb-6">
+            <Card title="Win Rate &amp; ROI by Bet Type"
+              subtitle="Performance breakdown — does this bet type actually make money?"
+              icon={Target} accent={GOLD}>
+              {betTypePerformance.length === 0
+                ? <p className="text-sm text-slate-400 py-6 text-center">No bet type data yet</p>
+                : (
+                  <div className="overflow-x-auto -mx-1">
+                    <table className="w-full text-sm min-w-[420px]">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          {["Bet Type","W/L","Win Rate","ROI"].map(h => (
+                            <th key={h}
+                              className="pb-3 text-left text-[10px] font-bold text-slate-400
+                                uppercase tracking-widest pr-3 first:pl-0">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {betTypePerformance.map((b,i) => {
+                          const wrCol = b.winRate>=55?EMERALD:b.winRate>=45?GOLD:ROSE;
+                          const roiPos = b.roi>=0;
+                          return (
+                            <motion.tr key={b.name} initial={{opacity:0,x:-6}} animate={{opacity:1,x:0}}
+                              transition={{delay:0.1+i*0.03}}
+                              className={`border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors
+                                ${i%2===1 ? "bg-slate-50/50" : ""}`}>
+                              <td className="py-3 pr-3">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{background:b.color}} />
+                                  <span className="font-semibold text-slate-700 text-[12px]">{b.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 pr-3 font-mono tabular-nums text-[12px] text-slate-400">
+                                {b.wins.toFixed(1)}/{b.losses.toFixed(1)}
+                              </td>
+                              <td className="py-3 pr-3">
+                                <Badge color={wrCol} bg={`${wrCol}18`} size="xs">{b.winRate.toFixed(1)}%</Badge>
+                              </td>
+                              <td className="py-3 font-black font-mono text-[12px]"
+                                style={{color:roiPos?EMERALD:ROSE}}>
+                                {roiPos?"+":""}{b.roi.toFixed(1)}%
+                              </td>
+                            </motion.tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              <p className="mt-4 text-[11px] text-slate-400 flex items-start gap-1.5">
+                <Zap className="h-3 w-3 shrink-0 mt-0.5" style={{color:GOLD}} />
+                Volume distribution alone hides whether a bet type is profitable — ROI accounts for stake and payout.
+              </p>
+            </Card>
+
+            <Card title="Odds vs. Outcome"
+              subtitle="Actual win rate and ROI by predicted odds range — are favourites or longshots underperforming?"
+              icon={Activity} accent={VIOLET}>
+              {oddsBuckets.length === 0
+                ? <p className="text-sm text-slate-400 py-6 text-center">No settled picks yet</p>
+                : (
+                  <div className="h-44">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={oddsBuckets} margin={{top:4,right:4,left:-22,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                        <XAxis dataKey="range" tick={{fontSize:9,fill:CHART_TICK}} axisLine={false} tickLine={false} />
+                        <YAxis tick={{fontSize:9,fill:CHART_TICK}} axisLine={false} tickLine={false}
+                          tickFormatter={v=>`${v}%`} domain={[0,100]} />
+                        <ReferenceLine y={50} stroke="#cbd5e1" strokeDasharray="4 3" />
+                        <Tooltip content={<ChartTooltip />} />
+                        <Bar dataKey="winRate" name="Actual Win %" radius={[4,4,0,0]} maxBarSize={40}>
+                          {oddsBuckets.map((e,i) => (
+                            <Cell key={i} fill={e.winRate>=55?EMERALD:e.winRate>=40?GOLD:ROSE} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {oddsBuckets.map(b => {
+                  const roiPos = b.roi>=0;
+                  return (
+                    <div key={b.range}
+                      className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{b.range}</p>
+                        <p className="text-[10px] text-slate-400">{b.count} picks</p>
+                      </div>
+                      <span className="text-[12px] font-black tabular-nums" style={{color:roiPos?EMERALD:ROSE}}>
+                        {roiPos?"+":""}{b.roi.toFixed(1)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
 
           {/* ═══════════════ HIPPO AI SECTION ═══════════════════════════════ */}
           <SectionHeader icon={Brain} title="Hippo AI" highlight="Market Intelligence"
@@ -1236,7 +1422,8 @@ const AnalyticsPage = () => {
                         return (
                           <motion.tr key={i} initial={{opacity:0,x:-6}} animate={{opacity:1,x:0}}
                             transition={{delay:0.15+i*0.025}}
-                            className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition-colors">
+                            className={`border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors
+                              ${i%2===1 ? "bg-slate-50/50" : ""}`}>
                             <td className="py-2.5 pr-3">
                               <div className="flex items-center gap-1.5">
                                 <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{background:row.color}} />
