@@ -17,6 +17,9 @@ import {
   Ban,
   Newspaper,
   Wrench,
+  ImageUp,
+  Shuffle,
+  Upload,
 } from "lucide-react";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -29,6 +32,9 @@ const supabase = createClient(
 );
 
 const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET as string;
+// Telegram edge function URL (must be set in env)
+const NOTIFY_TELEGRAM_URL = import.meta.env.VITE_NOTIFY_TELEGRAM_URL || "";
+const NOTIFY_SECRET = import.meta.env.VITE_NOTIFY_SECRET || "";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NewsMessage {
@@ -49,8 +55,96 @@ interface CommunityMember {
   created_at: string;
 }
 
-type Tab = "news" | "community" | "settings";
+type Tab = "news" | "community" | "betSlip" | "settings";
 type CommunityFilter = "pending" | "approved" | "rejected" | "banned";
+
+// ─── Random bet slip captions (120+ engaging, short, with emojis) ────────────
+const BET_CAPTIONS = [
+  "💰 Lock of the day! Let's eat.", "🎯 Another one for the collection.", "🏆 Bet slip loaded — let's ride.",
+  "📈 Printer go brrrrrr.", "🔥 Green screen incoming.", "🚀 To the moon with this slip.",
+  "💎 Hands on this parlay.", "🧠 Big brain energy.", "⚡ Lightning strike? We'll see.",
+  "🍀 Lucky charm activated.", "🔒 Safe bet? Nothing is safe. We ride.", "🐺 Lone wolf pick.",
+  "🎲 Dice roll – but the odds are ours.", "📊 Data says yes. Heart says yes.", "💸 Free money? Almost.",
+  "🕯️ Manifesting the win.", "🐉 Dragon slip – high risk, high reward.", "🃏 Wildcard parlay.",
+  "🛡️ Shield up – defensive play.", "🗡️ Go for the throat.", "🏅 Medal worthy prediction.",
+  "🎰 Slot machine style. Pray.", "📉 Buy low, sell high? Not here.", "📈 This slip prints.",
+  "🧧 Good luck charm included.", "🍀 Four leaf clover slip.", "⭐ Five star lock.",
+  "🔮 Crystal ball says…", "🎯 Bullseye pick.", "🧨 Explosive payout potential.",
+  "💣 Bomb of the day.", "⚔️ Battle tested slip.", "🏰 Fortress defence.", "🦅 Eagle eye pick.",
+  "🐅 Tiger blood.", "🐘 Elephant in the room? We bet on it.", "🦁 Lionheart parlay.",
+  "🐺 Wolf pack slip.", "🐍 Snake bite – underdog special.", "🐎 Dark horse ride.",
+  "🦄 Unicorn slip (rare, but why not).", "🐧 Cold blooded value.", "🐨 No stress, just value.",
+  "🐢 Slow and steady cash.", "🐇 Quick money? Maybe.", "🦊 Fox clever pick.",
+  "🐻 Bear market? We fade.", "🐂 Bull run slip.", "🦏 Rhino charge.", "🐘 Heavyweight parlay.",
+  "🦍 Gorilla grip lock.", "🐒 Monkey pick (random but fun).", "🐔 Chicken dinner slip.",
+  "🐣 Baby steps to profit.", "🦜 Parrot says win.", "🐙 Octopus tentacle pick.",
+  "🦞 Lobster – red hot.", "🦀 Crab walk to profit.", "🐚 Seashell selection.",
+  "🌊 Wave of green.", "⛰️ Mountain mover.", "🏔️ Peak confidence.", "🌋 Eruption of wins.",
+  "🌈 Rainbow after rain.", "☀️ Sunny slip.", "🌙 Moonshot parlay.", "🌟 Star pick.",
+  "💫 Shooting star luck.", "✨ Magic dust sprinkled.", "🎆 Fireworks slip.",
+  "🎇 Sparkler bet.", "🧨 Cracker jack.", "🎉 Celebration incoming.", "🎊 Confetti mode.",
+  "🎈 Balloon pop profit.", "🎁 Gift wrapped win.", "📦 Box of chocolates (you never know).",
+  "🔧 Tool of destruction.", "⚙️ Gears grinding.", "🔩 Bolt of confidence.", "🔗 Chain reaction.",
+  "⛓️ Unbreakable slip.", "🧲 Magnetic pick.", "🔭 Telescope view – clear value.",
+  "🔬 Micro analysis done.", "⚗️ Potion brewing.", "🧪 Experiment slip.", "🧫 Petri dish pick.",
+  "🩺 Doctor’s orders.", "💊 Pill of profit.", "💉 Injection of value.", "🩹 Band‑aid bet.",
+  "🚑 Ambulance to the bank.", "🏥 Hospital visit – for the bookies.",
+  "🚒 Firefighter slip (putting out fires).", "🚓 Police line – don't cross.", "🚔 Cop lock.",
+  "🚕 Taxi to payout.", "🚗 Drive to glory.", "🚀 Rocket slip.", "🛸 Alien value.",
+  "🚁 Helicopter view.", "✈️ Fly high slip.", "🛩️ Quick takeoff.", "⛵ Sail smooth.",
+  "🚢 Ship of fortune.", "🛥️ Yacht money.", "🚤 Speedboat slip.", "🛶 Paddle your own canoe.",
+  "🚲 Bike lane to profit.", "🏍️ Motorcycle madness.", "🚂 Train of thought.", "🚆 Express payout.",
+  "🚇 Subway slip (underground value).", "🚉 All aboard.", "🚀 To the stars.", "🛰️ Satellite lock.",
+  "🛸 Out of this world.", "🌍 Earth shattering pick.", "🌎 Global domination.",
+  "🌏 One world, one bet.", "🔮 Prophecy slip.", "📜 Scroll of fortune.", "📖 Chapter of wins.",
+  "📚 Book of value.", "📓 Notebook pick.", "📔 Journal of profit.", "📕 Closed book? No.",
+  "📗 Green book.", "📘 Blueprint slip.", "📙 Orange crush.", "📒 Ledger of locks.",
+  "📰 Headline pick.", "🏷️ Tagged for profit.", "🔖 Bookmark this slip.", "📎 Paperclip value.",
+  "📏 Measure twice, bet once.", "📐 Right angle lock.", "✂️ Cut through the noise.",
+  "🔫 Water gun? More like money gun.", "🔪 Sharp pick.", "⚔️ Sword of truth.",
+  "🛡️ Shield of confidence.", "🏹 Arrow of fortune.", "🔨 Hammer lock.", "⛏️ Pickaxe profit.",
+  "🔧 Wrench of value.", "🔩 Screwdriver slip.", "⚙️ Cog in the machine.", "🔗 Chain lock.",
+  "🧰 Toolbox slip.", "🪚 Saw through the odds.", "🪛 Hex key pick.", "🧲 Magnetic attraction.",
+  "⚡ Thunder strike.", "🌩️ Lightning bolt.", "☁️ Cloud nine slip.", "💨 Wind of change.",
+  "🌪️ Tornado profit.", "🌀 Whirlwind pick.", "🌊 Tidal wave of wins.", "❄️ Snowball effect.",
+  "☃️ Frozen lock.", "⛄ Melt the bookies.", "🔥 Heat check.", "💧 Drop of value.",
+  "💦 Splash profit.", "💨 Breath of fresh air.", "🍃 Leaf of luck.", "🌿 Herb of profit.",
+  "🍀 Shamrock slip.", "🌻 Sunflower money.", "🌷 Tulip value.", "🌹 Rose lock.",
+  "🌸 Cherry blossom pick.", "🌼 Daisy chain parlay.", "🌺 Hibiscus heat.",
+  "🌾 Harvest time.", "🍂 Autumn slip.", "🍁 Maple leaf lock.", "🍄 Mushroom profit.",
+  "🌰 Chestnut value.", "🍎 Apple of my eye.", "🍐 Pear shaped? No, perfect.",
+  "🍊 Orange you glad you bet?", "🍋 Lemonade from lemons.", "🍌 Banana slip.",
+  "🍉 Watermelon win.", "🍇 Grape value.", "🍓 Strawberry lock.", "🫐 Blueberry pick.",
+  "🍒 Cherry on top.", "🥝 Kiwi slip.", "🍅 Tomato toss.", "🥑 Avocado toast profit.",
+  "🍆 Eggplant emoji? Sure.", "🥔 Potato value.", "🥕 Carrot of cash.", "🌽 Corn of confidence.",
+  "🌶️ Hot pepper pick.", "🫑 Pepper lock.", "🥒 Cucumber cool slip.", "🥬 Lettuce leaf profit.",
+  "🥦 Broccoli bounty.", "🧄 Garlic guard.", "🧅 Onion layers of value.", "🍄 Truffle treasure.",
+  "🥜 Peanut butter profit.", "🌰 Chestnut lock.", "🍞 Breadwinner slip.", "🥐 Croissant cash.",
+  "🥖 Baguette value.", "🥨 Pretzel pick.", "🥞 Pancake stack profit.", "🧇 Waffle win.",
+  "🍔 Burger and fries slip.", "🍟 Fry day lock.", "🍕 Pizza slice value.", "🌭 Hot dog heat.",
+  "🥪 Sandwich profit.", "🌮 Taco Tuesday slip.", "🥙 Wrap it up.", "🥗 Salad of success.",
+  "🍲 Soup of the day.", "🍜 Noodle value.", "🍝 Pasta pick.", "🍛 Curry profit.",
+  "🍚 Rice lock.", "🍣 Sushi slip.", "🍤 Shrimp value.", "🍥 Fish cake profit.",
+  "🥟 Dumpling lock.", "🥠 Fortune cookie slip.", "🥡 Takeout value.", "🍦 Ice cream win.",
+  "🍧 Shaved ice lock.", "🍨 Sundae slip.", "🍩 Donut value.", "🍪 Cookie profit.",
+  "🎂 Birthday cake lock.", "🍰 Slice of success.", "🧁 Cupcake pick.", "🥧 Pie in the sky? No, profit.",
+  "🍫 Chocolate bar slip.", "🍬 Candy lock.", "🍭 Lollipop value.", "🍮 Pudding profit.",
+  "🍯 Honey pot slip.", "☕ Coffee lock.", "🍵 Tea time value.", "🥤 Soda profit.",
+  "🧃 Juice slip.", "🥛 Milk lock.", "🍼 Baby bottle value.", "🥂 Cheers to profit.",
+  "🍻 Beer money slip.", "🥃 Whiskey value.", "🍷 Wine lock.", "🍸 Martini profit.",
+  "🍹 Cocktail slip.", "🍾 Champagne lock.", "🧉 Mate value.", "🧋 Boba profit.",
+  "🍽️ Fork and knife slip.", "🥄 Spoon value.", "🔪 Knife lock.", "🍴 Cutlery profit.",
+  "🏆 Trophy slip.", "🥇 Gold medal lock.", "🥈 Silver value.", "🥉 Bronze profit.",
+  "🏅 Medal slip.", "🎖️ Military lock.", "🏆 Champions pick.", "🎫 Ticket to cash.",
+  "🎟️ Entry slip.", "🎯 Dart board value.", "🎳 Bowling strike lock.", "⚽ Football profit.",
+  "🏀 Basketball slip.", "🏈 Football (American) value.", "⚾ Baseball lock.",
+  "🥎 Softball profit.", "🎾 Tennis slip.", "🏐 Volleyball value.", "🏉 Rugby lock.",
+  "🎱 Pool profit.", "🏸 Badminton slip.", "🏒 Hockey lock.", "🥍 Lacrosse value.",
+  "🏑 Field hockey profit.", "⛳ Golf slip.", "🏹 Archery lock.", "🤺 Fencing value.",
+  "🥊 Boxing profit.", "🥋 Martial arts slip.", "⛸️ Skating lock.", "🥌 Curling value.",
+  "🏂 Snowboard profit.", "⛷️ Ski slip.", "🏋️ Weightlifting lock.", "🤸 Gymnastics value.",
+  "🏊 Swimming profit.", "🚣 Rowing slip.", "🏄 Surfing lock.", "🧗 Climbing value.",
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = (iso: string) =>
@@ -220,6 +314,95 @@ const AdminCommunity = () => {
     { key: "banned",   label: "Banned",   icon: <Ban className="h-3.5 w-3.5" /> },
   ];
 
+  // ════════════════════════════════════════════════════════════════════════
+  // BET SLIP TAB STATE
+  // ════════════════════════════════════════════════════════════════════════
+  const [betSlipFile, setBetSlipFile] = useState<File | null>(null);
+  const [betSlipPreview, setBetSlipPreview] = useState<string | null>(null);
+  const [betSlipCaption, setBetSlipCaption] = useState("");
+  const [betSlipSending, setBetSlipSending] = useState(false);
+  const [randomCaptionUsed, setRandomCaptionUsed] = useState(false);
+
+  const handleBetSlipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBetSlipFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setBetSlipPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const shuffleRandomCaption = () => {
+    const randomIndex = Math.floor(Math.random() * BET_CAPTIONS.length);
+    setBetSlipCaption(BET_CAPTIONS[randomIndex]);
+    setRandomCaptionUsed(true);
+  };
+
+  const sendBetSlip = async () => {
+    if (!betSlipFile) {
+      showToast("err", "Please select a bet slip image.");
+      return;
+    }
+    if (!betSlipCaption.trim()) {
+      showToast("err", "Please enter a caption or generate a random one.");
+      return;
+    }
+
+    setBetSlipSending(true);
+
+    try {
+      // 1. Upload image to Supabase Storage bucket "bet_slips"
+      const fileExt = betSlipFile.name.split(".").pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("bet_slips")
+        .upload(fileName, betSlipFile, { cacheControl: "3600", upsert: false });
+
+      if (uploadError) throw new Error(uploadError.message);
+
+      // 2. Get public URL
+      const { data: publicUrlData } = supabase.storage.from("bet_slips").getPublicUrl(fileName);
+      const imageUrl = publicUrlData.publicUrl;
+
+      // 3. Call notify-telegram edge function with type "raw" and media
+      const payload = {
+        type: "raw",
+        text: betSlipCaption,
+        bot: "tECH_BOT", // must match the bot key in your notify-telegram env
+        media: {
+          type: "photo",
+          url: imageUrl,
+        },
+      };
+
+      const response = await fetch(NOTIFY_TELEGRAM_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${NOTIFY_SECRET}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Telegram send failed: ${errText}`);
+      }
+
+      showToast("ok", "Bet slip sent to Telegram!");
+      // Reset form
+      setBetSlipFile(null);
+      setBetSlipPreview(null);
+      setBetSlipCaption("");
+      setRandomCaptionUsed(false);
+    } catch (err: any) {
+      console.error(err);
+      showToast("err", err.message || "Failed to send bet slip.");
+    } finally {
+      setBetSlipSending(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
@@ -236,11 +419,12 @@ const AdminCommunity = () => {
         </div>
 
         {/* ── Tab switcher ───────────────────────────────────────────────── */}
-        <div className="flex gap-1 rounded-xl bg-muted/40 border border-border p-1 mb-6">
+        <div className="flex gap-1 rounded-xl bg-muted/40 border border-border p-1 mb-6 flex-wrap">
           {(
             [
               { key: "news",      label: "News",      icon: <Newspaper className="h-3.5 w-3.5" /> },
               { key: "community", label: "Community", icon: <Users className="h-3.5 w-3.5" /> },
+              { key: "betSlip",   label: "Bet Slip",  icon: <ImageUp className="h-3.5 w-3.5" /> },
               { key: "settings",  label: "Settings",  icon: <Wrench className="h-3.5 w-3.5" /> },
             ] as const
           ).map((t) => (
@@ -525,6 +709,80 @@ const AdminCommunity = () => {
               </AnimatePresence>
             )}
           </>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* BET SLIP TAB – NEW FEATURE                                      */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {activeTab === "betSlip" && (
+          <div className="rounded-xl border border-border bg-card p-6 space-y-6">
+            <div className="flex items-center gap-2 mb-2">
+              <ImageUp className="h-4 w-4 text-gold" />
+              <p className="text-sm font-semibold text-foreground">Send Bet Slip to Telegram</p>
+            </div>
+
+            {/* File upload area */}
+            <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-gold/50 transition-colors">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif"
+                onChange={handleBetSlipFileChange}
+                className="hidden"
+                id="bet-slip-upload"
+              />
+              <label htmlFor="bet-slip-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                <Upload className="h-8 w-8 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Click to select a bet slip image (JPG, PNG, GIF)</span>
+              </label>
+            </div>
+
+            {/* Preview */}
+            {betSlipPreview && (
+              <div className="rounded-lg overflow-hidden border border-border bg-muted/20 p-2">
+                <img src={betSlipPreview} alt="Preview" className="max-h-64 w-auto mx-auto object-contain" />
+              </div>
+            )}
+
+            {/* Caption input with random generator */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Caption / Message</label>
+              <div className="flex gap-2">
+                <textarea
+                  value={betSlipCaption}
+                  onChange={(e) => setBetSlipCaption(e.target.value)}
+                  placeholder="Write a caption or generate one randomly..."
+                  rows={3}
+                  className="flex-1 rounded-lg bg-muted/40 border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold/40 resize-none"
+                />
+                <button
+                  onClick={shuffleRandomCaption}
+                  className="shrink-0 px-3 py-2 rounded-lg bg-muted/50 border border-border text-muted-foreground hover:text-foreground transition-colors"
+                  title="Generate random caption"
+                >
+                  <Shuffle className="h-5 w-5" />
+                </button>
+              </div>
+              {randomCaptionUsed && (
+                <p className="text-[11px] text-gold/70">✨ Random caption applied – you can edit it further.</p>
+              )}
+            </div>
+
+            {/* Send button */}
+            <div className="flex justify-end">
+              <button
+                onClick={sendBetSlip}
+                disabled={betSlipSending || !betSlipFile || !betSlipCaption.trim()}
+                className="flex items-center gap-2 gradient-gold text-accent-foreground font-semibold px-5 py-2.5 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {betSlipSending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {betSlipSending ? "Sending..." : "Send to Telegram"}
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center">
+              Image will be uploaded to Supabase Storage (public) and sent via <strong>tECH_BOT</strong> to the configured channel.
+            </p>
+          </div>
         )}
 
         {/* ════════════════════════════════════════════════════════════════ */}

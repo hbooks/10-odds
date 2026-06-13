@@ -22,7 +22,7 @@ const SupportPortal = () => {
     className="group flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 font-medium text-sm overflow-hidden"
   >
     <Heart className="h-4 w-4 group-hover:animate-pulse shrink-0" />
-    <span className="max-w-0 group-hover:max-w-xs overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out">
+    <span className="max-w-0 group-hover:max-w-xs overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out">
       Support Project
     </span>
   </button>
