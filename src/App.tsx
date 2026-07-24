@@ -4,20 +4,18 @@ import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
+import { AuthStatusToast } from "@/components/AuthStatusToast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
 import SupportPortal from "@/components/SupportPortal";
 import AdminCommunity from "@/pages/AdminCommunity";
 import { PageTracker } from "@/hooks/usePageTracking";
 import CustomerCare from "@/components/CustomerCare";
-import { AuthStatusToast } from "@/components/AuthStatusToast";
 import ChartPage from "./pages/ChartPage";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import MaintenancePage from "@/pages/Maintenance";
 import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
-import { ClerkProvider } from '@clerk/react'
-
-
+import { ClerkProvider } from "@clerk/react";
 
 
 const IndexPage = lazy(() => import("@/pages/Index"));
@@ -53,12 +51,6 @@ const LazyFallback = () => <GlobalLoader />;
 const queryClient = new QueryClient();
 
 const BOOT_LOADER_MS = 4500;
-
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-
-if (!PUBLISHABLE_KEY) {
-  throw new Error('Add your Clerk Publishable Key to the .env file')
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  MaintenanceGuard
@@ -115,13 +107,15 @@ function App() {
         <Toaster />
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
+          {/* ─── ClerkProvider added here ─── */}
           <ClerkProvider
-            publishableKey={PUBLISHABLE_KEY}
-            signInFallbackRedirectUrl="/"
-            signUpFallbackRedirectUrl="/"
-            afterSignOutUrl="/"
+            publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
+            signInUrl="https://accounts.hpbooks.uk/sign-in"
+            signUpUrl="https://accounts.hpbooks.uk/sign-up"
+            signInFallbackRedirectUrl="/games"
+            signUpFallbackRedirectUrl="/games"
+            afterSignOutUrl="/games"
           >
-            <AuthStatusToast />
             <BrowserRouter>
               <PageTracker />
 
@@ -166,10 +160,12 @@ function App() {
                   </Routes>
                 </Suspense>
               </MaintenanceGuard>
+              <AuthStatusToast />
               <CustomerCare />
               <SupportPortal />
             </BrowserRouter>
           </ClerkProvider>
+          {/* ─── end ClerkProvider ─── */}
         </LoadingContext.Provider>
       </TooltipProvider>
     </QueryClientProvider>

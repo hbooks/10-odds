@@ -1,13 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User, ChevronDown, LogOut, Settings, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
-import {
-  useUser,
-  SignInButton,
-  UserButton,
-} from "@clerk/react";
+import { useUser, useClerk } from "@clerk/react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -49,39 +45,145 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-// ─── Profile Section ──────────────────────────────────────────────────
-function ProfileSection() {
+// ─── Profile Button (page‑based) ──────────────────────────────────────
+function ProfileButton() {
   const { isLoaded, isSignedIn, user } = useUser();
+  const { signOut } = useClerk();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Close dropdown on route change
+  useEffect(() => setIsOpen(false), [location]);
+
+  const toggleDropdown = () => setIsOpen((prev) => !prev);
+
+  const handleLogout = async () => {
+    await signOut();
+    setIsOpen(false);
+  };
+
+  // Get user initials for fallback avatar
+  const getInitials = (): string => {
+    if (!user) return "U";
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.firstName) {
+      return user.firstName[0].toUpperCase();
+    }
+    if (user.emailAddresses?.[0]?.emailAddress) {
+      return user.emailAddresses[0].emailAddress[0].toUpperCase();
+    }
+    return "U";
+  };
 
   if (!isLoaded) return null;
 
-  if (isSignedIn) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="hidden md:inline text-sm text-muted-foreground">
-          {user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress ?? "Account"}
-        </span>
-        <UserButton
-          appearance={{
-            elements: {
-              userButtonAvatarBox: "h-8 w-8",
-            },
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
-    <SignInButton mode="redirect">
-      <button className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
-        Log in
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={toggleDropdown}
+        className="flex items-center gap-1.5 p-1.5 rounded-xl hover:bg-white/8 text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="Profile"
+      >
+        {isSignedIn && user?.imageUrl ? (
+          <img
+            src={user.imageUrl}
+            alt="Avatar"
+            className="h-8 w-8 rounded-full object-cover border border-white/10"
+          />
+        ) : isSignedIn ? (
+          // Fallback: show initials
+          <div className="h-8 w-8 rounded-full bg-gold/20 text-gold flex items-center justify-center text-sm font-bold border border-white/10">
+            {getInitials()}
+          </div>
+        ) : (
+          <User className="h-6 w-6" />
+        )}
+        <ChevronDown
+          className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+            }`}
+        />
       </button>
-    </SignInButton>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-background/90 backdrop-blur-xl shadow-2xl shadow-black/30 overflow-hidden z-50"
+          >
+            {isSignedIn ? (
+              // ── Logged in ──
+              <div className="py-1">
+                <div className="px-4 py-2 text-xs text-muted-foreground border-b border-white/5 truncate">
+                  {user?.emailAddresses?.[0]?.emailAddress || "User"}
+                </div>
+                <Link
+                  to="/analytics"
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Profile</span>
+                </Link>
+                <a
+                  href={`https://accounts.hpbooks.uk/user`}
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </a>
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2 border-t border-white/5"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Log out</span>
+                </button>
+              </div>
+            ) : (
+              // ── Logged out ──
+              <div className="py-1">
+                <a
+                  href={`https://accounts.hpbooks.uk/sign-in`}
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span>Log in</span>
+                </a>
+                <a
+                  href={`https://accounts.hpbooks.uk/sign-up`}
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2 border-t border-white/5"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span>Sign up</span>
+                </a>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
-// ─── Main Navbar (unchanged) ──────────────────────────────────────────
+// ─── Main Navbar ──────────────────────────────────────────────────────
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -159,8 +261,8 @@ const Navbar = () => {
     >
       <div
         className={`mx-auto transition-all duration-500 ${atTop
-            ? "rounded-none border-b border-border/40 bg-background/80 backdrop-blur-xl max-w-full"
-            : "mt-3 mx-4 rounded-2xl border border-white/8 shadow-2xl shadow-black/30 bg-background/75 backdrop-blur-2xl max-w-7xl"
+          ? "rounded-none border-b border-border/40 bg-background/80 backdrop-blur-xl max-w-full"
+          : "mt-3 mx-4 rounded-2xl border border-white/8 shadow-2xl shadow-black/30 bg-background/75 backdrop-blur-2xl max-w-7xl"
           }`}
       >
         <div className="flex items-center justify-between px-5 py-3">
@@ -187,8 +289,8 @@ const Navbar = () => {
                   key={link.to}
                   to={link.to}
                   className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-                      ? "text-gold font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    ? "text-gold font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     }`}
                 >
                   {isActive && (
@@ -207,7 +309,7 @@ const Navbar = () => {
 
           {/* Right side: Profile + Hamburger */}
           <div className="flex items-center gap-2">
-            <ProfileSection />
+            <ProfileButton />
             <motion.button
               whileTap={{ scale: 0.92 }}
               className="md:hidden p-2 rounded-xl hover:bg-white/8 text-muted-foreground hover:text-foreground transition-colors"
@@ -229,7 +331,7 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile menu (unchanged) */}
         <AnimatePresence>
           {open && (
             <motion.div
@@ -252,8 +354,8 @@ const Navbar = () => {
                       <Link
                         to={link.to}
                         className={`relative flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive
-                            ? "bg-gold/10 text-gold border border-gold/20 font-semibold"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          ? "bg-gold/10 text-gold border border-gold/20 font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                           }`}
                       >
                         {link.label}
