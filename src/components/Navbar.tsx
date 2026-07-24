@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { Menu, X, User, ChevronDown, LogOut, Settings } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
+import { useUser, useClerk } from "@clerk/react"; // <-- new import
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -10,13 +11,12 @@ const supabase = createClient(
 );
 
 const navLinks = [
-  { to: "/news",      label: "News & Updates", hasBadge: true },
-  { to: "/guide",     label: "Guide" },
-  { to: "/games",     label: "Fixtures" },
-  // basketball is currently disabled, but we want to keep the nav item for it
-  { to: "/scoreboard",label: "Live Matches" },
-  { to: "/status",    label: "Predictions" },
-  { to: "/previous",  label: "Previous Bets" },
+  { to: "/news", label: "News & Updates", hasBadge: true },
+  { to: "/guide", label: "Guide" },
+  { to: "/games", label: "Fixtures" },
+  { to: "/scoreboard", label: "Live Matches" },
+  { to: "/status", label: "Predictions" },
+  { to: "/previous", label: "Previous Bets" },
   { to: "/analytics", label: "Analytics" },
   { to: "/markets", label: "Monitor" },
 ];
@@ -45,14 +45,134 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
+// ─── Profile Button Component ──────────────────────────────────────────
+function ProfileButton() {
+  const { isSignedIn, user } = useUser();
+  const { openSignIn, signOut } = useClerk();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Close dropdown on route change (optional but nice)
+  const location = useLocation();
+  useEffect(() => setIsOpen(false), [location]);
+
+  const toggleDropdown = () => setIsOpen((prev) => !prev);
+
+  const handleLogin = () => {
+    openSignIn(); // Opens Clerk's sign-in modal
+    setIsOpen(false);
+  };
+
+  const handleLogout = () => {
+    signOut();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={toggleDropdown}
+        className="flex items-center gap-1.5 p-1.5 rounded-xl hover:bg-white/8 text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="Profile"
+      >
+        {isSignedIn && user?.imageUrl ? (
+          <img
+            src={user.imageUrl}
+            alt="Avatar"
+            className="h-8 w-8 rounded-full object-cover border border-white/10"
+          />
+        ) : (
+          <User className="h-6 w-6" />
+        )}
+        <ChevronDown
+          className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+            }`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-background/90 backdrop-blur-xl shadow-2xl shadow-black/30 overflow-hidden z-50"
+          >
+            {isSignedIn ? (
+              // Logged-in options
+              <div className="py-1">
+                <div className="px-4 py-2 text-xs text-muted-foreground border-b border-white/5">
+                  {user?.emailAddresses?.[0]?.emailAddress || "User"}
+                </div>
+                <button
+                  onClick={() => { /* stats page later */ }}
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                >
+                  <span>Stats</span>
+                </button>
+                <Link
+                  to="/settings"
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2 border-t border-white/5"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Log out</span>
+                </button>
+              </div>
+            ) : (
+              // Not logged-in options
+              <div className="py-1">
+                <button
+                  onClick={handleLogin}
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                >
+                  <span>Log in</span>
+                </button>
+                <Link
+                  to="/settings"
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </Link>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Main Navbar ──────────────────────────────────────────────────────
 const Navbar = () => {
-  const [open, setOpen]             = useState(false);
+  const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [hidden, setHidden]         = useState(false);
-  const [atTop, setAtTop]           = useState(true);
-  const lastScrollY                 = useRef(0);
-  const ticking                     = useRef(false);
-  const { pathname }                = useLocation();
+  const [hidden, setHidden] = useState(false);
+  const [atTop, setAtTop] = useState(true);
+  const lastScrollY = useRef(0);
+  const ticking = useRef(false);
+  const { pathname } = useLocation();
 
   // ── Scroll hide/show logic ─────────────────────────────────────────────
   useEffect(() => {
@@ -65,14 +185,11 @@ const Navbar = () => {
         setAtTop(currentY < 12);
 
         if (currentY < 60) {
-          // Always show near top
           setHidden(false);
         } else if (currentY > lastScrollY.current + 6) {
-          // Scrolling DOWN — hide
           setHidden(true);
           setOpen(false);
         } else if (currentY < lastScrollY.current - 4) {
-          // Scrolling UP — show
           setHidden(false);
         }
 
@@ -110,27 +227,24 @@ const Navbar = () => {
 
   return (
     <motion.nav
-      // Slide up when hidden, slide back down when visible
       animate={{
-        y:       hidden ? "-110%" : "0%",
+        y: hidden ? "-110%" : "0%",
         opacity: hidden ? 0 : 1,
       }}
       transition={{
-        type:      "spring",
+        type: "spring",
         stiffness: 280,
-        damping:   32,
-        mass:      0.8,
+        damping: 32,
+        mass: 0.8,
       }}
       className="fixed top-0 left-0 right-0 z-50"
       style={{ willChange: "transform" }}
     >
-      {/* Glass pill that floats with backdrop blur */}
       <div
-        className={`mx-auto transition-all duration-500 ${
-          atTop
+        className={`mx-auto transition-all duration-500 ${atTop
             ? "rounded-none border-b border-border/40 bg-background/80 backdrop-blur-xl max-w-full"
             : "mt-3 mx-4 rounded-2xl border border-white/8 shadow-2xl shadow-black/30 bg-background/75 backdrop-blur-2xl max-w-7xl"
-        }`}
+          }`}
       >
         <div className="flex items-center justify-between px-5 py-3">
           {/* Logo */}
@@ -155,11 +269,10 @@ const Navbar = () => {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
+                  className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
                       ? "text-gold font-semibold"
                       : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  }`}
+                    }`}
                 >
                   {isActive && (
                     <motion.div
@@ -175,34 +288,37 @@ const Navbar = () => {
             })}
           </div>
 
-          {/* Mobile hamburger */}
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            className="md:hidden p-2 rounded-xl hover:bg-white/8 text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setOpen(!open)}
-            aria-label="Toggle menu"
-          >
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={open ? "close" : "open"}
-                initial={{ rotate: -90, opacity: 0 }}
-                animate={{ rotate: 0,   opacity: 1 }}
-                exit={{   rotate:  90,  opacity: 0 }}
-                transition={{ duration: 0.18 }}
-              >
-                {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </motion.div>
-            </AnimatePresence>
-          </motion.button>
+          {/* Right side: Profile + Hamburger */}
+          <div className="flex items-center gap-2">
+            <ProfileButton />
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              className="md:hidden p-2 rounded-xl hover:bg-white/8 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setOpen(!open)}
+              aria-label="Toggle menu"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={open ? "close" : "open"}
+                  initial={{ rotate: -90, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: 90, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </motion.div>
+              </AnimatePresence>
+            </motion.button>
+          </div>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile menu (unchanged) */}
         <AnimatePresence>
           {open && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
-              exit={{   height: 0,    opacity: 0 }}
+              exit={{ height: 0, opacity: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="md:hidden overflow-hidden border-t border-border/40"
             >
@@ -218,11 +334,10 @@ const Navbar = () => {
                     >
                       <Link
                         to={link.to}
-                        className={`relative flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                          isActive
+                        className={`relative flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive
                             ? "bg-gold/10 text-gold border border-gold/20 font-semibold"
                             : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                        }`}
+                          }`}
                       >
                         {link.label}
                         {link.hasBadge && <UnreadBadge count={unreadCount} />}
