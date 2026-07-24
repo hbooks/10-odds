@@ -14,7 +14,10 @@ import ChartPage from "./pages/ChartPage";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import MaintenancePage from "@/pages/Maintenance";
 import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
-import { ClerkProvider } from "@clerk/react";  // <── NEW
+import { ClerkProvider } from "@clerk/react";
+import SignInPage from "@/pages/SignInPage";
+import SignUpPage from "@/pages/SignUpPage";
+import UserProfilePage from "@/pages/UserProfilePage";
 
 const IndexPage = lazy(() => import("@/pages/Index"));
 const GamesPage = lazy(() => import("@/pages/GamesPage"));
@@ -106,7 +109,14 @@ function App() {
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
           {/* ─── ClerkProvider added here ─── */}
-          <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
+          <ClerkProvider
+            publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
+            signInUrl="/sign-in"
+            signUpUrl="/sign-up"
+            signInFallbackRedirectUrl="/games"
+            signUpFallbackRedirectUrl="/games"
+            afterSignOutUrl="/games"
+          >
             <BrowserRouter>
               <PageTracker />
 
@@ -146,6 +156,9 @@ function App() {
                     <Route path="/chart" element={<ChartPage />} />
                     <Route path="/admin/news" element={<AdminCommunity />} />
                     <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+                    <Route path="/sign-in" element={<SignInPage />} />
+                    <Route path="/sign-up" element={<SignUpPage />} />
+                    <Route path="/Uprof/*" element={<UserProfilePage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>

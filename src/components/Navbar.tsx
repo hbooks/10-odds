@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, User, ChevronDown, LogOut, Settings } from "lucide-react";
+import { Menu, X, User, ChevronDown, LogOut, Settings, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
-import { useUser, useClerk } from "@clerk/react"; // <-- new import
+import { useUser, useClerk } from "@clerk/react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -45,12 +45,13 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-// ─── Profile Button Component ──────────────────────────────────────────
+// ─── Profile Button (page‑based) ──────────────────────────────────────
 function ProfileButton() {
   const { isSignedIn, user } = useUser();
-  const { openSignIn, signOut } = useClerk();
+  const { signOut } = useClerk();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -63,20 +64,29 @@ function ProfileButton() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close dropdown on route change (optional but nice)
-  const location = useLocation();
+  // Close dropdown on route change
   useEffect(() => setIsOpen(false), [location]);
 
   const toggleDropdown = () => setIsOpen((prev) => !prev);
 
-  const handleLogin = () => {
-    openSignIn(); // Opens Clerk's sign-in modal
+  const handleLogout = async () => {
+    await signOut();
     setIsOpen(false);
   };
 
-  const handleLogout = () => {
-    signOut();
-    setIsOpen(false);
+  // Get user initials for fallback avatar
+  const getInitials = (): string => {
+    if (!user) return "U";
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.firstName) {
+      return user.firstName[0].toUpperCase();
+    }
+    if (user.emailAddresses?.[0]?.emailAddress) {
+      return user.emailAddresses[0].emailAddress[0].toUpperCase();
+    }
+    return "U";
   };
 
   return (
@@ -92,6 +102,11 @@ function ProfileButton() {
             alt="Avatar"
             className="h-8 w-8 rounded-full object-cover border border-white/10"
           />
+        ) : isSignedIn ? (
+          // Fallback: show initials
+          <div className="h-8 w-8 rounded-full bg-gold/20 text-gold flex items-center justify-center text-sm font-bold border border-white/10">
+            {getInitials()}
+          </div>
         ) : (
           <User className="h-6 w-6" />
         )}
@@ -111,19 +126,21 @@ function ProfileButton() {
             className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-background/90 backdrop-blur-xl shadow-2xl shadow-black/30 overflow-hidden z-50"
           >
             {isSignedIn ? (
-              // Logged-in options
+              // ── Logged in ──
               <div className="py-1">
-                <div className="px-4 py-2 text-xs text-muted-foreground border-b border-white/5">
+                <div className="px-4 py-2 text-xs text-muted-foreground border-b border-white/5 truncate">
                   {user?.emailAddresses?.[0]?.emailAddress || "User"}
                 </div>
-                <button
-                  onClick={() => { /* stats page later */ }}
-                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
-                >
-                  <span>Stats</span>
-                </button>
                 <Link
-                  to="/settings"
+                  to="/stats"
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Stats</span>
+                </Link>
+                <Link
+                  to="/user"
                   className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
                   onClick={() => setIsOpen(false)}
                 >
@@ -139,21 +156,21 @@ function ProfileButton() {
                 </button>
               </div>
             ) : (
-              // Not logged-in options
+              // ── Logged out ──
               <div className="py-1">
-                <button
-                  onClick={handleLogin}
-                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
-                >
-                  <span>Log in</span>
-                </button>
                 <Link
-                  to="/settings"
+                  to="/sign-in"
                   className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
                   onClick={() => setIsOpen(false)}
                 >
-                  <Settings className="h-4 w-4" />
-                  <span>Settings</span>
+                  <span>Log in</span>
+                </Link>
+                <Link
+                  to="/sign-up"
+                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2 border-t border-white/5"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span>Sign up</span>
                 </Link>
               </div>
             )}
