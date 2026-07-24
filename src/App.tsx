@@ -17,7 +17,6 @@ import MaintenancePage from "@/pages/Maintenance";
 import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
 import { ClerkProvider } from "@clerk/react";
 
-
 const IndexPage = lazy(() => import("@/pages/Index"));
 const GamesPage = lazy(() => import("@/pages/GamesPage"));
 const TenOddsPage = lazy(() => import("@/pages/TenOddsPage"));
@@ -44,7 +43,7 @@ interface LoadingCtx {
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
 }
-const LoadingContext = createContext<LoadingCtx>({ isLoading: false, setIsLoading: () => { } });
+const LoadingContext = createContext<LoadingCtx>({ isLoading: false, setIsLoading: () => {} });
 export const useLoading = () => useContext(LoadingContext);
 
 const LazyFallback = () => <GlobalLoader />;
@@ -107,11 +106,9 @@ function App() {
         <Toaster />
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
-          {/* ─── ClerkProvider added here ─── */}
+          {/* ─── ClerkProvider (updated) ─── */}
           <ClerkProvider
             publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
-            signInUrl="https://accounts.hpbooks.uk/sign-in"
-            signUpUrl="https://accounts.hpbooks.uk/sign-up"
             signInFallbackRedirectUrl="/games"
             signUpFallbackRedirectUrl="/games"
             afterSignOutUrl="/games"
@@ -155,7 +152,6 @@ function App() {
                     <Route path="/chart" element={<ChartPage />} />
                     <Route path="/admin/news" element={<AdminCommunity />} />
                     <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
