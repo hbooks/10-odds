@@ -47,7 +47,7 @@ function UnreadBadge({ count }: { count: number }) {
 
 // ─── Profile Button (page‑based) ──────────────────────────────────────
 function ProfileButton() {
-  const { isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const { signOut } = useClerk();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -88,6 +88,8 @@ function ProfileButton() {
     }
     return "U";
   };
+
+  if (!isLoaded) return null;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -132,21 +134,21 @@ function ProfileButton() {
                   {user?.emailAddresses?.[0]?.emailAddress || "User"}
                 </div>
                 <Link
-                  to="/stats"
+                  to="/analytics"
                   className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
                   onClick={() => setIsOpen(false)}
                 >
                   <BarChart3 className="h-4 w-4" />
-                  <span>Stats</span>
+                  <span>Profile</span>
                 </Link>
-                <Link
-                  to="/user"
+                <a
+                  href={`https://accounts.hpbooks.uk/user`}
                   className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
                   onClick={() => setIsOpen(false)}
                 >
                   <Settings className="h-4 w-4" />
                   <span>Settings</span>
-                </Link>
+                </a>
                 <button
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2 border-t border-white/5"
@@ -158,20 +160,20 @@ function ProfileButton() {
             ) : (
               // ── Logged out ──
               <div className="py-1">
-                <Link
-                  to="/sign-in"
+                <a
+                  href={`https://accounts.hpbooks.uk/sign-in`}
                   className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
                   onClick={() => setIsOpen(false)}
                 >
                   <span>Log in</span>
-                </Link>
-                <Link
-                  to="/sign-up"
+                </a>
+                <a
+                  href={`https://accounts.hpbooks.uk/sign-up`}
                   className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2 border-t border-white/5"
                   onClick={() => setIsOpen(false)}
                 >
                   <span>Sign up</span>
-                </Link>
+                </a>
               </div>
             )}
           </motion.div>
@@ -259,8 +261,8 @@ const Navbar = () => {
     >
       <div
         className={`mx-auto transition-all duration-500 ${atTop
-            ? "rounded-none border-b border-border/40 bg-background/80 backdrop-blur-xl max-w-full"
-            : "mt-3 mx-4 rounded-2xl border border-white/8 shadow-2xl shadow-black/30 bg-background/75 backdrop-blur-2xl max-w-7xl"
+          ? "rounded-none border-b border-border/40 bg-background/80 backdrop-blur-xl max-w-full"
+          : "mt-3 mx-4 rounded-2xl border border-white/8 shadow-2xl shadow-black/30 bg-background/75 backdrop-blur-2xl max-w-7xl"
           }`}
       >
         <div className="flex items-center justify-between px-5 py-3">
@@ -287,8 +289,8 @@ const Navbar = () => {
                   key={link.to}
                   to={link.to}
                   className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-                      ? "text-gold font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    ? "text-gold font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     }`}
                 >
                   {isActive && (
@@ -352,8 +354,8 @@ const Navbar = () => {
                       <Link
                         to={link.to}
                         className={`relative flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive
-                            ? "bg-gold/10 text-gold border border-gold/20 font-semibold"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          ? "bg-gold/10 text-gold border border-gold/20 font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                           }`}
                       >
                         {link.label}

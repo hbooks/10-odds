@@ -4,6 +4,7 @@ import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
+import {AuthStatusToast} from "@/components/AuthStatusToast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
 import SupportPortal from "@/components/SupportPortal";
@@ -15,9 +16,7 @@ import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import MaintenancePage from "@/pages/Maintenance";
 import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
 import { ClerkProvider } from "@clerk/react";
-import SignInPage from "@/pages/SignInPage";
-import SignUpPage from "@/pages/SignUpPage";
-import UserProfilePage from "@/pages/UserProfilePage";
+
 
 const IndexPage = lazy(() => import("@/pages/Index"));
 const GamesPage = lazy(() => import("@/pages/GamesPage"));
@@ -111,8 +110,8 @@ function App() {
           {/* ─── ClerkProvider added here ─── */}
           <ClerkProvider
             publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
-            signInUrl="/sign-in"
-            signUpUrl="/sign-up"
+            signInUrl="https://accounts.hpbooks.uk/sign-in"
+            signUpUrl="https://accounts.hpbooks.uk/sign-up"
             signInFallbackRedirectUrl="/games"
             signUpFallbackRedirectUrl="/games"
             afterSignOutUrl="/games"
@@ -156,14 +155,12 @@ function App() {
                     <Route path="/chart" element={<ChartPage />} />
                     <Route path="/admin/news" element={<AdminCommunity />} />
                     <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-                    <Route path="/sign-in" element={<SignInPage />} />
-                    <Route path="/sign-up" element={<SignUpPage />} />
-                    <Route path="/Uprof/*" element={<UserProfilePage />} />
+                    
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
               </MaintenanceGuard>
-
+              <AuthStatusToast />
               <CustomerCare />
               <SupportPortal />
             </BrowserRouter>
