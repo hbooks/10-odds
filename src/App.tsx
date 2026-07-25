@@ -14,6 +14,7 @@ import ChartPage from "./pages/ChartPage";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import MaintenancePage from "@/pages/Maintenance";
 import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
+import ProfilePage from "@/pages/ProfilePage";
 
 // ─── Replace Clerk with Kinde ──────────────────────────────────────
 import { KindeProvider } from '@kinde-oss/kinde-auth-react';
@@ -151,6 +152,7 @@ function App() {
                     <Route path="/chart" element={<ChartPage />} />
                     <Route path="/admin/news" element={<AdminCommunity />} />
                     <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+                    <Route path="/profile/:userId" element={<ProfilePage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>

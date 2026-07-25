@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronDown, LogOut, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
+import CrestImage from "@/components/CrestImage";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -45,15 +46,64 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-// ─── Profile Section (Kinde) ──────────────────────────────────────
+// ─── Profile Section ──────────────────────────────────────────────
 function ProfileSection() {
   const { isAuthenticated, user, login, logout, register } = useKindeAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const [crestUrl, setCrestUrl] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
 
-  // Loading state – show a placeholder while Kinde initializes
+  // ── Fetch user crest from user_crests table ─────────────────────
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      const fetchCrest = async () => {
+        const { data, error } = await supabase
+          .from("user_crests")
+          .select("crest_url")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!error && data?.crest_url) {
+          setCrestUrl(data.crest_url);
+        } else {
+          setCrestUrl(null);
+        }
+      };
+      fetchCrest();
+    }
+  }, [isAuthenticated, user?.id]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Close dropdown on route change
+  useEffect(() => setIsOpen(false), [location]);
+
+  const toggleDropdown = () => setIsOpen((prev) => !prev);
+
+  // ─── Generate DiceBear default avatar URL ──────────────────────
+  const getDefaultAvatarUrl = () => {
+    if (user?.id) {
+      return `https://api.dicebear.com/8.x/adventurer-neutral/svg?seed=${user.id}`;
+    }
+    return `https://api.dicebear.com/8.x/adventurer-neutral/svg?seed=default`;
+  };
+
+  // Loading state
   if (isAuthenticated === undefined) {
-    return <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />;
+    return <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />;
   }
 
+  // ─── Logged out ──────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
       <div className="flex items-center gap-2">
@@ -73,22 +123,76 @@ function ProfileSection() {
     );
   }
 
+  // ─── Logged in ──────────────────────────────────────────────────
+  const displayName = user?.givenName || user?.email || "User";
+  const avatarUrl = crestUrl || getDefaultAvatarUrl();
+
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-sm text-muted-foreground">
-        {user?.givenName|| user?.email || "User"}
-      </span>
+    <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => logout()}
-        className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+        onClick={toggleDropdown}
+        className="flex items-center gap-1.5 p-1 rounded-xl hover:bg-white/8 text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="Profile"
       >
-        Log out
+        {/* Avatar */}
+        <div className="h-9 w-9 rounded-full overflow-hidden border border-white/10 bg-gold/20 flex items-center justify-center">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="text-sm font-bold text-gold">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-background/90 backdrop-blur-xl shadow-2xl shadow-black/30 overflow-hidden z-50"
+          >
+            <div className="py-1">
+              <div className="px-4 py-2 text-xs text-muted-foreground border-b border-white/5 truncate">
+                {user?.email || "User"}
+              </div>
+
+              <Link
+                to={`/profile/${user?.id}`}
+                className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-white/5 transition-colors flex items-center gap-2"
+                onClick={() => setIsOpen(false)}
+              >
+                <Settings className="h-4 w-4" />
+                <span>Profile settings</span>
+              </Link>
+
+              <button
+                onClick={() => {
+                  logout();
+                  setIsOpen(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2 border-t border-white/5"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Log out</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// ─── Main Navbar (unchanged) ──────────────────────────────────────────
+// ─── Main Navbar ──────────────────────────────────────────────────────────
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
