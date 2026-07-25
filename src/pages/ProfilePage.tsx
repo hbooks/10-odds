@@ -15,7 +15,10 @@ import {
     User,
     Mail,
     Shield,
-    Sparkles
+    Sparkles,
+    Trash2,
+    AlertTriangle,
+    Loader2
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import CrestImage from "@/components/CrestImage";
@@ -107,8 +110,7 @@ function ComingSoonModal({ isOpen, onClose, title, icon }: ComingSoonModalProps)
                                     {title}
                                 </h2>
                                 <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
-                                    We're building this feature and it'll be ready soon. 
-                                    Consider supporting the project to help us bring it to life faster!
+                                    We're building this feature and it'll be ready soon.
                                 </p>
                             </div>
                             <div className="flex items-center gap-2 text-xs font-medium" style={{ color: C.textFaint }}>
@@ -123,6 +125,112 @@ function ComingSoonModal({ isOpen, onClose, title, icon }: ComingSoonModalProps)
                             >
                                 Got it
                             </button>
+                        </div>
+                    </motion.div>
+                </>
+            )}
+        </AnimatePresence>
+    );
+}
+
+// ─── Delete account: confirmation modal before handing off to the review queue ──
+function DeleteAccountModal({
+    isOpen,
+    onClose,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+}) {
+    const [redirecting, setRedirecting] = useState(false);
+    useEscapeToClose(isOpen && !redirecting, onClose);
+
+    const handleRequestDeletion = () => {
+        setRedirecting(true);
+        window.location.href = "https://auth.hpbooks.uk/knock-knock";
+    };
+
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <>
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+                        onClick={() => !redirecting && onClose()}
+                        aria-hidden="true"
+                    />
+                    <motion.div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-account-title"
+                        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+                        transition={{ type: "spring", stiffness: 340, damping: 30 }}
+                        className="fixed inset-4 z-50 max-w-md mx-auto my-auto h-fit max-h-[85vh] overflow-y-auto rounded-2xl p-7 sm:p-8 shadow-2xl shadow-black/40"
+                        style={{ background: C.panel, border: "1px solid rgba(226,122,107,0.16)" }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex flex-col items-center text-center gap-5">
+                            <div className="h-16 w-16 rounded-full flex items-center justify-center" style={{ background: "rgba(226,122,107,0.12)" }}>
+                                <AlertTriangle className="h-7 w-7" style={{ color: C.red }} />
+                            </div>
+
+                            <div className="space-y-3">
+                                <h2 id="delete-account-title" className="text-2xl font-bold" style={{ fontFamily: "'Fraunces', Georgia, serif", color: C.text }}>
+                                    We're sad to see you go
+                                </h2>
+                                <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
+                                    We're in the middle of migrating our database to new infrastructure, so account
+                                    deletions can't be processed instantly and automatically right now — we don't want
+                                    any of your data left behind in a half-migrated state.
+                                </p>
+                                <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
+                                    Instead, your request goes to our team for manual review. Once approved, your
+                                    account and all associated data are permanently deleted from our systems within
+                                    <span style={{ color: C.text, fontWeight: 600 }}> 1–3 business days</span>, and
+                                    you'll get an email the moment it's done.
+                                </p>
+                            </div>
+
+                            <div className="w-full h-px" style={{ background: C.divider }} />
+
+                            <div className="w-full text-left p-3.5 rounded-xl flex items-start gap-2.5" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${C.divider}` }}>
+                                <Clock className="h-4 w-4 mt-0.5 shrink-0" style={{ color: C.textFaint }} />
+                                <p className="text-xs leading-relaxed" style={{ color: C.textFaint }}>
+                                    You can keep using your account normally while the request is under review —
+                                    nothing changes until it's approved.
+                                </p>
+                            </div>
+
+                            <div className="w-full flex flex-col gap-2.5 mt-1">
+                                <button
+                                    onClick={handleRequestDeletion}
+                                    disabled={redirecting}
+                                    className="w-full px-6 py-3.5 rounded-xl font-mono text-[11px] tracking-[0.25em] uppercase font-semibold transition-transform hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-80 flex items-center justify-center gap-2"
+                                    style={{ background: C.red, color: "#180907", ["--tw-ring-color" as string]: C.red, ["--tw-ring-offset-color" as string]: C.panel }}
+                                >
+                                    {redirecting ? (
+                                        <>
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            Redirecting…
+                                        </>
+                                    ) : (
+                                        "Request Deletion"
+                                    )}
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    disabled={redirecting}
+                                    autoFocus
+                                    className="w-full px-6 py-3 rounded-xl font-mono text-[11px] tracking-[0.25em] uppercase font-semibold transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50"
+                                    style={{ color: C.textMuted, border: `1px solid ${C.cardBorder}`, ["--tw-ring-color" as string]: C.gold, ["--tw-ring-offset-color" as string]: C.panel }}
+                                >
+                                    Keep my account
+                                </button>
+                            </div>
                         </div>
                     </motion.div>
                 </>
@@ -222,6 +330,7 @@ export default function ProfilePage() {
     // Modal states
     const [showPredictionsModal, setShowPredictionsModal] = useState(false);
     const [showStatsModal, setShowStatsModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
 
     // ── Fetch user data from Supabase ────────────────────────────────
     const fetchUserData = async (kindeUserId: string) => {
@@ -305,7 +414,7 @@ export default function ProfilePage() {
     // ─── Reset to default avatar ──────────────────────────────────────
     const handleResetCrest = () => {
         setShowCrestPicker(false);
-        saveCrestToDatabase("https://api.dicebear.com/10.x/thumbs/svg?seed=classic");
+        saveCrestToDatabase(null);
     };
 
     // ─── Generate DiceBear default avatar URL ────────────────────────
@@ -503,6 +612,41 @@ export default function ProfilePage() {
                     >
                         Log out
                     </button>
+
+                    {/* ── Danger Zone ──────────────────────────────────────────── */}
+                    <div className="mt-7 pt-6" style={{ borderTop: `1px solid ${C.divider}` }}>
+                        <p className="text-xs font-mono tracking-[0.2em] uppercase mb-3 flex items-center gap-1.5" style={{ color: "rgba(226,122,107,0.65)" }}>
+                            <AlertTriangle className="h-3 w-3" />
+                            Danger Zone
+                        </p>
+                        <div className="rounded-xl p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap" style={{
+                            background: "rgba(226,122,107,0.04)",
+                            border: "1px solid rgba(226,122,107,0.14)"
+                        }}>
+                            <div className="min-w-0">
+                                <p className="text-sm font-semibold" style={{ color: C.text }}>Delete account</p>
+                                <p className="text-xs mt-0.5" style={{ color: C.textFaint }}>
+                                    Permanently remove your account and all associated data
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowDeleteModal(true)}
+                                className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-mono text-[11px] tracking-[0.2em] uppercase font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                                style={{
+                                    background: "rgba(226,122,107,0.1)",
+                                    color: C.red,
+                                    border: "1px solid rgba(226,122,107,0.25)",
+                                    ["--tw-ring-color" as string]: C.red,
+                                    ["--tw-ring-offset-color" as string]: C.bg,
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(226,122,107,0.18)"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(226,122,107,0.1)"; }}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete Account
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -622,6 +766,10 @@ export default function ProfilePage() {
                 onClose={() => setShowStatsModal(false)}
                 title="My Stats"
                 icon={<BarChart3 className="h-7 w-7" />}
+            />
+            <DeleteAccountModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
             />
         </div>
     );

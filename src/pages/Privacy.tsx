@@ -44,7 +44,7 @@ function Section({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 const PrivacyPage = () => {
-  const lastUpdated = "6 June 2026";
+  const lastUpdated = "25 July 2026";
 
   return (
     <Layout>
@@ -124,6 +124,12 @@ const PrivacyPage = () => {
                     investigate and fix it. No other chat history is stored or linked to
                     your identity.
                   </li>
+                  <li>
+                    <strong className="text-foreground">Account Data:</strong> If you create an
+                    account, we store your email address, username, and profile crest
+                    selection in our secure database. This data is retained only as long
+                    as your account remains active.
+                  </li>
                 </ul>
               </div>
               <div>
@@ -177,53 +183,53 @@ const PrivacyPage = () => {
           </Section>
 
           <Section index={4} number="04" title="Live Market Requests">
-  <p>
-    When you use the Live Market Monitor to track a betting market, we store the match identifier, market type, 
-    and your selected outcome in our database. This information is used solely to generate and update the 
-    probability chart you requested.
-  </p>
-  <p>
-    <strong className="text-foreground">This data is not linked to your personal identity.</strong> No 
-    account is required to use the feature, and we do not associate market requests with your device, IP address, 
-    or any other identifiable information.
-  </p>
-  <p>
-    Once the match ends and the market is settled, the data remains in our system for analytical purposes 
-    but is no longer actively updated.
-  </p>
-</Section>
+            <p>
+              When you use the Live Market Monitor to track a betting market, we store the match identifier, market type,
+              and your selected outcome in our database. This information is used solely to generate and update the
+              probability chart you requested.
+            </p>
+            <p>
+              <strong className="text-foreground">This data is not linked to your personal identity.</strong> No
+              account is required to use the feature, and we do not associate market requests with your device, IP address,
+              or any other identifiable information.
+            </p>
+            <p>
+              Once the match ends and the market is settled, the data remains in our system for analytical purposes
+              but is no longer actively updated.
+            </p>
+          </Section>
 
-<Section index={5} number="05" title="Data Processors for Live Features">
-  <p>
-    To provide the Live Market Monitor and our expanded prediction coverage, we share limited match
-    information with the following data processors:
-  </p>
-  <ul className="list-disc list-inside space-y-1.5 pl-2">
-    <li>
-      <strong className="text-foreground">Football-Data.org</strong> — receives date-range queries
-      to return fixture schedules, match results, and team data for all seven covered competitions,
-      including the UEFA Champions League and FIFA World Cup. No personal data
-      is shared; only date parameters and competition identifiers are sent.
-    </li>
-    <li>
-      <strong className="text-foreground">The Odds API</strong> — receives sport-key identifiers
-      to return bookmaker odds used for fair-value probability calculations. No personal data is
-      shared.
-    </li>
-    <li>
-      <strong className="text-foreground">Bzzoiro Sports Data (BSD)</strong> – receives match identifiers to
-      return live statistics and incidents for the Live Market Monitor. No personal data is shared.
-    </li>
-    <li>
-      <strong className="text-foreground">Groq</strong> – receives match statistics and incident data to
-      generate probability charts. No user‑identifiable information is included in these requests.
-    </li>
-  </ul>
-  <p>
-    These processors are used only for the purpose of delivering the Site's prediction and live
-    market features and do not have access to your personal information.
-  </p>
-</Section>
+          <Section index={5} number="05" title="Data Processors for Live Features">
+            <p>
+              To provide the Live Market Monitor and our expanded prediction coverage, we share limited match
+              information with the following data processors:
+            </p>
+            <ul className="list-disc list-inside space-y-1.5 pl-2">
+              <li>
+                <strong className="text-foreground">Football-Data.org</strong> — receives date-range queries
+                to return fixture schedules, match results, and team data for all seven covered competitions,
+                including the UEFA Champions League and FIFA World Cup. No personal data
+                is shared; only date parameters and competition identifiers are sent.
+              </li>
+              <li>
+                <strong className="text-foreground">The Odds API</strong> — receives sport-key identifiers
+                to return bookmaker odds used for fair-value probability calculations. No personal data is
+                shared.
+              </li>
+              <li>
+                <strong className="text-foreground">Bzzoiro Sports Data (BSD)</strong> – receives match identifiers to
+                return live statistics and incidents for the Live Market Monitor. No personal data is shared.
+              </li>
+              <li>
+                <strong className="text-foreground">Groq</strong> – receives match statistics and incident data to
+                generate probability charts. No user‑identifiable information is included in these requests.
+              </li>
+            </ul>
+            <p>
+              These processors are used only for the purpose of delivering the Site's prediction and live
+              market features and do not have access to your personal information.
+            </p>
+          </Section>
 
           <Section index={6} number="06" title="Sharing Your Information">
             <p>
@@ -328,7 +334,11 @@ const PrivacyPage = () => {
               </li>
               <li>
                 <strong className="text-foreground">Deletion:</strong> Request
-                deletion of your personal data, subject to legal obligations.
+                deletion of your personal data. Due to ongoing system migrations and
+                technical infrastructure updates, we are currently unable to offer
+                direct self-service account deletion. To request account deletion,
+                please submit a request via the <strong className="text-foreground">Profile Settings</strong>{" "}
+                page on the Site.
               </li>
               <li>
                 <strong className="text-foreground">Opt-out:</strong> Unsubscribe from
