@@ -107,7 +107,8 @@ function ComingSoonModal({ isOpen, onClose, title, icon }: ComingSoonModalProps)
                                     {title}
                                 </h2>
                                 <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
-                                    We're building this feature and it'll be ready soon.
+                                    We're building this feature and it'll be ready soon. 
+                                    Consider supporting the project to help us bring it to life faster!
                                 </p>
                             </div>
                             <div className="flex items-center gap-2 text-xs font-medium" style={{ color: C.textFaint }}>
@@ -304,7 +305,7 @@ export default function ProfilePage() {
     // ─── Reset to default avatar ──────────────────────────────────────
     const handleResetCrest = () => {
         setShowCrestPicker(false);
-        saveCrestToDatabase(null);
+        saveCrestToDatabase("https://api.dicebear.com/10.x/thumbs/svg?seed=classic");
     };
 
     // ─── Generate DiceBear default avatar URL ────────────────────────
