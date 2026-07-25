@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Pencil, CheckCircle, AlertCircle, RefreshCw, ArrowLeft, Save, X } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import CrestImage from "@/components/CrestImage";
+import { toast } from "sonner";
 
 const supabase = createClient(
     import.meta.env.VITE_SUPABASE_URL as string,
@@ -33,6 +34,7 @@ export default function ProfilePage() {
     const [teams, setTeams] = useState<Team[]>([]);
     const [loadingTeams, setLoadingTeams] = useState(false);
     const [showCrestPicker, setShowCrestPicker] = useState(false);
+    const [savingCrest, setSavingCrest] = useState(false);
 
     // ── Fetch user data from Supabase ────────────────────────────────
     const fetchUserData = async (kindeUserId: string) => {
@@ -83,6 +85,46 @@ export default function ProfilePage() {
         }
     }, [user]);
 
+    // ─── Auto-save crest when selected ──────────────────────────────────
+    const saveCrestToDatabase = async (crest: string | null) => {
+        if (!user?.id) return;
+
+        setSavingCrest(true);
+        try {
+            const { error: upsertError } = await supabase
+                .from("user_crests")
+                .upsert({
+                    user_id: user.id,
+                    username: username,
+                    crest_url: crest,
+                    updated_at: new Date().toISOString(),
+                }, {
+                    onConflict: 'user_id',
+                });
+
+            if (upsertError) throw upsertError;
+
+            setCrestUrl(crest);
+            toast.success('Crest updated successfully!');
+        } catch (error) {
+            toast.error('Failed to update crest. Please try again.');
+        } finally {
+            setSavingCrest(false);
+        }
+    };
+
+    // ─── Select a crest from the picker ──────────────────────────────
+    const handleSelectCrest = (crest: string) => {
+        setShowCrestPicker(false);
+        saveCrestToDatabase(crest);
+    };
+
+    // ─── Reset to default avatar ──────────────────────────────────────
+    const handleResetCrest = () => {
+        setShowCrestPicker(false);
+        saveCrestToDatabase(null);
+    };
+
     // ─── Save profile updates ──────────────────────────────────────────
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -115,18 +157,12 @@ export default function ProfilePage() {
         }
     };
 
-    // ─── Select a crest from the picker ──────────────────────────────
-    const handleSelectCrest = (crest: string) => {
-        setCrestUrl(crest);
-        setShowCrestPicker(false);
-    };
-
     // ─── Generate DiceBear default avatar URL ────────────────────────
     const getDefaultAvatarUrl = () => {
         if (user?.id) {
-            return `https://api.dicebear.com/6.x/adventurer-neutral/svg?seed=orange`;
+            return `https://api.dicebear.com/10.x/thumbs/svg?seed=classic`;
         }
-        return `https://api.dicebear.com/6.x/adventurer-neutral/svg?seed=default`;
+        return `https://api.dicebear.com/8.x/thumbs/svg?seed=classic`;
     };
 
     if (!isAuthenticated) {
@@ -183,12 +219,18 @@ export default function ProfilePage() {
                                 </div>
                             )}
                         </div>
+                        {/* Edit icon overlay – opens crest picker */}
                         <button
                             onClick={() => setShowCrestPicker(true)}
                             className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-colors hover:scale-110"
                             style={{ background: "#D4A85A", color: "#0A0F0D" }}
+                            disabled={savingCrest}
                         >
-                            <Pencil className="h-3.5 w-3.5" />
+                            {savingCrest ? (
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                                <Pencil className="h-3.5 w-3.5" />
+                            )}
                         </button>
                     </div>
                     <div>
@@ -198,7 +240,7 @@ export default function ProfilePage() {
                         <p style={{ color: "rgba(244,239,228,0.62)" }}>{user?.email}</p>
                         {!crestUrl && (
                             <p className="text-xs mt-1" style={{ color: "rgba(244,239,228,0.38)" }}>
-                                Default avatar from DiceBear
+                                Default avatar.
                             </p>
                         )}
                     </div>
@@ -236,7 +278,7 @@ export default function ProfilePage() {
                                     </button>
                                 </div>
                                 <p className="text-sm mb-4" style={{ color: "rgba(244,239,228,0.62)" }}>
-                                    Select a team crest to use as your profile picture.
+                                    Select a team crest to use as your profile picture. It will be saved automatically.
                                 </p>
 
                                 {loadingTeams ? (
@@ -262,14 +304,16 @@ export default function ProfilePage() {
                                 )}
 
                                 <button
-                                    onClick={() => {
-                                        setCrestUrl(null);
-                                        setShowCrestPicker(false);
-                                    }}
-                                    className="mt-4 text-xs hover:underline"
+                                    onClick={handleResetCrest}
+                                    className="mt-4 text-xs hover:underline flex items-center gap-1"
                                     style={{ color: "rgba(244,239,228,0.38)" }}
+                                    disabled={savingCrest}
                                 >
-                                    Reset to default DiceBear avatar
+                                    {savingCrest ? (
+                                        <><RefreshCw className="h-3 w-3 animate-spin" /> Saving...</>
+                                    ) : (
+                                        'Reset to default DiceBear avatar'
+                                    )}
                                 </button>
                             </motion.div>
                         </>
