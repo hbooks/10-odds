@@ -93,9 +93,9 @@ function ProfileSection() {
   // ─── Generate DiceBear default avatar URL ──────────────────────
   const getDefaultAvatarUrl = () => {
     if (user?.id) {
-      return `https://api.dicebear.com/8.x/adventurer-neutral/svg?seed=${user.id}`;
+      return `https://api.dicebear.com/6.x/adventurer-neutral/svg?seed=orange`;
     }
-    return `https://api.dicebear.com/8.x/adventurer-neutral/svg?seed=default`;
+    return `https://api.dicebear.com/6.x/adventurer-neutral/svg?seed=default`;
   };
 
   // Loading state

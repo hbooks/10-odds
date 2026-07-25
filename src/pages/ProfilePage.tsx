@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Pencil, CheckCircle, AlertCircle, RefreshCw, ArrowLeft, Save, X } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import CrestImage from "@/components/CrestImage";
@@ -11,9 +11,15 @@ const supabase = createClient(
     import.meta.env.VITE_SUPABASE_ANON_KEY as string
 );
 
+interface Team {
+    id: number;
+    name: string;
+    crest_url: string;
+}
+
 export default function ProfilePage() {
     const { userId } = useParams<{ userId: string }>();
-    const { isAuthenticated, user, getToken, logout } = useKindeAuth();
+    const { isAuthenticated, user, logout } = useKindeAuth();
     const navigate = useNavigate();
 
     const [givenName, setGivenName] = useState('');
@@ -22,23 +28,41 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [isEditing, setIsEditing] = useState(false);
-    const [isChangingCrest, setIsChangingCrest] = useState(false);
-    const [newCrestUrl, setNewCrestUrl] = useState('');
 
-    // ── Fetch user crest from Supabase (user_crests table) ──────────────
-    const fetchUserCrest = async (kindeUserId: string) => {
+    // Crest picker states
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [loadingTeams, setLoadingTeams] = useState(false);
+    const [showCrestPicker, setShowCrestPicker] = useState(false);
+
+    // ── Fetch user data from Supabase ────────────────────────────────
+    const fetchUserData = async (kindeUserId: string) => {
         const { data, error } = await supabase
             .from("user_crests")
-            .select("crest_url")
+            .select("username, crest_url")
             .eq("user_id", kindeUserId)
             .maybeSingle();
 
-        if (!error && data?.crest_url) {
-            setCrestUrl(data.crest_url);
+        if (!error && data) {
+            setUsername(data.username || user?.email?.split('@')[0] || '');
+            setCrestUrl(data.crest_url || null);
         } else {
-            // No custom crest found – will use DiceBear default
+            setUsername(user?.email?.split('@')[0] || '');
             setCrestUrl(null);
         }
+    };
+
+    // ── Fetch teams for crest picker ──────────────────────────────────
+    const fetchTeams = async () => {
+        setLoadingTeams(true);
+        const { data, error } = await supabase
+            .from("teams")
+            .select("id, name, crest_url")
+            .order("name");
+
+        if (!error && data) {
+            setTeams(data as Team[]);
+        }
+        setLoadingTeams(false);
     };
 
     // Check if the logged-in user matches the URL parameter
@@ -47,44 +71,32 @@ export default function ProfilePage() {
             if (user.id !== userId) {
                 navigate('/');
             } else {
-                fetchUserCrest(user.id);
+                fetchUserData(user.id);
+                fetchTeams();
             }
         }
     }, [isAuthenticated, user, userId, navigate]);
 
     useEffect(() => {
         if (user) {
-            setGivenName(user.givenName || '');
-            setUsername(user.email?.split('@')[0] || '');
+            setGivenName(user.givenName || user?.email?.split('@')[0] || '');
         }
     }, [user]);
 
+    // ─── Save profile updates ──────────────────────────────────────────
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setMessage(null);
 
         try {
-            const token = await getToken();
-
-            // Update name in Kinde
-            await fetch('https://api.kinde.com/api/v1/user', {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    given_name: givenName,
-                }),
-            });
-
-            // Update crest in user_crests table
+            // Update user_crests table in Supabase
             if (user?.id) {
                 const { error: upsertError } = await supabase
                     .from("user_crests")
                     .upsert({
                         user_id: user.id,
+                        username: username,
                         crest_url: crestUrl,
                         updated_at: new Date().toISOString(),
                     }, {
@@ -96,8 +108,6 @@ export default function ProfilePage() {
 
             setMessage({ type: 'success', text: 'Profile updated successfully!' });
             setIsEditing(false);
-            // Refresh to show updated data
-            setTimeout(() => window.location.reload(), 500);
         } catch (error) {
             setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' });
         } finally {
@@ -105,47 +115,18 @@ export default function ProfilePage() {
         }
     };
 
-    // ─── Handle crest change ──────────────────────────────────────────────
-    const handleCrestChange = async () => {
-        if (!newCrestUrl.trim()) {
-            setMessage({ type: 'error', text: 'Please enter a valid image URL.' });
-            return;
-        }
-
-        setLoading(true);
-        try {
-            // Update crest in user_crests table
-            if (user?.id) {
-                const { error: upsertError } = await supabase
-                    .from("user_crests")
-                    .upsert({
-                        user_id: user.id,
-                        crest_url: newCrestUrl.trim(),
-                        updated_at: new Date().toISOString(),
-                    }, {
-                        onConflict: 'user_id',
-                    });
-
-                if (upsertError) throw upsertError;
-            }
-
-            setCrestUrl(newCrestUrl.trim());
-            setNewCrestUrl('');
-            setIsChangingCrest(false);
-            setMessage({ type: 'success', text: 'Crest updated successfully!' });
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Failed to update crest. Please try again.' });
-        } finally {
-            setLoading(false);
-        }
+    // ─── Select a crest from the picker ──────────────────────────────
+    const handleSelectCrest = (crest: string) => {
+        setCrestUrl(crest);
+        setShowCrestPicker(false);
     };
 
-    // ─── Generate DiceBear default avatar URL ────────────────────────────
+    // ─── Generate DiceBear default avatar URL ────────────────────────
     const getDefaultAvatarUrl = () => {
         if (user?.id) {
-            return `https://api.dicebear.com/8.x/adventurer-neutral/svg?seed=${user.id}`;
+            return `https://api.dicebear.com/6.x/adventurer-neutral/svg?seed=orange`;
         }
-        return `https://api.dicebear.com/8.x/adventurer-neutral/svg?seed=default`;
+        return `https://api.dicebear.com/6.x/adventurer-neutral/svg?seed=default`;
     };
 
     if (!isAuthenticated) {
@@ -170,7 +151,7 @@ export default function ProfilePage() {
         );
     }
 
-    const displayName = user?.givenName || user?.email || "User";
+    const displayName = givenName || user?.email?.split('@')[0] || "User";
     const avatarUrl = crestUrl || getDefaultAvatarUrl();
 
     return (
@@ -186,9 +167,9 @@ export default function ProfilePage() {
                     Back
                 </Link>
 
+                {/* Profile header */}
                 <div className="flex items-center gap-4 mb-8">
                     <div className="relative">
-                        {/* Large avatar */}
                         <div className="h-24 w-24 rounded-full overflow-hidden border-2 flex items-center justify-center" style={{ borderColor: "rgba(244,239,228,0.18)" }}>
                             {avatarUrl ? (
                                 <img
@@ -202,9 +183,8 @@ export default function ProfilePage() {
                                 </div>
                             )}
                         </div>
-                        {/* Edit icon overlay */}
                         <button
-                            onClick={() => setIsChangingCrest(true)}
+                            onClick={() => setShowCrestPicker(true)}
                             className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-colors hover:scale-110"
                             style={{ background: "#D4A85A", color: "#0A0F0D" }}
                         >
@@ -224,57 +204,77 @@ export default function ProfilePage() {
                     </div>
                 </div>
 
-                {/* Crest change modal */}
-                {isChangingCrest && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="mb-6 p-4 rounded-xl border" style={{ borderColor: "rgba(244,239,228,0.18)", background: "rgba(10,15,13,0.95)" }}
-                    >
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-semibold">Change Profile Picture</h3>
-                            <button
-                                onClick={() => setIsChangingCrest(false)}
-                                className="p-1 rounded hover:bg-white/5"
-                                style={{ color: "rgba(244,239,228,0.62)" }}
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <p className="text-xs mb-3" style={{ color: "rgba(244,239,228,0.62)" }}>
-                            Enter a URL for your custom crest, or leave empty to use your DiceBear default avatar.
-                        </p>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={newCrestUrl}
-                                onChange={(e) => setNewCrestUrl(e.target.value)}
-                                placeholder="https://example.com/crest.png"
-                                className="flex-1 px-3 py-2 rounded-lg bg-transparent border text-sm focus:outline-none"
-                                style={{ borderColor: "rgba(244,239,228,0.18)", color: "#F4EFE4" }}
+                {/* Crest Picker Modal */}
+                <AnimatePresence>
+                    {showCrestPicker && (
+                        <>
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+                                onClick={() => setShowCrestPicker(false)}
                             />
-                            <button
-                                onClick={handleCrestChange}
-                                disabled={loading}
-                                className="px-4 py-2 rounded-lg font-medium text-sm transition-colors disabled:opacity-50"
-                                style={{ background: "#79edb3ff", color: "#0A0F0D" }}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="fixed inset-4 z-50 max-w-2xl mx-auto my-auto max-h-[80vh] overflow-y-auto rounded-2xl p-6"
+                                style={{ background: "#0F1714", border: "1px solid rgba(244,239,228,0.1)" }}
+                                onClick={(e) => e.stopPropagation()}
                             >
-                                {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                            </button>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setNewCrestUrl('');
-                                handleCrestChange();
-                            }}
-                            className="mt-2 text-xs hover:underline"
-                            style={{ color: "rgba(244,239,228,0.38)" }}
-                        >
-                            Reset to default DiceBear avatar
-                        </button>
-                    </motion.div>
-                )}
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                                        Choose Your Crest
+                                    </h2>
+                                    <button
+                                        onClick={() => setShowCrestPicker(false)}
+                                        className="p-1.5 rounded hover:bg-white/5"
+                                        style={{ color: "rgba(244,239,228,0.62)" }}
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+                                <p className="text-sm mb-4" style={{ color: "rgba(244,239,228,0.62)" }}>
+                                    Select a team crest to use as your profile picture.
+                                </p>
+
+                                {loadingTeams ? (
+                                    <div className="flex justify-center py-12">
+                                        <RefreshCw className="h-6 w-6 animate-spin" style={{ color: "rgba(244,239,228,0.38)" }} />
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-6 sm:grid-cols-8 gap-3 max-h-64 overflow-y-auto p-1">
+                                        {teams.map((team) => (
+                                            <button
+                                                key={team.id}
+                                                onClick={() => handleSelectCrest(team.crest_url)}
+                                                className={`relative aspect-square rounded-xl p-2 transition-all hover:scale-105 ${crestUrl === team.crest_url
+                                                        ? "border-2 border-gold bg-gold/10"
+                                                        : "border border-white/10 hover:border-white/30"
+                                                    }`}
+                                            >
+                                                <CrestImage url={team.crest_url} alt={team.name} size="md" className="w-full h-full object-contain" />
+                                                <span className="sr-only">{team.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setCrestUrl(null);
+                                        setShowCrestPicker(false);
+                                    }}
+                                    className="mt-4 text-xs hover:underline"
+                                    style={{ color: "rgba(244,239,228,0.38)" }}
+                                >
+                                    Reset to default DiceBear avatar
+                                </button>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
 
                 {message && (
                     <motion.div
@@ -377,7 +377,7 @@ export default function ProfilePage() {
                                     type="button"
                                     onClick={() => {
                                         setIsEditing(false);
-                                        setGivenName(user?.givenName || '');
+                                        setGivenName(user?.givenName || user?.email?.split('@')[0] || '');
                                         setMessage(null);
                                     }}
                                     className="px-6 py-3 rounded-xl font-mono text-[11px] tracking-[0.25em] uppercase font-semibold transition-colors"
