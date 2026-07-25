@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
-import { useUser, UserButton } from "@clerk/react"; //
+import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -45,31 +45,46 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-// ─── Profile Section (hooks-based) ──────────────────────────────────
+// ─── Profile Section (Kinde) ──────────────────────────────────────
 function ProfileSection() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isAuthenticated, user, login, logout, register } = useKindeAuth();
 
-  if (!isLoaded) return null;
+  // Loading state – show a placeholder while Kinde initializes
+  if (isAuthenticated === undefined) {
+    return <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />;
+  }
 
-  return (
-    <>
-      {!isSignedIn ? (
-        <a
-          href="/sign-in"
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => login()}
           className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
         >
           Log in
-        </a>
-      ) : (
-        <UserButton
-          appearance={{
-            elements: {
-              userButtonAvatarBox: "h-8 w-8",
-            },
-          }}
-        />
-      )}
-    </>
+        </button>
+        <button
+          onClick={() => register()}
+          className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+        >
+          Sign up
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-sm text-muted-foreground">
+        {user?.givenName|| user?.email || "User"}
+      </span>
+      <button
+        onClick={() => logout()}
+        className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+      >
+        Log out
+      </button>
+    </div>
   );
 }
 
@@ -151,8 +166,8 @@ const Navbar = () => {
     >
       <div
         className={`mx-auto transition-all duration-500 ${atTop
-            ? "rounded-none border-b border-border/40 bg-background/80 backdrop-blur-xl max-w-full"
-            : "mt-3 mx-4 rounded-2xl border border-white/8 shadow-2xl shadow-black/30 bg-background/75 backdrop-blur-2xl max-w-7xl"
+          ? "rounded-none border-b border-border/40 bg-background/80 backdrop-blur-xl max-w-full"
+          : "mt-3 mx-4 rounded-2xl border border-white/8 shadow-2xl shadow-black/30 bg-background/75 backdrop-blur-2xl max-w-7xl"
           }`}
       >
         <div className="flex items-center justify-between px-5 py-3">
@@ -179,8 +194,8 @@ const Navbar = () => {
                   key={link.to}
                   to={link.to}
                   className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-                      ? "text-gold font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    ? "text-gold font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     }`}
                 >
                   {isActive && (
@@ -244,8 +259,8 @@ const Navbar = () => {
                       <Link
                         to={link.to}
                         className={`relative flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive
-                            ? "bg-gold/10 text-gold border border-gold/20 font-semibold"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          ? "bg-gold/10 text-gold border border-gold/20 font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                           }`}
                       >
                         {link.label}
