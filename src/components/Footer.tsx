@@ -31,10 +31,10 @@ const Footer = () => {
           <div>
             <h4 className="font-heading font-semibold mb-3">Quick Links</h4>
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-              <Link to="/games" className="hover:text-foreground transition-colors">Games</Link>
-              <Link to="/markets" className="hover:text-foreground transition-colors">Live Market Monitor</Link>
-              <Link to="/analytics" className="hover:text-foreground transition-colors">Analytics</Link>
-              <Link to="/patterns" className="hover:text-foreground transition-colors">Live Patterns</Link>
+              <Link to="/games" className="hover:text-foreground transition-colors">Fixtures</Link>
+              <Link to="/markets" className="hover:text-foreground transition-colors">Market Monitor</Link>
+              <Link to="/analytics" className="hover:text-foreground transition-colors">Predictions Analytics</Link>
+              <Link to="/patterns" className="hover:text-foreground transition-colors">Prediction Patterns</Link>
               <Link to="/community" className="hover:text-foreground transition-colors">Join our Community Board</Link>
             </div>
           </div>
@@ -44,6 +44,7 @@ const Footer = () => {
             <h4 className="font-heading font-semibold mb-3">Legal</h4>
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <Link to="/about" className="hover:text-foreground transition-colors">About Us</Link>
+              <Link to="/system" className="hover:text-foreground transition-colors">10 Odds Status</Link>
               <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
               <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             </div>

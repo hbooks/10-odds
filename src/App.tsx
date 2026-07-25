@@ -16,6 +16,7 @@ import MaintenancePage from "@/pages/Maintenance";
 import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
 import ProfilePage from "@/pages/ProfilePage";
 import DeleteAccount from "@/pages/DeleteAccount";
+import SystemStatus from "@/pages/SystemStatus";
 
 // ─── Replace Clerk with Kinde ──────────────────────────────────────
 import { KindeProvider } from '@kinde-oss/kinde-auth-react';
@@ -154,6 +155,7 @@ function App() {
                     <Route path="/admin/news" element={<AdminCommunity />} />
                     <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
                     <Route path="/profile/:userId" element={<ProfilePage />} />
+                    <Route path="/system" element={<SystemStatus />} />
                     <Route path="/delete-account-Request-Success" element={<DeleteAccount />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
