@@ -4,7 +4,6 @@ import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
-import { AuthStatusToast } from "@/components/AuthStatusToast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import GlobalLoader from "@/components/GlobalLoader";
 import SupportPortal from "@/components/SupportPortal";
@@ -15,7 +14,9 @@ import ChartPage from "./pages/ChartPage";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import MaintenancePage from "@/pages/Maintenance";
 import { useDevToolsProtection } from "@/hooks/Usedevtoolsprotection";
-import { ClerkProvider } from "@clerk/react";
+
+// ─── Replace Clerk with Kinde ──────────────────────────────────────
+import { KindeProvider } from '@kinde-oss/kinde-auth-react';
 
 const IndexPage = lazy(() => import("@/pages/Index"));
 const GamesPage = lazy(() => import("@/pages/GamesPage"));
@@ -77,8 +78,6 @@ function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 //  App
 // ══════════════════════════════════════════════════════════════════════════════
 function App() {
-  // ✅ Must be the very first hook — runs on mount, redirects to /blank.html
-  //    if DevTools is open. Admin sessions (?key=VITE_ADMIN_SECRET) bypass it.
   useDevToolsProtection();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -106,12 +105,12 @@ function App() {
         <Toaster />
         <Sonner />
         <LoadingContext.Provider value={{ isLoading, setIsLoading: delayedSetIsLoading }}>
-          {/* ─── ClerkProvider (updated) ─── */}
-          <ClerkProvider
-            publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
-            signInFallbackRedirectUrl="/games"
-            signUpFallbackRedirectUrl="/games"
-            afterSignOutUrl="/games"
+          {/* ─── KindeProvider ─── */}
+          <KindeProvider
+            domain={import.meta.env.VITE_KINDE_DOMAIN}
+            clientId={import.meta.env.VITE_KINDE_CLIENT_ID}
+            redirectUri={import.meta.env.VITE_KINDE_REDIRECT_URI}
+            logoutUri={import.meta.env.VITE_KINDE_LOGOUT_URI}
           >
             <BrowserRouter>
               <PageTracker />
@@ -156,13 +155,11 @@ function App() {
                   </Routes>
                 </Suspense>
               </MaintenanceGuard>
-              <AuthStatusToast />
               <CustomerCare />
               <SupportPortal />
             </BrowserRouter>
-          </ClerkProvider>
-          {/* ─── end ClerkProvider ─── */}
-        </LoadingContext.Provider>
+          </KindeProvider>
+          </LoadingContext.Provider>
       </TooltipProvider>
     </QueryClientProvider>
   );
